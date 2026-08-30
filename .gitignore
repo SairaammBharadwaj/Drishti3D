@@ -1,0 +1,26 @@
+# Dependency and build outputs
+node_modules/
+dist/
+build/
+
+# Local project database, uploads, and generated artifacts
+drishti3d/data/
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local environment and editor files
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs
+*.log

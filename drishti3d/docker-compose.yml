@@ -1,0 +1,52 @@
+# Drishti3D — local/offline deployment.
+#   docker compose up --build
+# Backend on :8000 (API), frontend on :8080 (nginx -> proxies /api to backend).
+# An optional GPU worker profile is provided for future MASt3R-SLAM/VGGT use.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DRISHTI_HOST: 0.0.0.0
+      DRISHTI_DATA_DIR: /app/data
+      DRISHTI_CORS: http://localhost:8080,http://127.0.0.1:8080
+    volumes:
+      - drishti_data:/app/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  # Optional GPU worker for learned models (disabled by default).
+  # Enable with: docker compose --profile gpu up
+  gpu-worker:
+    profiles: ["gpu"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DRISHTI_DATA_DIR: /app/data
+    volumes:
+      - drishti_data:/app/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: ["python", "-c", "print('GPU worker placeholder for MASt3R-SLAM/VGGT')"]
+
+volumes:
+  drishti_data:

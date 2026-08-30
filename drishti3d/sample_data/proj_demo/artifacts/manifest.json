@@ -1,0 +1,34 @@
+{
+  "version": "0.1.0",
+  "created": 1787995403.0812433,
+  "video_sha256": "279e792678bafceaacd3bd8e30bf2c41a1484f15df42b7f2b1932190e02211e5",
+  "params": {
+    "preset": "balanced",
+    "mask_backend": "optical_flow",
+    "do_mesh": true,
+    "proc_max_width": 1280,
+    "max_analyze_frames": 240,
+    "intrinsics": null,
+    "voxel": 0.15
+  },
+  "telemetry_valid": 60,
+  "artifacts": {
+    "cloud_npz": "cloud.npz",
+    "ply": "point_cloud.ply",
+    "las": "point_cloud.las",
+    "viewer": "viewer.json",
+    "trajectory": "trajectory.json",
+    "trajectory_csv": "trajectory.csv",
+    "geojson": "trajectory.geojson",
+    "frame_metrics": "frame_metrics.json",
+    "keyframes": "keyframes.json",
+    "report_json": "quality_report.json",
+    "report_html": "quality_report.html",
+    "mesh_glb": "mesh.glb"
+  },
+  "warnings": [
+    "camera intrinsics not provided; estimated focal = 0.9*max(w,h). Provide fx,fy,cx,cy for higher accuracy."
+  ],
+  "coordinate_frame": "local ENU (metres) about telemetry origin",
+  "units": "metres"
+}

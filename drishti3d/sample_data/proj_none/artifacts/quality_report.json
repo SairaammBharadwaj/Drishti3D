@@ -1,0 +1,142 @@
+{
+  "input": {
+    "video": {
+      "path": "sample_data/synthetic/synthetic_flight.mp4",
+      "width": 960,
+      "height": 540,
+      "fps": 30.0,
+      "frame_count": 60,
+      "duration": 2.0,
+      "codec": "h264",
+      "sha256": "279e792678bafceaacd3bd8e30bf2c41a1484f15df42b7f2b1932190e02211e5"
+    },
+    "telemetry": {
+      "n_valid": 60,
+      "warnings": [],
+      "has_rtk": false
+    },
+    "scale_source": "gps"
+  },
+  "frames": {
+    "total_analyzed": 60,
+    "accepted": 60,
+    "rejected": 0,
+    "accepted_fraction": 1.0,
+    "keyframes": 29
+  },
+  "reconstruction": {
+    "n_keyframes": 29,
+    "n_registered": 29,
+    "registered_fraction": 1.0,
+    "n_points": 14873,
+    "median_reproj_err": 0.14727329249324114,
+    "p90_reproj_err": 0.38315953553820475,
+    "mean_track_length": 6.647750958112015,
+    "mean_tri_angle": 12.059731748322555
+  },
+  "cloud": {
+    "n_points": 10819,
+    "bbox_min": [
+      -28.373675408006665,
+      -16.08713704376864,
+      -43.98530121547366
+    ],
+    "bbox_max": [
+      29.564872641708146,
+      42.01239517413864,
+      -31.687823036937733
+    ],
+    "dimensions_m": [
+      57.93854804971481,
+      58.09953221790728,
+      12.297478178535929
+    ],
+    "median_point_spacing_m": 0.17651302346190795,
+    "class_counts": {
+      "OBSERVED_HIGH_CONFIDENCE": 6466,
+      "OBSERVED_LOW_CONFIDENCE": 4353,
+      "AI_ASSISTED": 0,
+      "DYNAMIC_EXCLUDED": 0,
+      "UNOBSERVED": 0
+    },
+    "class_fractions": {
+      "OBSERVED_HIGH_CONFIDENCE": 0.5976522783991127,
+      "OBSERVED_LOW_CONFIDENCE": 0.40234772160088733,
+      "AI_ASSISTED": 0.0,
+      "DYNAMIC_EXCLUDED": 0.0,
+      "UNOBSERVED": 0.0
+    }
+  },
+  "alignment": {
+    "scale": 1.6275936117392464,
+    "n_inliers": 29,
+    "n_total": 29,
+    "alignment_rmse_3d_m": 0.4989796113026834,
+    "alignment_rmse_horizontal_m": 0.44000202641075037,
+    "alignment_rmse_vertical_m": 0.23532715366104764,
+    "scale_source": "gps",
+    "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+  },
+  "timings_s": {
+    "ingestion": 0.063,
+    "telemetry": 0.001,
+    "frames": 0.253,
+    "quality": 0.355,
+    "sync": 0.0,
+    "keyframes": 0.071,
+    "masking": 0.004,
+    "sfm": 35.229,
+    "georegistration": 0.017,
+    "fusion": 0.399,
+    "mesh": 0.0,
+    "report": 0.069
+  },
+  "performance": {
+    "processing_time_s": 36.392,
+    "video_duration_s": 2.0,
+    "processing_to_video_ratio": 18.196
+  },
+  "ground_truth_evaluation": {
+    "surface_accuracy_m": {
+      "median": 1.4535278057609966,
+      "mean": 1.5408439366388005,
+      "p90": 2.3881874064432274,
+      "rmse": 1.6557190301939024
+    },
+    "completeness_at_0.5m": 0.0616,
+    "completeness_at_1.0m": 0.32293333333333335,
+    "completeness_at_2.0m": 0.5770666666666666,
+    "dimensional_accuracy": [
+      {
+        "name": "building_width_E",
+        "truth_m": 12.0,
+        "measured_m": 12.286278937946149,
+        "abs_error_m": 0.28627893794614856,
+        "pct_error": 2.385657816217905
+      },
+      {
+        "name": "building_depth_N",
+        "truth_m": 8.0,
+        "measured_m": 8.046050965813077,
+        "abs_error_m": 0.04605096581307677,
+        "pct_error": 0.5756370726634596
+      },
+      {
+        "name": "building_height",
+        "truth_m": 9.0,
+        "measured_m": 9.314168978018177,
+        "abs_error_m": 0.3141689780181771,
+        "pct_error": 3.49076642242419
+      }
+    ]
+  },
+  "warnings": [
+    "camera intrinsics not provided; estimated focal = 0.9*max(w,h). Provide fx,fy,cx,cy for higher accuracy."
+  ],
+  "limitations": [
+    "Monocular single-pass video cannot measure surfaces never observed.",
+    "Absolute accuracy is GPS-limited unless RTK/PPK or GCPs are provided.",
+    "AI-assisted geometry is excluded from measurement by default.",
+    "Alignment residual is not a certified accuracy statement."
+  ]
+}

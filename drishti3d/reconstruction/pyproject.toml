@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drishti-recon"
+version = "0.1.0"
+description = "Confidence-aware monocular drone-video 3D reconstruction (Drishti3D / SIH26158)"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "opencv-python-headless>=4.8",
+    "pyproj>=3.5",
+    "imageio>=2.31",
+    "imageio-ffmpeg>=0.4",
+]
+
+[project.optional-dependencies]
+mesh = ["open3d>=0.17"]
+las = ["laspy>=2.5"]
+ai = ["torch", "torchvision"]
+
+[tool.setuptools]
+packages = ["drishti_recon"]

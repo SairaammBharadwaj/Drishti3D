@@ -1,0 +1,16 @@
+numpy>=1.24
+scipy>=1.10
+opencv-python-headless>=4.8
+pyproj>=3.5
+imageio>=2.31
+imageio-ffmpeg>=0.4
+
+[ai]
+torch
+torchvision
+
+[las]
+laspy>=2.5
+
+[mesh]
+open3d>=0.17
