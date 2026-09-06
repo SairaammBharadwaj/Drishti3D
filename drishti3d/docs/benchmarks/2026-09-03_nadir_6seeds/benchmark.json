@@ -1,0 +1,1374 @@
+{
+  "provenance": {
+    "generated_utc": "2026-09-03T05:39:59.656175+00:00",
+    "git_commit": "efae0334cc3d483ab7774338362fecf3b9e31e9c",
+    "git_branch": "main",
+    "git_dirty": true,
+    "python": "3.12.14",
+    "executable": "/home/naveen/Drishti3D/drishti3d/.venv/bin/python",
+    "platform": "Linux-7.1.9-arch1-2-x86_64-with-glibc2.44",
+    "cpu_count": 24,
+    "library_versions": {
+      "numpy": "2.5.2",
+      "scipy": "1.18.1",
+      "cv2": "5.0.0",
+      "pyproj": "3.7.2",
+      "open3d": "0.19.0"
+    }
+  },
+  "config": {
+    "variants": [
+      "baseline"
+    ],
+    "regimes": [
+      "nadir_grid"
+    ],
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "frames": 60,
+    "width": 960,
+    "height": 540,
+    "cloud_thr": 0.5,
+    "gps_outlier_frac": 0.0,
+    "max_frames": 400
+  },
+  "scenes": {
+    "nadir_grid_s0": {
+      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s0/synthetic_flight.mp4",
+      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s0/synthetic_telemetry.csv",
+      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s0/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "nadir_grid",
+      "seed": 0,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "5649a583a06ca29d4547a0809a2ecfe23713d1b18e7d31ff341773a6fe89cb1d",
+        "telemetry": "fb3f33fc1a4274fa9c6fca8d65cdaa86d19023208a24e3b5fe691393666b54c9",
+        "ground_truth": "38f4ee27651dac50b93703ceeb6be2c37bff3118503b9c1fb21ff7f226abf5f0"
+      }
+    },
+    "nadir_grid_s1": {
+      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s1/synthetic_flight.mp4",
+      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s1/synthetic_telemetry.csv",
+      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s1/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "nadir_grid",
+      "seed": 1,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "59df55993ebecd42f8f6a04312fc3cc5bb0a043b3648137660a0a02809ed0ee0",
+        "telemetry": "4515e10d5a6ae2fb7a2bd25b610af9f3f4e2910abe95b11605d4c53463853806",
+        "ground_truth": "38f4ee27651dac50b93703ceeb6be2c37bff3118503b9c1fb21ff7f226abf5f0"
+      }
+    },
+    "nadir_grid_s2": {
+      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s2/synthetic_flight.mp4",
+      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s2/synthetic_telemetry.csv",
+      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s2/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "nadir_grid",
+      "seed": 2,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "15621194b52b283ee7fe95fae1b7be8c967b8390fb85fe15ce4216fd1148dd69",
+        "telemetry": "9249b7d88b0b47e18a5fb402155d79040f7bad8640a18a7c8553150eec601248",
+        "ground_truth": "38f4ee27651dac50b93703ceeb6be2c37bff3118503b9c1fb21ff7f226abf5f0"
+      }
+    },
+    "nadir_grid_s3": {
+      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s3/synthetic_flight.mp4",
+      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s3/synthetic_telemetry.csv",
+      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s3/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "nadir_grid",
+      "seed": 3,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "caff1cca376f114828fedc5416a567356d9194e0278b0ea094a1488494feb9bb",
+        "telemetry": "ff8ed72b0886380012f9e940e11035f1cd609af39dd672dffb1a2a3a7d8e5021",
+        "ground_truth": "38f4ee27651dac50b93703ceeb6be2c37bff3118503b9c1fb21ff7f226abf5f0"
+      }
+    },
+    "nadir_grid_s4": {
+      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s4/synthetic_flight.mp4",
+      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s4/synthetic_telemetry.csv",
+      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s4/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "nadir_grid",
+      "seed": 4,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "82a8c128e48fefbc9147276d71dc0ba17eab458c45b60ab286e63f49a4e59039",
+        "telemetry": "44703cd39f237ad547ae1f4a36a8cb4e32328c67c262e0e9d343fce03edbc094",
+        "ground_truth": "38f4ee27651dac50b93703ceeb6be2c37bff3118503b9c1fb21ff7f226abf5f0"
+      }
+    },
+    "nadir_grid_s5": {
+      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s5/synthetic_flight.mp4",
+      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s5/synthetic_telemetry.csv",
+      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s5/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "nadir_grid",
+      "seed": 5,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "3694ab20ab58ebb0a8d01f698dbe3e839c3a1c61c0d0add29665e78ab1739eb5",
+        "telemetry": "f5ceec7718184942830080226aaad9e1252ee5e0d3099fbc613d721473289d97",
+        "ground_truth": "38f4ee27651dac50b93703ceeb6be2c37bff3118503b9c1fb21ff7f226abf5f0"
+      }
+    }
+  },
+  "cells": [
+    {
+      "spec": {
+        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s0",
+        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_nadir/work/baseline__nadir_grid_s0",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s0",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 2.4046148188681835,
+        "ate_median": 0.3027599529131307,
+        "ate_max": 6.39501018492242,
+        "ate_axis_rmse": [
+          1.5577479910446042,
+          1.7974405189817884,
+          0.35327213906483623
+        ],
+        "scale_error": 0.0028971755287836576,
+        "cloud_acc_median": 0.959742957107321,
+        "cloud_acc_rmse": 1.0271710200175235,
+        "cloud_completeness": 0.5648,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 16596,
+        "dim_error_pct": 2.148047863288331,
+        "warnings": [
+          "video presentation timestamps are not strictly increasing; falling back to frame_index/fps timing (frame-to-GPS association may drift if the stream is variable-frame-rate)"
+        ]
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 21512,
+          "median_reproj_err": 0.22057936542858547,
+          "p90_reproj_err": 2.818259400621971,
+          "mean_track_length": 9.159724804760135,
+          "mean_tri_angle": 29.09463809951378,
+          "init_pair": {
+            "frames": [
+              25,
+              32
+            ],
+            "median_tri_angle": 20.904155471710716,
+            "n_inliers": 2552,
+            "cheirality": 1.0,
+            "spread_px": 210.92050170898438
+          },
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 17.114301596501214,
+          "n_inliers": 46,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.6942557207498885,
+          "alignment_rmse_horizontal_m": 0.6421540808539675,
+          "alignment_rmse_vertical_m": 0.26387334506642235,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 16596,
+          "bbox_min": [
+            -30.762130897549604,
+            -29.63738998883679,
+            -47.59065410734033
+          ],
+          "bbox_max": [
+            30.929102576412085,
+            30.529820688632856,
+            -34.74040430592215
+          ],
+          "dimensions_m": [
+            61.69123347396169,
+            60.16721067746965,
+            12.85024980141818
+          ],
+          "median_point_spacing_m": 0.2225779993676716,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 12387,
+            "OBSERVED_LOW_CONFIDENCE": 4209,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.7463846710050615,
+            "OBSERVED_LOW_CONFIDENCE": 0.25361532899493855,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.024,
+          "telemetry": 0.001,
+          "frames": 0.12,
+          "quality": 0.167,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 89.985,
+          "densify": 0.0,
+          "georegistration": 0.083,
+          "fusion": 0.038,
+          "mesh": 0.0,
+          "report": 0.043,
+          "exports": 0.094
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.9763902552257737,
+            "mean": 0.9396160409869252,
+            "p90": 1.4627374915230873,
+            "rmse": 1.0352088040169285
+          },
+          "completeness_at_0.5m": 0.4978666666666667,
+          "completeness_at_1.0m": 0.7712,
+          "completeness_at_2.0m": 0.9362666666666667,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 11.99960851807402,
+              "abs_error_m": 0.0003914819259804858,
+              "pct_error": 0.003262349383170715
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 8.096629729943047,
+              "abs_error_m": 0.09662972994304653,
+              "pct_error": 1.2078716242880816
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.529029134542563,
+              "abs_error_m": 0.4709708654574367,
+              "pct_error": 5.233009616193741
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 90.428,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 15.071333333333333
+        }
+      },
+      "status": "ok",
+      "runtime_s": 90.84,
+      "peak_rss_mb": 1065.7,
+      "variant": "baseline",
+      "regime": "nadir_grid",
+      "seed": 0,
+      "scene": "nadir_grid_s0"
+    },
+    {
+      "spec": {
+        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s1",
+        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_nadir/work/baseline__nadir_grid_s1",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s1",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 0.1702746425498701,
+        "ate_median": 0.0766982161725924,
+        "ate_max": 0.6676086658924031,
+        "ate_axis_rmse": [
+          0.11835421495193972,
+          0.12142592261963582,
+          0.015539595057989419
+        ],
+        "scale_error": 0.0002146231704464041,
+        "cloud_acc_median": 0.9109250341305551,
+        "cloud_acc_rmse": 0.9454888087050214,
+        "cloud_completeness": 0.6834666666666667,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 17865,
+        "dim_error_pct": 1.2398262381403624,
+        "warnings": [
+          "video presentation timestamps are not strictly increasing; falling back to frame_index/fps timing (frame-to-GPS association may drift if the stream is variable-frame-rate)"
+        ]
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 23620,
+          "median_reproj_err": 0.09832303773750325,
+          "p90_reproj_err": 0.3408900653899541,
+          "mean_track_length": 8.997713801862828,
+          "mean_tri_angle": 28.988644264181872,
+          "init_pair": {
+            "frames": [
+              23,
+              30
+            ],
+            "median_tri_angle": 21.11555612652192,
+            "n_inliers": 2418,
+            "cheirality": 1.0,
+            "spread_px": 219.7608184814453
+          },
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 17.088047279577022,
+          "n_inliers": 60,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.5044802153743977,
+          "alignment_rmse_horizontal_m": 0.4170845215118013,
+          "alignment_rmse_vertical_m": 0.28379709233794176,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 17865,
+          "bbox_min": [
+            -30.502328973023104,
+            -29.766154102255804,
+            -45.9770997238073
+          ],
+          "bbox_max": [
+            30.585910834433655,
+            30.0643154673751,
+            -35.264849238891294
+          ],
+          "dimensions_m": [
+            61.08823980745676,
+            59.83046956963091,
+            10.712250484916005
+          ],
+          "median_point_spacing_m": 0.21254170723542154,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 13704,
+            "OBSERVED_LOW_CONFIDENCE": 4161,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.7670864819479429,
+            "OBSERVED_LOW_CONFIDENCE": 0.2329135180520571,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.025,
+          "telemetry": 0.001,
+          "frames": 0.138,
+          "quality": 0.167,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 89.7,
+          "densify": 0.0,
+          "georegistration": 0.004,
+          "fusion": 0.041,
+          "mesh": 0.0,
+          "report": 0.048,
+          "exports": 0.101
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.9196600058849352,
+            "mean": 0.8513574689146267,
+            "p90": 1.3674213608917876,
+            "rmse": 0.951515866937506
+          },
+          "completeness_at_0.5m": 0.6848,
+          "completeness_at_1.0m": 0.8237333333333333,
+          "completeness_at_2.0m": 0.9277333333333333,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 12.028772267231966,
+              "abs_error_m": 0.028772267231966353,
+              "pct_error": 0.23976889359971962
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 8.233423252634216,
+              "abs_error_m": 0.23342325263421593,
+              "pct_error": 2.917790657927699
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.94942727533957,
+              "abs_error_m": 0.05057272466043017,
+              "pct_error": 0.5619191628936686
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 90.086,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 15.014333333333333
+        }
+      },
+      "status": "ok",
+      "runtime_s": 90.48,
+      "peak_rss_mb": 1059.7,
+      "variant": "baseline",
+      "regime": "nadir_grid",
+      "seed": 1,
+      "scene": "nadir_grid_s1"
+    },
+    {
+      "spec": {
+        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s2",
+        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_nadir/work/baseline__nadir_grid_s2",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s2",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 0.5765246889294745,
+        "ate_median": 0.4499161546568572,
+        "ate_max": 1.5745480982548352,
+        "ate_axis_rmse": [
+          0.4020196004325834,
+          0.4052318383215407,
+          0.08092042402136822
+        ],
+        "scale_error": 0.0010348820535758252,
+        "cloud_acc_median": 0.9049075603556442,
+        "cloud_acc_rmse": 0.9476255649019933,
+        "cloud_completeness": 0.6544,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 18304,
+        "dim_error_pct": 2.506746340931078,
+        "warnings": [
+          "video presentation timestamps are not strictly increasing; falling back to frame_index/fps timing (frame-to-GPS association may drift if the stream is variable-frame-rate)"
+        ]
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 23617,
+          "median_reproj_err": 0.33533544994594494,
+          "p90_reproj_err": 0.669609167429871,
+          "mean_track_length": 9.010246856078249,
+          "mean_tri_angle": 29.089054063073757,
+          "init_pair": {
+            "frames": [
+              23,
+              30
+            ],
+            "median_tri_angle": 20.949814932200717,
+            "n_inliers": 2403,
+            "cheirality": 1.0,
+            "spread_px": 223.24008178710938
+          },
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 16.819822264956482,
+          "n_inliers": 58,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.7484204057553432,
+          "alignment_rmse_horizontal_m": 0.704903645926632,
+          "alignment_rmse_vertical_m": 0.2514835058415042,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 18304,
+          "bbox_min": [
+            -30.109248625324728,
+            -29.84973648231414,
+            -45.90709519643547
+          ],
+          "bbox_max": [
+            30.294012654735127,
+            29.803858375638168,
+            -34.9362931068186
+          ],
+          "dimensions_m": [
+            60.40326128005985,
+            59.65359485795231,
+            10.970802089616868
+          ],
+          "median_point_spacing_m": 0.21476327465129186,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 14089,
+            "OBSERVED_LOW_CONFIDENCE": 4215,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.769722465034965,
+            "OBSERVED_LOW_CONFIDENCE": 0.23027753496503497,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.024,
+          "telemetry": 0.001,
+          "frames": 0.136,
+          "quality": 0.166,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 89.799,
+          "densify": 0.0,
+          "georegistration": 0.044,
+          "fusion": 0.041,
+          "mesh": 0.0,
+          "report": 0.048,
+          "exports": 0.102
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.9416884322328166,
+            "mean": 0.9029158601275346,
+            "p90": 1.3899493383184496,
+            "rmse": 0.982667339242702
+          },
+          "completeness_at_0.5m": 0.6053333333333333,
+          "completeness_at_1.0m": 0.7965333333333333,
+          "completeness_at_2.0m": 0.9144,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 12.732650874271505,
+              "abs_error_m": 0.7326508742715045,
+              "pct_error": 6.105423952262537
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 8.10289588835649,
+              "abs_error_m": 0.10289588835649077,
+              "pct_error": 1.2861986044561347
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 9.01157548194671,
+              "abs_error_m": 0.011575481946710653,
+              "pct_error": 0.1286164660745628
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 90.221,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 15.036833333333334
+        }
+      },
+      "status": "ok",
+      "runtime_s": 90.62,
+      "peak_rss_mb": 1064.3,
+      "variant": "baseline",
+      "regime": "nadir_grid",
+      "seed": 2,
+      "scene": "nadir_grid_s2"
+    },
+    {
+      "spec": {
+        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s3",
+        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_nadir/work/baseline__nadir_grid_s3",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s3",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 0.909173119488058,
+        "ate_median": 0.5966432915880787,
+        "ate_max": 2.822502483988837,
+        "ate_axis_rmse": [
+          0.565520184544739,
+          0.7023849329609374,
+          0.11592276748590193
+        ],
+        "scale_error": 0.0010133627798044609,
+        "cloud_acc_median": 0.9248444770605821,
+        "cloud_acc_rmse": 0.9779748702056773,
+        "cloud_completeness": 0.6744,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 19002,
+        "dim_error_pct": 2.0160664234743813,
+        "warnings": [
+          "video presentation timestamps are not strictly increasing; falling back to frame_index/fps timing (frame-to-GPS association may drift if the stream is variable-frame-rate)"
+        ]
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 23535,
+          "median_reproj_err": 0.5523843671812174,
+          "p90_reproj_err": 1.6800895519435814,
+          "mean_track_length": 9.025451455279372,
+          "mean_tri_angle": 29.061100787648023,
+          "init_pair": {
+            "frames": [
+              23,
+              30
+            ],
+            "median_tri_angle": 21.204081492743654,
+            "n_inliers": 2398,
+            "cheirality": 0.9991666666666666,
+            "spread_px": 220.26510620117188
+          },
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 17.49669953557059,
+          "n_inliers": 55,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.7904354520699396,
+          "alignment_rmse_horizontal_m": 0.7429275340342277,
+          "alignment_rmse_vertical_m": 0.2699016173772052,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 19002,
+          "bbox_min": [
+            -31.591741711097857,
+            -30.754094765680357,
+            -49.44412356024602
+          ],
+          "bbox_max": [
+            31.785619059270743,
+            31.457191306738203,
+            -35.54341650341239
+          ],
+          "dimensions_m": [
+            63.3773607703686,
+            62.21128607241856,
+            13.900707056833632
+          ],
+          "median_point_spacing_m": 0.23497078153009732,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 14388,
+            "OBSERVED_LOW_CONFIDENCE": 4614,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.7571834543732239,
+            "OBSERVED_LOW_CONFIDENCE": 0.24281654562677613,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.025,
+          "telemetry": 0.001,
+          "frames": 0.116,
+          "quality": 0.166,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 89.761,
+          "densify": 0.0,
+          "georegistration": 0.044,
+          "fusion": 0.041,
+          "mesh": 0.0,
+          "report": 0.05,
+          "exports": 0.104
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 1.2618560162024588,
+            "mean": 1.2270796329439606,
+            "p90": 1.7160271200777701,
+            "rmse": 1.3045342542374192
+          },
+          "completeness_at_0.5m": 0.39813333333333334,
+          "completeness_at_1.0m": 0.8749333333333333,
+          "completeness_at_2.0m": 0.9805333333333334,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 11.79243525807958,
+              "abs_error_m": 0.20756474192041985,
+              "pct_error": 1.7297061826701654
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 8.037795824892154,
+              "abs_error_m": 0.03779582489215372,
+              "pct_error": 0.47244781115192147
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.653855925105905,
+              "abs_error_m": 0.34614407489409516,
+              "pct_error": 3.8460452766010573
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 90.164,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 15.027333333333333
+        }
+      },
+      "status": "ok",
+      "runtime_s": 90.6,
+      "peak_rss_mb": 1072.9,
+      "variant": "baseline",
+      "regime": "nadir_grid",
+      "seed": 3,
+      "scene": "nadir_grid_s3"
+    },
+    {
+      "spec": {
+        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s4",
+        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_nadir/work/baseline__nadir_grid_s4",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s4",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 1.9791082471399324,
+        "ate_median": 0.675375403646691,
+        "ate_max": 5.542808061267436,
+        "ate_axis_rmse": [
+          0.8810985837429145,
+          1.749359538838384,
+          0.2833300963517338
+        ],
+        "scale_error": 0.004167500118709588,
+        "cloud_acc_median": 0.9507587729089211,
+        "cloud_acc_rmse": 0.9940155566181735,
+        "cloud_completeness": 0.5904,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 18661,
+        "dim_error_pct": 2.418429245588952,
+        "warnings": [
+          "video presentation timestamps are not strictly increasing; falling back to frame_index/fps timing (frame-to-GPS association may drift if the stream is variable-frame-rate)"
+        ]
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 23543,
+          "median_reproj_err": 0.7011807260486208,
+          "p90_reproj_err": 1.9502680157114918,
+          "mean_track_length": 9.01214798453893,
+          "mean_tri_angle": 29.3859119834698,
+          "init_pair": {
+            "frames": [
+              23,
+              31
+            ],
+            "median_tri_angle": 24.578929943543283,
+            "n_inliers": 1962,
+            "cheirality": 0.9989816700610998,
+            "spread_px": 214.49386596679688
+          },
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 20.04513651541569,
+          "n_inliers": 47,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.8237023980053805,
+          "alignment_rmse_horizontal_m": 0.7653052325977667,
+          "alignment_rmse_vertical_m": 0.30462032341636786,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 18661,
+          "bbox_min": [
+            -30.742687718097425,
+            -30.39271806204257,
+            -46.908116575064966
+          ],
+          "bbox_max": [
+            30.907458160348675,
+            30.27822097764495,
+            -31.48718623765187
+          ],
+          "dimensions_m": [
+            61.6501458784461,
+            60.67093903968752,
+            15.420930337413097
+          ],
+          "median_point_spacing_m": 0.23157935773088423,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 14278,
+            "OBSERVED_LOW_CONFIDENCE": 4383,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.7651251272707786,
+            "OBSERVED_LOW_CONFIDENCE": 0.23487487272922136,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.023,
+          "telemetry": 0.001,
+          "frames": 0.12,
+          "quality": 0.165,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 91.984,
+          "densify": 0.0,
+          "georegistration": 0.084,
+          "fusion": 0.042,
+          "mesh": 0.0,
+          "report": 0.048,
+          "exports": 0.104
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.9574975612655088,
+            "mean": 0.9129579463910882,
+            "p90": 1.4292979906457575,
+            "rmse": 1.0069911642198637
+          },
+          "completeness_at_0.5m": 0.588,
+          "completeness_at_1.0m": 0.7690666666666667,
+          "completeness_at_2.0m": 0.9205333333333333,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 11.961921944314172,
+              "abs_error_m": 0.038078055685828005,
+              "pct_error": 0.3173171307152334
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 7.466352329851754,
+              "abs_error_m": 0.5336476701482464,
+              "pct_error": 6.67059587685308
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.975936274372131,
+              "abs_error_m": 0.02406372562786885,
+              "pct_error": 0.26737472919854277
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 92.42899999999999,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 15.40483333333333
+        }
+      },
+      "status": "ok",
+      "runtime_s": 92.87,
+      "peak_rss_mb": 1071.6,
+      "variant": "baseline",
+      "regime": "nadir_grid",
+      "seed": 4,
+      "scene": "nadir_grid_s4"
+    },
+    {
+      "spec": {
+        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s5",
+        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_nadir/work/baseline__nadir_grid_s5",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s5",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 1.6090510645099798,
+        "ate_median": 0.7994490089001044,
+        "ate_max": 5.789078478615487,
+        "ate_axis_rmse": [
+          1.0396606463846385,
+          1.215837880236603,
+          0.1728852727722588
+        ],
+        "scale_error": 0.00018510697723650438,
+        "cloud_acc_median": 0.9621920766247481,
+        "cloud_acc_rmse": 1.005887507010112,
+        "cloud_completeness": 0.6386666666666667,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 17803,
+        "dim_error_pct": 2.6876552103367275,
+        "warnings": [
+          "video presentation timestamps are not strictly increasing; falling back to frame_index/fps timing (frame-to-GPS association may drift if the stream is variable-frame-rate)"
+        ]
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 22162,
+          "median_reproj_err": 1.1110202645650267,
+          "p90_reproj_err": 2.996151884992878,
+          "mean_track_length": 9.126522876996662,
+          "mean_tri_angle": 29.648217265333795,
+          "init_pair": {
+            "frames": [
+              23,
+              30
+            ],
+            "median_tri_angle": 21.272170453832405,
+            "n_inliers": 2393,
+            "cheirality": 1.0,
+            "spread_px": 223.119384765625
+          },
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 17.227787977675042,
+          "n_inliers": 51,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.9991586052574619,
+          "alignment_rmse_horizontal_m": 0.9490113636463247,
+          "alignment_rmse_vertical_m": 0.3125625539474943,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 17803,
+          "bbox_min": [
+            -30.22556531445963,
+            -30.7544973473018,
+            -47.256448314107
+          ],
+          "bbox_max": [
+            30.956744044470604,
+            29.93036232843467,
+            -33.97367148987092
+          ],
+          "dimensions_m": [
+            61.18230935893023,
+            60.68485967573647,
+            13.28277682423608
+          ],
+          "median_point_spacing_m": 0.2468843754910317,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 13318,
+            "OBSERVED_LOW_CONFIDENCE": 4485,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.7480761669381565,
+            "OBSERVED_LOW_CONFIDENCE": 0.2519238330618435,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.025,
+          "telemetry": 0.0,
+          "frames": 0.122,
+          "quality": 0.164,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 89.615,
+          "densify": 0.0,
+          "georegistration": 0.083,
+          "fusion": 0.04,
+          "mesh": 0.0,
+          "report": 0.047,
+          "exports": 0.098
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 1.0054838107648136,
+            "mean": 0.951934279071845,
+            "p90": 1.4907454481334297,
+            "rmse": 1.051659461277223
+          },
+          "completeness_at_0.5m": 0.5648,
+          "completeness_at_1.0m": 0.8352,
+          "completeness_at_2.0m": 0.9448,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 12.172266789867896,
+              "abs_error_m": 0.172266789867896,
+              "pct_error": 1.4355565822324667
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 7.549691492763398,
+              "abs_error_m": 0.45030850723660176,
+              "pct_error": 5.6288563404575225
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.910130256251183,
+              "abs_error_m": 0.0898697437488174,
+              "pct_error": 0.9985527083201933
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 90.059,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 15.009833333333333
+        }
+      },
+      "status": "ok",
+      "runtime_s": 90.5,
+      "peak_rss_mb": 1076.0,
+      "variant": "baseline",
+      "regime": "nadir_grid",
+      "seed": 5,
+      "scene": "nadir_grid_s5"
+    }
+  ],
+  "summary": {
+    "per_cell": {
+      "baseline|nadir_grid": {
+        "variant": "baseline",
+        "regime": "nadir_grid",
+        "n_trials": 6,
+        "n_failed": 0,
+        "failure_rate": 0.0,
+        "registered_fraction": {
+          "median": 1.0,
+          "worst": 1.0,
+          "n": 6
+        },
+        "ate_rmse": {
+          "median": 1.2591120919990189,
+          "worst": 2.4046148188681835,
+          "n": 6
+        },
+        "ate_max": {
+          "median": 4.1826552726281365,
+          "worst": 6.39501018492242,
+          "n": 6
+        },
+        "scale_error": {
+          "median": 0.001024122416690143,
+          "worst": 0.004167500118709588,
+          "n": 6
+        },
+        "cloud_acc_median": {
+          "median": 0.9378016249847516,
+          "worst": 0.9621920766247481,
+          "n": 6
+        },
+        "cloud_completeness": {
+          "median": 0.6465333333333334,
+          "worst": 0.5648,
+          "n": 6
+        },
+        "dim_error_pct": {
+          "median": 2.2832385544386415,
+          "worst": 2.6876552103367275,
+          "n": 6
+        },
+        "median_reproj_err": {
+          "median": 0.44385990856358115,
+          "worst": 0.09832303773750325,
+          "n": 6
+        },
+        "n_points": {
+          "median": 23539.0,
+          "worst": 21512.0,
+          "n": 6
+        },
+        "runtime_s": {
+          "median": 90.61,
+          "worst": 92.87,
+          "n": 6
+        },
+        "peak_rss_mb": {
+          "median": 1068.65,
+          "worst": 1076.0,
+          "n": 6
+        }
+      }
+    },
+    "per_variant": {
+      "baseline": {
+        "n_trials": 6,
+        "n_failed": 0,
+        "failure_rate": 0.0,
+        "registered_fraction": {
+          "median": 1.0,
+          "worst": 1.0,
+          "n": 6
+        },
+        "ate_rmse": {
+          "median": 1.2591120919990189,
+          "worst": 2.4046148188681835,
+          "n": 6
+        },
+        "ate_max": {
+          "median": 4.1826552726281365,
+          "worst": 6.39501018492242,
+          "n": 6
+        },
+        "scale_error": {
+          "median": 0.001024122416690143,
+          "worst": 0.004167500118709588,
+          "n": 6
+        },
+        "cloud_acc_median": {
+          "median": 0.9378016249847516,
+          "worst": 0.9621920766247481,
+          "n": 6
+        },
+        "cloud_completeness": {
+          "median": 0.6465333333333334,
+          "worst": 0.5648,
+          "n": 6
+        },
+        "dim_error_pct": {
+          "median": 2.2832385544386415,
+          "worst": 2.6876552103367275,
+          "n": 6
+        },
+        "median_reproj_err": {
+          "median": 0.44385990856358115,
+          "worst": 0.09832303773750325,
+          "n": 6
+        },
+        "n_points": {
+          "median": 23539.0,
+          "worst": 21512.0,
+          "n": 6
+        },
+        "runtime_s": {
+          "median": 90.61,
+          "worst": 92.87,
+          "n": 6
+        },
+        "peak_rss_mb": {
+          "median": 1068.65,
+          "worst": 1076.0,
+          "n": 6
+        }
+      }
+    }
+  },
+  "total_runtime_s": 555.0
+}

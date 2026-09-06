@@ -26,6 +26,13 @@ class PointCloud:
     confidence: np.ndarray      # (N,)
     provenance: np.ndarray      # (N,) int (Provenance)
     normals: np.ndarray | None = None
+    #: Propagated 1-sigma positional uncertainty in metres (see
+    #: :mod:`uncertainty`).  ``sigma`` is the isotropic-equivalent value used for
+    #: display; ``sigma_major`` is the worst-constrained axis and is what
+    #: measurements use, because reporting the optimistic direction of an
+    #: anisotropic error would understate the risk of the number a user acts on.
+    sigma: np.ndarray | None = None          # (N,)
+    sigma_major: np.ndarray | None = None    # (N,)
 
     def __len__(self):
         return int(self.points.shape[0])
@@ -56,14 +63,22 @@ def _statistical_outlier_np(pts, k=12, std_ratio=2.0):
 
 
 def fuse(points, colors, confidence, *, voxel: float = 0.2,
-         remove_outliers: bool = True, compute_normals: bool = True) -> PointCloud:
-    """Clean and label a metric-frame cloud."""
+         remove_outliers: bool = True, compute_normals: bool = True,
+         sigma=None, sigma_major=None) -> PointCloud:
+    """Clean and label a metric-frame cloud.
+
+    ``sigma`` / ``sigma_major`` are optional per-point uncertainties carried
+    through the same downsampling and outlier indexing as colour and confidence,
+    so a shipped point keeps the uncertainty that belongs to it.
+    """
     points = np.asarray(points, float)
     colors = np.asarray(colors, np.uint8)
     confidence = np.asarray(confidence, float)
+    sigma = None if sigma is None else np.asarray(sigma, float)
+    sigma_major = None if sigma_major is None else np.asarray(sigma_major, float)
     if len(points) == 0:
         return PointCloud(points, colors, confidence,
-                          np.zeros(0, int), None)
+                          np.zeros(0, int), None, sigma, sigma_major)
 
     normals = None
     if _HAVE_O3D:
@@ -79,13 +94,18 @@ def fuse(points, colors, confidence, *, voxel: float = 0.2,
         ds_pts = np.asarray(pc.points)
         _, nn = tree.query(ds_pts)
         conf2 = confidence[nn]
+        sig2 = None if sigma is None else sigma[nn]
+        sigm2 = None if sigma_major is None else sigma_major[nn]
         cols2 = (np.asarray(pc.colors) * 255).astype(np.uint8)
         if remove_outliers and len(ds_pts) > 20:
             pc2, keep = pc.remove_statistical_outlier(nb_neighbors=12, std_ratio=2.0)
             ds_pts = np.asarray(pc2.points)
             cols2 = (np.asarray(pc2.colors) * 255).astype(np.uint8)
             conf2 = conf2[keep]
+            sig2 = None if sig2 is None else sig2[keep]
+            sigm2 = None if sigm2 is None else sigm2[keep]
         points, colors, confidence = ds_pts, cols2, conf2
+        sigma, sigma_major = sig2, sigm2
         if compute_normals and len(points) > 10:
             pc3 = o3d.geometry.PointCloud()
             pc3.points = o3d.utility.Vector3dVector(points)
@@ -94,14 +114,21 @@ def fuse(points, colors, confidence, *, voxel: float = 0.2,
             normals = np.asarray(pc3.normals)
     else:
         if voxel > 0:
-            points, colors, confidence = _voxel_downsample_np(
-                points, colors, confidence, voxel)
+            keys = np.floor(points / voxel).astype(np.int64)
+            _, idx = np.unique(keys, axis=0, return_index=True)
+            idx.sort()
+            points, colors, confidence = points[idx], colors[idx], confidence[idx]
+            sigma = None if sigma is None else sigma[idx]
+            sigma_major = None if sigma_major is None else sigma_major[idx]
         if remove_outliers:
             keep = _statistical_outlier_np(points)
             points, colors, confidence = points[keep], colors[keep], confidence[keep]
+            sigma = None if sigma is None else sigma[keep]
+            sigma_major = None if sigma_major is None else sigma_major[keep]
 
     provenance = np.array([int(classify(c)) for c in confidence], int)
-    return PointCloud(points, colors, confidence, provenance, normals)
+    return PointCloud(points, colors, confidence, provenance, normals,
+                      sigma, sigma_major)
 
 
 def add_inferred_layer(cloud: PointCloud, inferred_pts, inferred_cols=None) -> PointCloud:
@@ -120,4 +147,12 @@ def add_inferred_layer(cloud: PointCloud, inferred_pts, inferred_cols=None) -> P
     conf = np.concatenate([cloud.confidence, np.zeros(len(inferred_pts))])
     prov = np.concatenate([cloud.provenance,
                            np.full(len(inferred_pts), int(Provenance.AI_ASSISTED))])
-    return PointCloud(pts, cols, conf, prov, None)
+    # Inferred points have no propagated uncertainty -- they were never
+    # triangulated from real observations, so their sigma is infinite rather
+    # than zero.  A missing uncertainty must never read as a confident one.
+    def _ext(arr):
+        if arr is None:
+            return None
+        return np.concatenate([arr, np.full(len(inferred_pts), np.inf)])
+    return PointCloud(pts, cols, conf, prov, None,
+                      _ext(cloud.sigma), _ext(cloud.sigma_major))

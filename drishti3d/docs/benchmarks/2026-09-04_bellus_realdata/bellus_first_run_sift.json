@@ -1,0 +1,29 @@
+{
+  "generated": "2026-09-04T08:23:46.166137+00:00",
+  "cases": [
+    {
+      "name": "odm:odm_data_bellus-master",
+      "kind": "odm",
+      "n_images": 122,
+      "n_solved": 13,
+      "n_matched": 0,
+      "ate_rmse": null,
+      "ate_median": null,
+      "ate_max": null,
+      "ate_axis_rmse": null,
+      "scale_error": null,
+      "cloud_acc_median": null,
+      "cloud_acc_rmse": null,
+      "cloud_completeness": null,
+      "cloud_thr": null,
+      "n_cloud_pts": 1236,
+      "dim_error_pct": null,
+      "warnings": [
+        "video presentation timestamps are not strictly increasing; falling back to frame_index/fps timing (frame-to-GPS association may drift if the stream is variable-frame-rate)",
+        "camera intrinsics not provided; estimated focal = 0.9*max(w,h). Provide fx,fy,cx,cy for higher accuracy.",
+        "time offset not applied: peak correlation 0.19 / confidence 0.13 below thresholds (0.5, 0.3); motion may be too uniform to reveal timing",
+        "rolling-shutter smear ~2.84 deg per frame at the 95th percentile turn rate (170.6 deg/s, readout 16.7 ms). Poses and reprojection residuals are biased; treat measurements from fast-yaw segments as unreliable."
+      ]
+    }
+  ]
+}

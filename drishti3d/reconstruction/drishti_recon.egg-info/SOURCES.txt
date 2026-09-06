@@ -2,6 +2,7 @@ pyproject.toml
 drishti_recon/__init__.py
 drishti_recon/ai_adapter.py
 drishti_recon/colmap_adapter.py
+drishti_recon/depth_prior.py
 drishti_recon/exports.py
 drishti_recon/frame_quality.py
 drishti_recon/fusion.py

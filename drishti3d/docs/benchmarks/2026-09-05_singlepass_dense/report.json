@@ -1,0 +1,497 @@
+{
+  "input": {
+    "video": {
+      "path": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s0/synthetic_flight.mp4",
+      "width": 960,
+      "height": 540,
+      "fps": 10.0,
+      "frame_count": 60,
+      "duration": 6.0,
+      "codec": "h264",
+      "sha256": "099ac80ef025438ce5a9ff4d0e9b732619caa42c99f668ddcebaac4325be7d4d"
+    },
+    "telemetry": {
+      "n_valid": 60,
+      "warnings": [],
+      "has_rtk": false
+    },
+    "scale_source": "gps"
+  },
+  "frames": {
+    "total_analyzed": 60,
+    "accepted": 60,
+    "rejected": 0,
+    "accepted_fraction": 1.0,
+    "keyframes": 60
+  },
+  "reconstruction": {
+    "n_keyframes": 60,
+    "n_registered": 60,
+    "registered_fraction": 1.0,
+    "n_points": 12731,
+    "median_reproj_err": 0.08966107472346942,
+    "p90_reproj_err": 0.22548915156966037,
+    "mean_track_length": 17.355745817296363,
+    "mean_tri_angle": 22.905146504838957,
+    "matcher": {
+      "name": "sift",
+      "kind": "classical"
+    },
+    "heading_normalised": false,
+    "rotation_rescued_pairs": 0,
+    "canonical_orientation": false,
+    "orientation": {},
+    "init_pair": {
+      "frames": [
+        19,
+        51
+      ],
+      "median_tri_angle": 37.40182922736026,
+      "n_inliers": 1419,
+      "cheirality": 0.9971890372452565,
+      "spread_px": 191.91722106933594,
+      "connectivity": 1
+    },
+    "uncertainty": {
+      "sigma_px_estimated": 0.07635302154166264,
+      "n_with_covariance": 12731,
+      "n_observable": 12731,
+      "median_sigma_recon_frame": 0.0002928358649492562
+    },
+    "bundle_adjustment": {
+      "enabled": true,
+      "n_solves": 8,
+      "final": {
+        "n_cameras": 60,
+        "n_points": 12731,
+        "n_observations": 220956,
+        "rmse_px_before": 0.23969061726618923,
+        "rmse_px_after": 0.23969061726618923,
+        "cost_before": 6347.1369815777525,
+        "cost_after": 6347.1369815777525,
+        "n_iterations": 6,
+        "converged": true,
+        "message": "`ftol` termination condition is satisfied.",
+        "accepted": false,
+        "n_fixed_single_view_points": 0,
+        "jacobian": "analytic",
+        "refined_focal": null,
+        "refined_dist": null
+      },
+      "history": [
+        {
+          "stage": "incremental@8",
+          "n_cameras": 10,
+          "n_points": 6553,
+          "n_observations": 35183,
+          "rmse_px_before": 0.2309246387417731,
+          "rmse_px_after": 0.19026930541434614,
+          "cost_before": 938.0876498885107,
+          "cost_after": 636.854670585342,
+          "n_iterations": 9,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@16",
+          "n_cameras": 18,
+          "n_points": 7721,
+          "n_observations": 65060,
+          "rmse_px_before": 0.20919215773063124,
+          "rmse_px_after": 0.20919215773063124,
+          "cost_before": 1423.5570035855924,
+          "cost_after": 1423.5570035855924,
+          "n_iterations": 7,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": false,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@24",
+          "n_cameras": 26,
+          "n_points": 8822,
+          "n_observations": 94775,
+          "rmse_px_before": 0.2477300815446541,
+          "rmse_px_after": 0.2477300815446541,
+          "cost_before": 2908.180035104259,
+          "cost_after": 2908.180035104259,
+          "n_iterations": 16,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": false,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@32",
+          "n_cameras": 34,
+          "n_points": 9892,
+          "n_observations": 124726,
+          "rmse_px_before": 0.22129884098358704,
+          "rmse_px_after": 0.22129884098358704,
+          "cost_before": 3054.114238540601,
+          "cost_after": 3054.114238540601,
+          "n_iterations": 6,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": false,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@40",
+          "n_cameras": 42,
+          "n_points": 10672,
+          "n_observations": 154504,
+          "rmse_px_before": 0.22796542983405252,
+          "rmse_px_after": 0.22796542983405252,
+          "cost_before": 4014.6502601299276,
+          "cost_after": 4014.6502601299276,
+          "n_iterations": 6,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": false,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@48",
+          "n_cameras": 50,
+          "n_points": 11482,
+          "n_observations": 184289,
+          "rmse_px_before": 0.2322378322331233,
+          "rmse_px_after": 0.2322014348814383,
+          "cost_before": 4969.759308620401,
+          "cost_after": 4968.201664881057,
+          "n_iterations": 6,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@56",
+          "n_cameras": 58,
+          "n_points": 12500,
+          "n_observations": 213774,
+          "rmse_px_before": 0.23773425676079316,
+          "rmse_px_after": 0.23773425676079316,
+          "cost_before": 6040.994235441269,
+          "cost_after": 6040.994235441269,
+          "n_iterations": 6,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": false,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "final",
+          "n_cameras": 60,
+          "n_points": 12731,
+          "n_observations": 220956,
+          "rmse_px_before": 0.23969061726618923,
+          "rmse_px_after": 0.23969061726618923,
+          "cost_before": 6347.1369815777525,
+          "cost_after": 6347.1369815777525,
+          "n_iterations": 6,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": false,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        }
+      ]
+    }
+  },
+  "cloud": {
+    "n_points": 251492,
+    "bbox_min": [
+      -29.55809199400988,
+      -19.786941962635286,
+      -44.29271346007645
+    ],
+    "bbox_max": [
+      40.6283495033225,
+      49.510048882301554,
+      -32.97626844165175
+    ],
+    "dimensions_m": [
+      70.18644149733238,
+      69.29699084493684,
+      11.316445018424702
+    ],
+    "median_point_spacing_m": 0.1801727984288582,
+    "class_counts": {
+      "OBSERVED_HIGH_CONFIDENCE": 6588,
+      "OBSERVED_LOW_CONFIDENCE": 1885,
+      "AI_ASSISTED": 56684,
+      "DYNAMIC_EXCLUDED": 0,
+      "UNOBSERVED": 0,
+      "AI_GEOMETRICALLY_VERIFIED": 186335
+    },
+    "class_fractions": {
+      "OBSERVED_HIGH_CONFIDENCE": 0.0261956642756032,
+      "OBSERVED_LOW_CONFIDENCE": 0.00749526823914876,
+      "AI_ASSISTED": 0.22539086730393015,
+      "DYNAMIC_EXCLUDED": 0.0,
+      "UNOBSERVED": 0.0,
+      "AI_GEOMETRICALLY_VERIFIED": 0.7409182001813179
+    }
+  },
+  "uncertainty": {
+    "n_points": 251492,
+    "n_with_finite_uncertainty": 8473,
+    "fraction_observable": 0.03369093251475196,
+    "scale_sigma_relative": 0.005239145564848345,
+    "note": "1-sigma along each point's worst-constrained axis, propagated from pixel noise and camera geometry. Pose and systematic error are NOT modelled, so these are optimistic until calibrated against independent truth.",
+    "sigma_major_m": {
+      "median": 0.01347833183850921,
+      "p90": 0.14619295165156143,
+      "max": 0.4387873932384821
+    }
+  },
+  "coverage": {
+    "voxel_m": 1.0,
+    "grid_shape": [
+      75,
+      74,
+      52
+    ],
+    "n_cells": 288600,
+    "counts": {
+      "UNSEEN": 222473,
+      "OCCLUDED": 16716,
+      "DYNAMIC_EXCLUDED": 0,
+      "EMPTY": 44790,
+      "WEAK": 356,
+      "OBSERVED": 4265
+    },
+    "fraction_explained": 0.17120928620928622,
+    "fraction_unseen": 0.7708697158697159,
+    "fraction_occluded": 0.05792099792099792,
+    "surface_cells": 4621,
+    "measurable_surface_fraction": 0.9229603981822116,
+    "note": "UNSEEN and OCCLUDED are space the flight did not establish. They are not reconstructed geometry and are excluded from measurement by default."
+  },
+  "sensors": {
+    "time_offset": {
+      "offset_s": -1.0316096738199518,
+      "correlation": 0.13844391825851807,
+      "confidence": 0.1158990304355614,
+      "accepted": false,
+      "reason": "peak correlation 0.14 / confidence 0.12 below thresholds (0.5, 0.3); motion may be too uniform to reveal timing",
+      "search_s": 1.475,
+      "n_samples": 295
+    },
+    "rolling_shutter": {
+      "max_rate_deg_s": 60.56838256047196,
+      "p95_rate_deg_s": 58.14754077082028,
+      "readout_s": 0.016666666666666666,
+      "worst_smear_deg": 0.9691256795136712,
+      "severity": "severe",
+      "message": "rolling-shutter smear ~0.97 deg per frame at the 95th percentile turn rate (58.1 deg/s, readout 16.7 ms). Poses and reprojection residuals are biased; treat measurements from fast-yaw segments as unreliable."
+    },
+    "lever_arm_body_m": null,
+    "lever_arm_applied": false,
+    "lens_distortion_corrected": false
+  },
+  "capture_assessment": {
+    "score": 0.8097812623145343,
+    "grade": "excellent",
+    "factors": {
+      "parallax": 1.0,
+      "coverage": 0.2853488103488104,
+      "registration": 1.0,
+      "redundancy": 0.9229603981822116,
+      "image_quality": 1.0
+    },
+    "limiting_factor": "coverage",
+    "achievable_sigma_m": 0.01347833183850921,
+    "meets_requirement": true,
+    "messages": [
+      "limited by coverage: much of the scene was never established by any camera"
+    ]
+  },
+  "recapture_plan": {
+    "actions": [
+      "Extend coverage over the unestablished regions listed below; much of the scene volume was never seen by any camera.",
+      "5 unestablished region(s) identified; the waypoints give their horizontal centres."
+    ],
+    "waypoints": [
+      [
+        42.941908005990115,
+        37.71305803736472,
+        -19.79271346007645
+      ],
+      [
+        -31.05809199400988,
+        -21.286941962635286,
+        -19.79271346007645
+      ],
+      [
+        42.941908005990115,
+        51.71305803736472,
+        -19.79271346007645
+      ],
+      [
+        42.941908005990115,
+        50.71305803736472,
+        -19.79271346007645
+      ],
+      [
+        42.941908005990115,
+        49.71305803736472,
+        -19.79271346007645
+      ]
+    ],
+    "expected_gain": "addressing 'coverage' is the highest-value change; the capture currently grades 'excellent' (0.81/1.00)",
+    "unfixable": []
+  },
+  "inferred_verification": {
+    "n_inferred": 243019,
+    "n_verified": 186335,
+    "verified_fraction": 0.7667507478839103,
+    "median_views_agreeing": 26.0,
+    "median_depth_residual_m": 2.3413808086925485,
+    "note": "Verified inferred points are corroborated by independent views, not triangulated. They remain excluded from measurement by default."
+  },
+  "alignment": {
+    "scale": 24.729898973224525,
+    "n_inliers": 60,
+    "n_total": 60,
+    "alignment_rmse_3d_m": 0.531948482303351,
+    "alignment_rmse_horizontal_m": 0.4431341608904718,
+    "alignment_rmse_vertical_m": 0.29428099374022787,
+    "scale_source": "gps",
+    "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS.",
+    "normalized_rmse": 1.2532399909617131,
+    "scale_sigma": 0.1295635405247169,
+    "degenerate": false,
+    "conditioning": {
+      "principal_extent_m": [
+        13.090181747001127,
+        1.8913706063289855,
+        0.29266999965095397
+      ],
+      "vertical_extent_m": 6.7149957389703125,
+      "extent_ratios": [
+        0.14448772697615797,
+        0.022357978315923895
+      ],
+      "sigma_source": "weights_as_inverse_sigma",
+      "median_sigma_h_m": 0.33,
+      "median_sigma_v_m": 0.528,
+      "scored_in": "mahalanobis",
+      "sigma_recon_m": 0.20511134145477472,
+      "median_sigma_total_h_m": 0.38854943365468597,
+      "error_budget": "gnss_dominated"
+    },
+    "scale_sigma_relative": 0.005239145564848345
+  },
+  "timings_s": {
+    "ingestion": 0.058,
+    "telemetry": 0.001,
+    "frames": 0.244,
+    "quality": 0.169,
+    "sync": 0.001,
+    "keyframes": 0.0,
+    "masking": 0.008,
+    "sfm": 196.372,
+    "densify": 6.726,
+    "georegistration": 0.011,
+    "fusion": 4.728,
+    "mesh": 3.739,
+    "report": 0.527,
+    "exports": 1.046
+  },
+  "performance": {
+    "processing_time_s": 212.05700000000002,
+    "video_duration_s": 6.0,
+    "processing_to_video_ratio": 35.34283333333334
+  },
+  "ground_truth_evaluation": {
+    "surface_accuracy_m": {
+      "median": 0.8361939692253166,
+      "mean": 0.7948353327939606,
+      "p90": 1.3504486756169098,
+      "rmse": 0.9061959537780616
+    },
+    "completeness_at_0.5m": 0.3936,
+    "completeness_at_1.0m": 0.5477333333333333,
+    "completeness_at_2.0m": 0.74,
+    "scored_on": "observed geometry only",
+    "n_scored": 8473,
+    "including_inferred": {
+      "surface_accuracy_m": {
+        "median": 1.9286667192908187,
+        "mean": 2.0993477184648004,
+        "p90": 3.402419520869444,
+        "rmse": 2.3331069081575837
+      },
+      "completeness_at_0.5m": 0.6834666666666667,
+      "completeness_at_1.0m": 0.8669333333333333,
+      "completeness_at_2.0m": 0.9552,
+      "n_scored": 251492,
+      "note": "AI-assisted points included. Higher completeness is a real gain in coverage; the accuracy figure is NOT the product's measured accuracy and must not be quoted as such."
+    },
+    "dimensional_accuracy": [
+      {
+        "name": "building_width_E",
+        "truth_m": 12.0,
+        "measured_m": 11.914381741579191,
+        "abs_error_m": 0.0856182584208085,
+        "pct_error": 0.7134854868400708
+      },
+      {
+        "name": "building_depth_N",
+        "truth_m": 8.0,
+        "measured_m": 8.297585424075145,
+        "abs_error_m": 0.29758542407514454,
+        "pct_error": 3.719817800939307
+      },
+      {
+        "name": "building_height",
+        "truth_m": 9.0,
+        "measured_m": 9.197681120362471,
+        "abs_error_m": 0.19768112036247132,
+        "pct_error": 2.196456892916348
+      }
+    ]
+  },
+  "warnings": [
+    "video presentation timestamps are not strictly increasing; falling back to frame_index/fps timing (frame-to-GPS association may drift if the stream is variable-frame-rate)",
+    "depth densification capped at 500000 points",
+    "depth prior densified 35/60 keyframes on cuda -> 504000 AI-assisted points",
+    "time offset not applied: peak correlation 0.14 / confidence 0.12 below thresholds (0.5, 0.3); motion may be too uniform to reveal timing",
+    "rolling-shutter smear ~0.97 deg per frame at the 95th percentile turn rate (58.1 deg/s, readout 16.7 ms). Poses and reprojection residuals are biased; treat measurements from fast-yaw segments as unreliable."
+  ],
+  "limitations": [
+    "Monocular single-pass video cannot measure surfaces never observed.",
+    "Absolute accuracy is GPS-limited unless RTK/PPK or GCPs are provided.",
+    "AI-assisted geometry is excluded from measurement by default.",
+    "Alignment residual is not a certified accuracy statement."
+  ]
+}

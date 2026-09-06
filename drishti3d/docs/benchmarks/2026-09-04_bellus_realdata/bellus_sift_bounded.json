@@ -1,0 +1,277 @@
+{
+  "input": {
+    "video": {
+      "path": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bl_sift2/capture.mp4",
+      "width": 1920,
+      "height": 1446,
+      "fps": 5.0,
+      "frame_count": 122,
+      "duration": 24.4,
+      "codec": "h264",
+      "sha256": "5ac88bfc1daaa37dc6b9274504ba3916b7e83c8aff46fe4e3d77c1b9b5cc0959"
+    },
+    "telemetry": {
+      "n_valid": 122,
+      "warnings": [],
+      "has_rtk": false
+    },
+    "scale_source": "gps"
+  },
+  "frames": {
+    "total_analyzed": 122,
+    "accepted": 122,
+    "rejected": 0,
+    "accepted_fraction": 1.0,
+    "keyframes": 122
+  },
+  "reconstruction": {
+    "n_keyframes": 122,
+    "n_registered": 45,
+    "registered_fraction": 0.36885245901639346,
+    "n_points": 2731,
+    "median_reproj_err": 1.093992194363017,
+    "p90_reproj_err": 3.2144806583875,
+    "mean_track_length": 2.2834126693518857,
+    "mean_tri_angle": 17.71207120510267,
+    "matcher": {
+      "name": "sift",
+      "kind": "classical"
+    },
+    "heading_normalised": false,
+    "rotation_rescued_pairs": 0,
+    "init_pair": {
+      "frames": [
+        23,
+        99
+      ],
+      "median_tri_angle": 13.375988799754332,
+      "n_inliers": 316,
+      "cheirality": 0.9813664596273292,
+      "spread_px": 369.0315856933594,
+      "connectivity": 6
+    },
+    "uncertainty": {
+      "sigma_px_estimated": 1.1941186274456075,
+      "n_with_covariance": 2731,
+      "n_observable": 2731,
+      "median_sigma_recon_frame": 0.01600095788772559
+    },
+    "bundle_adjustment": {
+      "enabled": false,
+      "n_solves": 0,
+      "final": null,
+      "history": []
+    }
+  },
+  "cloud": {
+    "n_points": 2440,
+    "bbox_min": [
+      -116.578302073548,
+      -80.48346507567203,
+      -133.33274864570433
+    ],
+    "bbox_max": [
+      48.712270206930825,
+      145.90354109330102,
+      -42.45624633258994
+    ],
+    "dimensions_m": [
+      165.29057228047884,
+      226.38700616897304,
+      90.87650231311439
+    ],
+    "median_point_spacing_m": 0.9970050893265281,
+    "class_counts": {
+      "OBSERVED_HIGH_CONFIDENCE": 242,
+      "OBSERVED_LOW_CONFIDENCE": 2198,
+      "AI_ASSISTED": 0,
+      "DYNAMIC_EXCLUDED": 0,
+      "UNOBSERVED": 0,
+      "AI_GEOMETRICALLY_VERIFIED": 0
+    },
+    "class_fractions": {
+      "OBSERVED_HIGH_CONFIDENCE": 0.09918032786885246,
+      "OBSERVED_LOW_CONFIDENCE": 0.9008196721311476,
+      "AI_ASSISTED": 0.0,
+      "DYNAMIC_EXCLUDED": 0.0,
+      "UNOBSERVED": 0.0,
+      "AI_GEOMETRICALLY_VERIFIED": 0.0
+    }
+  },
+  "uncertainty": {
+    "n_points": 2440,
+    "n_with_finite_uncertainty": 2440,
+    "fraction_observable": 1.0,
+    "scale_sigma_relative": 0.03987457409207885,
+    "note": "1-sigma along each point's worst-constrained axis, propagated from pixel noise and camera geometry. Pose and systematic error are NOT modelled, so these are optimistic until calibrated against independent truth.",
+    "sigma_major_m": {
+      "median": 0.6179432882334996,
+      "p90": 1.3634739472930923,
+      "max": 4.710187111317982
+    }
+  },
+  "coverage": {
+    "voxel_m": 1.5,
+    "grid_shape": [
+      150,
+      201,
+      119
+    ],
+    "n_cells": 3587850,
+    "counts": {
+      "UNSEEN": 1748288,
+      "OCCLUDED": 17886,
+      "DYNAMIC_EXCLUDED": 0,
+      "EMPTY": 1819850,
+      "WEAK": 71,
+      "OBSERVED": 1755
+    },
+    "fraction_explained": 0.507734715776858,
+    "fraction_unseen": 0.48728012598074055,
+    "fraction_occluded": 0.004985158242401438,
+    "surface_cells": 1826,
+    "measurable_surface_fraction": 0.9611171960569551,
+    "note": "UNSEEN and OCCLUDED are space the flight did not establish. They are not reconstructed geometry and are excluded from measurement by default."
+  },
+  "sensors": {
+    "time_offset": {
+      "offset_s": -0.19125541349694136,
+      "correlation": 0.21969131650714302,
+      "confidence": 0.12972606645035412,
+      "accepted": false,
+      "reason": "peak correlation 0.22 / confidence 0.13 below thresholds (0.5, 0.3); motion may be too uniform to reveal timing",
+      "search_s": 2.0,
+      "n_samples": 1080
+    },
+    "rolling_shutter": {
+      "max_rate_deg_s": 349.8384977397289,
+      "p95_rate_deg_s": 298.2426155848431,
+      "readout_s": 0.016666666666666666,
+      "worst_smear_deg": 4.970710259747385,
+      "severity": "severe",
+      "message": "rolling-shutter smear ~4.97 deg per frame at the 95th percentile turn rate (298.2 deg/s, readout 16.7 ms). Poses and reprojection residuals are biased; treat measurements from fast-yaw segments as unreliable."
+    },
+    "lever_arm_body_m": null,
+    "lever_arm_applied": false,
+    "lens_distortion_corrected": false
+  },
+  "capture_assessment": {
+    "score": 0.8294942027855128,
+    "grade": "excellent",
+    "factors": {
+      "parallax": 1.0,
+      "coverage": 0.8462245262947634,
+      "registration": 0.36885245901639346,
+      "redundancy": 0.9611171960569551,
+      "image_quality": 1.0
+    },
+    "limiting_factor": "registration",
+    "achievable_sigma_m": 0.6179432882334996,
+    "meets_requirement": null,
+    "messages": [
+      "limited by registration: frames failed to register; the model is incomplete"
+    ]
+  },
+  "recapture_plan": {
+    "actions": [
+      "Increase overlap between consecutive frames (slower flight or higher frame rate); frames failed to register into the model.",
+      "5 unestablished region(s) identified; the waypoints give their horizontal centres."
+    ],
+    "waypoints": [
+      [
+        -90.90900958431237,
+        203.78266768132033,
+        -45.33274864570433
+      ],
+      [
+        -90.90900958431237,
+        202.28266768132033,
+        -45.33274864570433
+      ],
+      [
+        -144.90900958431237,
+        203.78266768132033,
+        -45.33274864570433
+      ],
+      [
+        -144.90900958431237,
+        202.28266768132033,
+        -45.33274864570433
+      ],
+      [
+        -90.90900958431237,
+        200.78266768132033,
+        -45.33274864570433
+      ]
+    ],
+    "expected_gain": "addressing 'registration' is the highest-value change; the capture currently grades 'excellent' (0.83/1.00)",
+    "unfixable": []
+  },
+  "inferred_verification": null,
+  "alignment": {
+    "scale": 22.823962068826578,
+    "n_inliers": 17,
+    "n_total": 45,
+    "alignment_rmse_3d_m": 11.427627102511757,
+    "alignment_rmse_horizontal_m": 7.683285432574105,
+    "alignment_rmse_vertical_m": 8.45918353954185,
+    "scale_source": "gps",
+    "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS.",
+    "normalized_rmse": 1.864608809723074,
+    "scale_sigma": 0.9100957665882226,
+    "degenerate": false,
+    "conditioning": {
+      "principal_extent_m": [
+        60.94604607837953,
+        38.25161694521887,
+        3.1352242520266014
+      ],
+      "vertical_extent_m": 13.858149657270257,
+      "extent_ratios": [
+        0.6276308211368702,
+        0.0514426193947767
+      ],
+      "sigma_source": "weights_as_inverse_sigma",
+      "median_sigma_h_m": 5.0,
+      "median_sigma_v_m": 8.0,
+      "scored_in": "mahalanobis",
+      "sigma_recon_m": 0.1536308953805904,
+      "median_sigma_total_h_m": 5.002359688388615,
+      "error_budget": "gnss_dominated"
+    },
+    "scale_sigma_relative": 0.03987457409207885
+  },
+  "timings_s": {
+    "ingestion": 0.155,
+    "telemetry": 0.001,
+    "frames": 0.749,
+    "quality": 0.56,
+    "sync": 0.001,
+    "keyframes": 0.01,
+    "masking": 0.035,
+    "sfm": 50.788,
+    "densify": 0.0,
+    "georegistration": 0.085,
+    "fusion": 0.006,
+    "mesh": 0.0,
+    "report": 0.04,
+    "exports": 0.27
+  },
+  "performance": {
+    "processing_time_s": 52.38999999999999,
+    "video_duration_s": 24.4,
+    "processing_to_video_ratio": 2.1471311475409833
+  },
+  "ground_truth_evaluation": null,
+  "warnings": [
+    "video presentation timestamps are not strictly increasing; falling back to frame_index/fps timing (frame-to-GPS association may drift if the stream is variable-frame-rate)",
+    "time offset not applied: peak correlation 0.22 / confidence 0.13 below thresholds (0.5, 0.3); motion may be too uniform to reveal timing",
+    "rolling-shutter smear ~4.97 deg per frame at the 95th percentile turn rate (298.2 deg/s, readout 16.7 ms). Poses and reprojection residuals are biased; treat measurements from fast-yaw segments as unreliable."
+  ],
+  "limitations": [
+    "Monocular single-pass video cannot measure surfaces never observed.",
+    "Absolute accuracy is GPS-limited unless RTK/PPK or GCPs are provided.",
+    "AI-assisted geometry is excluded from measurement by default.",
+    "Alignment residual is not a certified accuracy statement."
+  ]
+}

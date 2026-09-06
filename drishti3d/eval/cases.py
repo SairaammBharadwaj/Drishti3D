@@ -128,6 +128,55 @@ def _exif_gps(path: Path):
 # --------------------------------------------------------------------------- #
 # adapters
 # --------------------------------------------------------------------------- #
+def _exif_intrinsics(path: Path) -> dict | None:
+    """Recover fx, fy, cx, cy from EXIF, in pixels at the image's own resolution.
+
+    Guessing ``0.9 * max(w, h)`` is a poor stand-in for a real camera: measured on
+    the Bellus set (Canon PowerShot S110) the guess was 3643 px against a true
+    2795 px -- a 30% error, which collapsed registration to 21% because both
+    essential-matrix estimation and PnP depend directly on focal length.
+
+    EXIF gives focal length in millimetres and the focal-plane resolution in
+    pixels per inch, which together fix the sensor width and hence the focal
+    length in pixels.
+    """
+    try:
+        from PIL import Image, ExifTags
+    except Exception:
+        return None
+    try:
+        img = Image.open(path)
+        w, h = img.size
+        exif = img.getexif()
+        ifd = exif.get_ifd(ExifTags.IFD.Exif)
+        tags = {ExifTags.TAGS.get(k, k): v for k, v in ifd.items()}
+        base = {ExifTags.TAGS.get(k, k): v for k, v in exif.items()}
+
+        f_mm = tags.get("FocalLength") or base.get("FocalLength")
+        fpx = tags.get("FocalPlaneXResolution")
+        unit = tags.get("FocalPlaneResolutionUnit", 2)
+        exif_w = tags.get("ExifImageWidth") or w
+
+        if f_mm and fpx:
+            # unit 2 = inches, 3 = centimetres
+            per_mm = float(fpx) / (25.4 if unit in (2, None) else 10.0)
+            sensor_w = float(exif_w) / per_mm
+            if sensor_w > 0:
+                fx = float(f_mm) * w / sensor_w
+                return {"fx": fx, "fy": fx, "cx": w / 2.0, "cy": h / 2.0,
+                        "width": w, "height": h, "source": "exif_focal_plane"}
+
+        f35 = tags.get("FocalLengthIn35mmFilm")
+        if f35:
+            # 35 mm frame is 36 mm wide by definition
+            fx = float(f35) * w / 36.0
+            return {"fx": fx, "fy": fx, "cx": w / 2.0, "cy": h / 2.0,
+                    "width": w, "height": h, "source": "exif_35mm_equivalent"}
+    except Exception:
+        return None
+    return None
+
+
 def _load_odm(root: Path, name: str, stride: int) -> EvalCase:
     # images live in root, or root/images
     img_dir = root / "images" if (root / "images").is_dir() else root
@@ -147,7 +196,12 @@ def _load_odm(root: Path, name: str, stride: int) -> EvalCase:
             gps = np.column_stack([arr, np.full(len(arr), 5.0)])  # 5 m default acc
 
     gt_cloud = _find_cloud(root)
+    # Real intrinsics from EXIF where the camera recorded them. Without this the
+    # pipeline falls back to a 0.9*max(w,h) guess, which on this dataset was 30%
+    # wrong and cost most of the registration.
+    intr = _exif_intrinsics(images[0]) if images else None
     return EvalCase(name=name, kind="odm", images=images, gps=gps,
+                    intrinsics=intr,
                     gt_cloud_path=gt_cloud, frame_stride=stride,
                     meta={"img_dir": str(img_dir)})
 

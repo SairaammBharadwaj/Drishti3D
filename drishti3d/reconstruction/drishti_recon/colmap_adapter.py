@@ -162,29 +162,47 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
         shutil.rmtree(work, ignore_errors=True)
 
 
-def reconstruct(image_dir, work_dir, intrinsics=None):
+def reconstruct(image_dir, work_dir, intrinsics=None, *,
+                num_threads=8, max_image_size=1920):
     """Run a COLMAP sparse reconstruction if available.
 
     Returns a dict with points/cameras compatible with the pipeline, or raises
     if PyCOLMAP is not installed.  This is a thin, optional path; the default
     verified engine is :func:`drishti_recon.sfm.reconstruct`.
+
+    ``num_threads`` is capped deliberately.  COLMAP otherwise sizes its SIFT
+    thread pool from the core count -- 24 extractors on this machine -- and each
+    holds full-resolution scale-space buffers.  That took a 64-frame 1080p run
+    past a 10 GB cgroup limit and returned SIGKILL.  ``max_image_size`` bounds
+    the same buffers; COLMAP's own default is 3200, above our native width.
     """
     if not is_available():
         raise RuntimeError("PyCOLMAP not installed. " + SETUP)
     import pycolmap  # type: ignore
+    import numpy as np
     from pathlib import Path
 
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
     db_path = work_dir / "database.db"
-    pycolmap.extract_features(db_path, image_dir)
-    pycolmap.match_exhaustive(db_path)
-    maps = pycolmap.incremental_mapping(db_path, image_dir, work_dir)
+
+    ext = pycolmap.FeatureExtractionOptions()
+    ext.num_threads = num_threads
+    ext.max_image_size = max_image_size
+    match = pycolmap.FeatureMatchingOptions()
+    match.num_threads = num_threads
+    mapper = pycolmap.IncrementalPipelineOptions()
+    mapper.num_threads = num_threads
+
+    pycolmap.extract_features(db_path, image_dir, extraction_options=ext)
+    pycolmap.match_exhaustive(db_path, matching_options=match)
+    maps = pycolmap.incremental_mapping(db_path, image_dir, work_dir, options=mapper)
     if not maps:
         raise RuntimeError("COLMAP produced no reconstruction")
     rec = maps[0]
-    import numpy as np
     pts = np.array([p.xyz for p in rec.points3D.values()])
     cols = np.array([p.color for p in rec.points3D.values()], np.uint8)
+    track = float(np.mean([p.track.length() for p in rec.points3D.values()])) if len(pts) else 0.0
     return {"points": pts, "colors": cols, "engine": "colmap",
-            "num_images": rec.num_images(), "num_points": len(pts)}
+            "num_images": rec.num_images(), "num_points": len(pts),
+            "mean_track_length": track, "reconstruction": rec}

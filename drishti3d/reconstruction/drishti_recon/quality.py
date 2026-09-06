@@ -40,29 +40,64 @@ def evaluate_against_ground_truth(cloud_enu, gt_points_enu,
     known reference distances (measured on the reconstruction, compared to truth).
     """
     from scipy.spatial import cKDTree
+    from .provenance import Provenance
     out = {}
     gt = np.asarray(gt_points_enu, float)
     pts = np.asarray(cloud_enu, float)
-    if len(pts) and len(gt):
+
+    # Score the geometry the product actually stands behind. Including
+    # AI-inferred points here makes densification look like an accuracy
+    # regression while the measured cloud is untouched: on the single-pass
+    # fixture, surface accuracy read 1.847 m over all points against 0.835 m over
+    # observed ones. The inferred layer's real contribution is coverage, so it is
+    # reported separately rather than mixed into the accuracy headline.
+    prov = getattr(cloud_for_measure, "provenance", None)
+    measurable = None
+    if prov is not None and len(prov) == len(pts):
+        measurable = np.isin(np.asarray(prov),
+                             [int(Provenance.OBSERVED_HIGH_CONFIDENCE),
+                              int(Provenance.OBSERVED_LOW_CONFIDENCE)])
+
+    def _score(sample):
         tree_gt = cKDTree(gt)
-        d_ps, _ = tree_gt.query(pts)          # accuracy: recon -> gt
-        tree_ps = cKDTree(pts)
-        d_comp, _ = tree_ps.query(gt)         # completeness: gt -> recon
-        out["surface_accuracy_m"] = {
+        d_ps, _ = tree_gt.query(sample)        # accuracy: recon -> gt
+        d_comp, _ = cKDTree(sample).query(gt)  # completeness: gt -> recon
+        res = {"surface_accuracy_m": {
             "median": float(np.median(d_ps)),
             "mean": float(np.mean(d_ps)),
             "p90": float(np.percentile(d_ps, 90)),
             "rmse": float(np.sqrt(np.mean(d_ps ** 2))),
-        }
+        }}
         for tol in (0.5, 1.0, 2.0):
-            out[f"completeness_at_{tol}m"] = float((d_comp < tol).mean())
+            res[f"completeness_at_{tol}m"] = float((d_comp < tol).mean())
+        return res
+
+    if len(pts) and len(gt):
+        obs = pts if measurable is None else pts[measurable]
+        if len(obs) >= 3:
+            out.update(_score(obs))
+            out["scored_on"] = ("observed geometry only" if measurable is not None
+                                else "all points (no provenance supplied)")
+            out["n_scored"] = int(len(obs))
+        if measurable is not None and (~measurable).any():
+            # What the inferred layer adds, kept clearly separate.
+            out["including_inferred"] = _score(pts)
+            out["including_inferred"]["n_scored"] = int(len(pts))
+            out["including_inferred"]["note"] = (
+                "AI-assisted points included. Higher completeness is a real gain "
+                "in coverage; the accuracy figure is NOT the product's measured "
+                "accuracy and must not be quoted as such.")
 
     if reference_distances and cloud_for_measure is not None:
         from .measure import measure_distance
         dims = []
         for ref in reference_distances:
+            # Measurements must rest on observed geometry. Allowing inferred
+            # points here let the headline dimensional accuracy snap to
+            # AI-generated surface -- the exact failure the provenance model
+            # exists to prevent.
             m = measure_distance(cloud_for_measure, [ref["a"], ref["b"]],
-                                 allow_inferred=True)
+                                 allow_inferred=False)
             truth = ref["meters"]
             err = m.value - truth if m.value is not None else None
             dims.append({
@@ -75,9 +110,43 @@ def evaluate_against_ground_truth(cloud_enu, gt_points_enu,
     return out
 
 
+def _uncertainty_stats(cloud, align) -> dict | None:
+    """Summarise propagated positional uncertainty over the shipped cloud.
+
+    Reports how much of the cloud is *observable* at all -- a point whose
+    uncertainty is infinite was never constrained in depth, and saying so is more
+    useful than quietly averaging it away.
+    """
+    sig = getattr(cloud, "sigma_major", None)
+    if sig is None or len(sig) == 0:
+        return None
+    sig = np.asarray(sig, float)
+    finite = np.isfinite(sig)
+    out = {
+        "n_points": int(len(sig)),
+        "n_with_finite_uncertainty": int(finite.sum()),
+        "fraction_observable": float(finite.mean()),
+        "scale_sigma_relative": (align or {}).get("scale_sigma_relative"),
+        "note": ("1-sigma along each point's worst-constrained axis, propagated "
+                 "from pixel noise and camera geometry. Pose and systematic "
+                 "error are NOT modelled, so these are optimistic until "
+                 "calibrated against independent truth."),
+    }
+    if finite.any():
+        f = sig[finite]
+        out["sigma_major_m"] = {
+            "median": float(np.median(f)),
+            "p90": float(np.percentile(f, 90)),
+            "max": float(f.max()),
+        }
+    return out
+
+
 def build_report(*, video_info, telemetry_report, frame_metrics, keyframe_count,
                  recon_stats, align_result, cloud, timings,
-                 gt_eval=None, warnings=None, scale_source="gps") -> dict:
+                 gt_eval=None, warnings=None, scale_source="gps",
+                 coverage=None, sensors=None, capture_assessment=None,
+                 recapture_plan=None, inferred_verification=None) -> dict:
     """Assemble the full quality/evidence report (JSON-serialisable)."""
     accepted = sum(1 for m in frame_metrics if m.accepted)
     total = len(frame_metrics)
@@ -94,6 +163,19 @@ def build_report(*, video_info, telemetry_report, frame_metrics, keyframe_count,
             "note": ("Alignment residual is NOT independent accuracy; it measures "
                      "consistency between reconstructed camera centres and GPS."),
         }
+        # Uncertainty and conditioning of the fit.  Without these the scale
+        # uncertainty never reaches the measurement layer, and a degenerate
+        # trajectory looks identical to a well-conditioned one.
+        for key in ("normalized_rmse", "scale_sigma", "degenerate",
+                    "degeneracy", "conditioning"):
+            val = getattr(align_result, key, None)
+            if val is not None:
+                align[key] = val
+        try:
+            align["scale_sigma_relative"] = (
+                float(align_result.scale_sigma) / float(align_result.transform.scale))
+        except Exception:
+            align["scale_sigma_relative"] = None
     proc_time = sum(timings.values())
     ratio = proc_time / video_info.duration if video_info.duration else None
     return {
@@ -115,6 +197,12 @@ def build_report(*, video_info, telemetry_report, frame_metrics, keyframe_count,
         },
         "reconstruction": recon_stats,
         "cloud": cloud_stats(cloud),
+        "uncertainty": _uncertainty_stats(cloud, align),
+        "coverage": coverage,
+        "sensors": sensors,
+        "capture_assessment": capture_assessment,
+        "recapture_plan": recapture_plan,
+        "inferred_verification": inferred_verification,
         "alignment": align,
         "timings_s": timings,
         "performance": {
