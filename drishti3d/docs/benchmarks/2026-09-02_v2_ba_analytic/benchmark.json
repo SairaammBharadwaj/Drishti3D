@@ -41,9 +41,9 @@
   },
   "scenes": {
     "oblique_pass_s0": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s0/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s0/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s0/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/oblique_pass_s0/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/oblique_pass_s0/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/oblique_pass_s0/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "oblique_pass",
@@ -70,9 +70,9 @@
       }
     },
     "oblique_pass_s1": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s1/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s1/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s1/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/oblique_pass_s1/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/oblique_pass_s1/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/oblique_pass_s1/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "oblique_pass",
@@ -99,9 +99,9 @@
       }
     },
     "oblique_pass_s2": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s2/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s2/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s2/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/oblique_pass_s2/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/oblique_pass_s2/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/oblique_pass_s2/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "oblique_pass",
@@ -128,9 +128,9 @@
       }
     },
     "nadir_grid_s0": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s0/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s0/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s0/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/nadir_grid_s0/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/nadir_grid_s0/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/nadir_grid_s0/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "nadir_grid",
@@ -157,9 +157,9 @@
       }
     },
     "nadir_grid_s1": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s1/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s1/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s1/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/nadir_grid_s1/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/nadir_grid_s1/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/nadir_grid_s1/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "nadir_grid",
@@ -186,9 +186,9 @@
       }
     },
     "nadir_grid_s2": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s2/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s2/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s2/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/nadir_grid_s2/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/nadir_grid_s2/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/nadir_grid_s2/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "nadir_grid",
@@ -215,9 +215,9 @@
       }
     },
     "orbit_s0": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s0/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s0/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s0/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/orbit_s0/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/orbit_s0/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/orbit_s0/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "orbit",
@@ -244,9 +244,9 @@
       }
     },
     "orbit_s1": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s1/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s1/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s1/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/orbit_s1/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/orbit_s1/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/orbit_s1/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "orbit",
@@ -273,9 +273,9 @@
       }
     },
     "orbit_s2": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s2/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s2/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s2/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/orbit_s2/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/orbit_s2/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/orbit_s2/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "orbit",
@@ -302,9 +302,9 @@
       }
     },
     "low_parallax_s0": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s0/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s0/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s0/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/low_parallax_s0/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/low_parallax_s0/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/low_parallax_s0/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "low_parallax",
@@ -331,9 +331,9 @@
       }
     },
     "low_parallax_s1": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s1/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s1/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s1/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/low_parallax_s1/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/low_parallax_s1/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/low_parallax_s1/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "low_parallax",
@@ -360,9 +360,9 @@
       }
     },
     "low_parallax_s2": {
-      "video": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s2/synthetic_flight.mp4",
-      "telemetry": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s2/synthetic_telemetry.csv",
-      "ground_truth": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s2/ground_truth.json",
+      "video": "/tmp/drishti3d-bench/scenes/low_parallax_s2/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/low_parallax_s2/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/low_parallax_s2/ground_truth.json",
       "n_frames": 60,
       "fps": 10,
       "regime": "low_parallax",
@@ -392,8 +392,8 @@
   "cells": [
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s0",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__oblique_pass_s0",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__oblique_pass_s0",
         "params_override": {
           "bundle_adjust": false
         },
@@ -553,8 +553,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s1",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__oblique_pass_s1",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__oblique_pass_s1",
         "params_override": {
           "bundle_adjust": false
         },
@@ -714,8 +714,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s2",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__oblique_pass_s2",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__oblique_pass_s2",
         "params_override": {
           "bundle_adjust": false
         },
@@ -736,8 +736,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s0",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__nadir_grid_s0",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__nadir_grid_s0",
         "params_override": {
           "bundle_adjust": false
         },
@@ -897,8 +897,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s1",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__nadir_grid_s1",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__nadir_grid_s1",
         "params_override": {
           "bundle_adjust": false
         },
@@ -1058,8 +1058,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s2",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__nadir_grid_s2",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__nadir_grid_s2",
         "params_override": {
           "bundle_adjust": false
         },
@@ -1219,8 +1219,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s0",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__orbit_s0",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__orbit_s0",
         "params_override": {
           "bundle_adjust": false
         },
@@ -1380,8 +1380,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s1",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__orbit_s1",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__orbit_s1",
         "params_override": {
           "bundle_adjust": false
         },
@@ -1541,8 +1541,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s2",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__orbit_s2",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__orbit_s2",
         "params_override": {
           "bundle_adjust": false
         },
@@ -1702,8 +1702,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s0",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__low_parallax_s0",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__low_parallax_s0",
         "params_override": {
           "bundle_adjust": false
         },
@@ -1724,8 +1724,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s1",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__low_parallax_s1",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__low_parallax_s1",
         "params_override": {
           "bundle_adjust": false
         },
@@ -1746,8 +1746,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s2",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/baseline__low_parallax_s2",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/baseline__low_parallax_s2",
         "params_override": {
           "bundle_adjust": false
         },
@@ -1897,8 +1897,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s0",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__oblique_pass_s0",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__oblique_pass_s0",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -2220,8 +2220,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s1",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__oblique_pass_s1",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__oblique_pass_s1",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -2543,8 +2543,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/oblique_pass_s2",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__oblique_pass_s2",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__oblique_pass_s2",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -2566,8 +2566,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s0",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__nadir_grid_s0",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__nadir_grid_s0",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -2835,8 +2835,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s1",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__nadir_grid_s1",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__nadir_grid_s1",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -3104,8 +3104,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/nadir_grid_s2",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__nadir_grid_s2",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__nadir_grid_s2",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -3373,8 +3373,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s0",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__orbit_s0",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__orbit_s0",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -3696,8 +3696,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s1",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__orbit_s1",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__orbit_s1",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -4019,8 +4019,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/orbit_s2",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__orbit_s2",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__orbit_s2",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -4342,8 +4342,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s0",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__low_parallax_s0",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__low_parallax_s0",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -4365,8 +4365,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s1",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__low_parallax_s1",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__low_parallax_s1",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8
@@ -4388,8 +4388,8 @@
     },
     {
       "spec": {
-        "scene_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/scenes/low_parallax_s2",
-        "work_dir": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/bench_v2/work/ba__low_parallax_s2",
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_v2/work/ba__low_parallax_s2",
         "params_override": {
           "bundle_adjust": true,
           "ba_every": 8

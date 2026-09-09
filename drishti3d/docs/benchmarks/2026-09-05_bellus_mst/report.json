@@ -1,7 +1,7 @@
 {
   "input": {
     "video": {
-      "path": "/var/tmp/claude-1000/-home-naveen-Drishti3D/ddc64ba0-0b39-4cfe-ae5a-75ee3758681f/scratchpad/mst2/capture.mp4",
+      "path": "/tmp/drishti3d-bench/mst2/capture.mp4",
       "width": 1920,
       "height": 1446,
       "fps": 5.0,
