@@ -175,3 +175,84 @@ appears **only** on single-pass video, where it registers every frame and we los
 - LightGlue's median triangulation angle is 11.51° vs SIFT's 6.05°: it does find
   wider-baseline matches, but converted 2 fewer frames into registrations here.
 - No GPS on gym_pass, so this matrix says nothing about georegistration accuracy.
+
+## 2026-09-06 — First end-to-end georegistration against surveyed truth (AGZ)
+
+Dataset: **Zurich Urban MAV (AGZ, ETH Zurich RPG)**. 2 km continuous MAV flight
+with per-frame GPS, surveyed 6-DoF ground truth, and factory calibration
+(fx 893.39, fy 898.33, cx 951.13, cy 555.13, k1 -0.281, k2 0.116).
+
+The full archive is 29.8 GB. The server honours Range requests, so
+`eval/httpzip.py` drives `zipfile` over HTTP and pulls individual members:
+184 frames (67 MB) extracted without downloading the archive.
+
+Segment: imgid 57211-62701 — a **200 m straight single pass**, 1.13 m frame
+spacing, 14.8x straightness, every frame landing on a ground-truth pose.
+Onboard GPS on these frames is off by a median of **5.39 m** (max 27.44 m).
+
+### Results
+
+| Run | Frames | Reg | Track | ATE median (Sim3-aligned) |
+|---|---|---|---|---|
+| Self-calibrating, 62 frames | 62 | 62/62 | 3.30 | 20.18 m |
+| + surveyed calibration fixed | 62 | 62/62 | 2.85 | 9.88 m |
+| + dense sampling (1.13 m) | 184 | 184/184 | 3.79 | 12.96 m |
+| + GPS position priors | 184 | 184/184 | 3.88 | 10.54 m |
+| + centred priors | 184 | 184/184 | 3.81 | 10.37 m |
+
+### Direct georeferenced error (no alignment — the metric that matters)
+
+| | median | p90 | max |
+|---|---|---|---|
+| Ours | 7.33 m | 59.73 m | 84.26 m |
+| Onboard GPS | 5.39 m | 12.57 m | 27.44 m |
+| **Ours, vertical only** | **1.44 m** | | |
+| GPS, vertical only | 2.72 m | | |
+| Ours, horizontal | 6.91 m | | |
+| GPS, horizontal | 3.19 m | | |
+
+**We beat GPS on height (1.44 m vs 2.72 m) and lose on plan (6.91 m vs 3.19 m).**
+Height is the quantity the problem statement actually asks for, so this is the
+first real evidence the approach measures what it is supposed to. The horizontal
+result is not yet usable, and the p90 of 59.73 m says a minority of frames are
+badly placed.
+
+### What was learned
+
+1. **Fixing intrinsics halved the error (20.18 -> 9.88 m).** COLMAP's AUTO camera
+   mode gives every image its own camera and self-calibrates each. On the
+   well-conditioned gym_pass capture those agreed to within 1 %; on a nearly
+   straight trajectory the focal/depth ambiguity is barely observable and
+   estimates diverged from 1062 to 2044 px against a surveyed 893.4.
+2. **Denser frames improved structure but not accuracy.** 62 -> 184 frames took
+   track length 2.85 -> 3.79 and points 14 k -> 124 k, yet ATE went 9.88 -> 12.96 m.
+   More observations do not fix a badly conditioned trajectory.
+3. **The error is a bow, not drift.** corr(frame index, error) = -0.11. Per-segment
+   medians run 26.7, 6.4, 9.0, 18.5, 16.0, 9.4, 3.2, 24.9 m — high at both ends,
+   low in the middle. With no loop closure, small rotation errors on a straight
+   pass integrate into a low-frequency bend.
+4. **Local geometry is good.** Our trajectory is smooth — jerk/step 0.17 against
+   ground truth 0.12 and GPS 0.42 — and the scale is right: 1.12 m median step
+   against a surveyed 1.13 m. The failure is global shape, not local structure.
+5. **Triangulation is not the bottleneck.** Median triangulation angle 10.65 deg
+   over 4000 points (p10 3.09). Consecutive baseline/depth is only 0.024, but
+   multi-frame tracks recover adequate parallax.
+6. **Prior centring did not help** (10.54 -> 10.37 m, within noise). Numerical
+   conditioning from raw UTM magnitudes was not the limiter.
+
+### Bugs found and fixed in `colmap_adapter.py`
+
+- `intrinsics` was accepted and **silently ignored**. Now honoured and held fixed.
+- Camera mode defaulted to per-image self-calibration; now shares one camera.
+- Position priors were inserted alongside COLMAP's own EXIF-derived priors,
+  tripping a uniqueness constraint. Existing rows are now updated in place, which
+  also lets us state the covariance instead of leaving it NaN.
+- Prior centring transformed only the in-memory reconstruction; the model written
+  to disk stayed at the centred origin, reading as a 5.2e6 m georeferencing error.
+  The corrected model is now written back.
+
+### Next
+
+The bow is the thing to attack: sequential + loop-closure matching rather than
+exhaustive, tighter prior sigma, or rig/IMU orientation constraints. Raising
+horizontal accuracy below the 3.19 m GPS baseline is the bar to clear.
