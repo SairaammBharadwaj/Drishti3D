@@ -590,3 +590,19 @@ before or alongside material model, metric, data, architecture or claim changes.
 - **Also:** a proposed fix to loosen the epipolar band to 3 px collapsed the
   synthetic reconstruction to zero points -- absence of EXIF distortion
   coefficients does not imply a distorted lens. Now an explicit opt-in.
+
+## 2026-09-10 / D-030 — pose graph optimizer: own scipy implementation, not GTSAM/g2o
+
+**Context.** The Intelligence Edition architecture (§7) calls for pose graph
+optimization via GTSAM or g2o to correct bowed single-pass trajectories — the
+exact failure measured on AGZ (26.7 m at the ends, 3.2 m mid-sequence).
+
+**Decision.** Implement PGO in-repo on `scipy.optimize.least_squares`.
+
+**Why.** `pip install gtsam` force-downgrades numpy 2.5.2 → 1.26.4 — changing
+the numeric foundation every benchmark was validated on, which the benchmark
+contract forbids. `g2o-python` fails to build in this environment. Our graphs
+are small (≤ a few hundred nodes); `bundle.py` already contains the analytic
+SE(3) machinery; scipy's sparse trust-region solver handles this class of
+problem directly. The document's intent — a global relative-pose + GPS-prior
+fusion stage — is honored by an equivalent implementation.
