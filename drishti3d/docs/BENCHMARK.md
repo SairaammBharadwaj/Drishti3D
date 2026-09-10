@@ -256,3 +256,42 @@ badly placed.
 The bow is the thing to attack: sequential + loop-closure matching rather than
 exhaustive, tighter prior sigma, or rig/IMU orientation constraints. Raising
 horizontal accuracy below the 3.19 m GPS baseline is the bar to clear.
+
+## 2026-09-10 — Dense feed-forward + pose graph (Intelligence Edition stages 3–4)
+
+New backbone: MASt3R pairwise geometry (sequential + skip pairs at offsets
+1,2,4,8) assembled by a GPS-anchored pose graph (`pose_graph.py`) — the dense
+model supplies *pairwise* constraints only; global assembly belongs to the
+graph. Its own global alignment produced locally-clean but globally-broken
+geometry here (robust Sim(3) accepted 12/62 cameras).
+
+Same AGZ surveyed segment as the 2026-09-06 entry. Direct UTM error, no
+alignment to truth:
+
+| | 3D med | p90 | horiz | vert |
+|---|---|---|---|---|
+| Onboard GPS | 5.52 | 12.37 | 3.26 | 2.68 |
+| COLMAP + priors (06 Sep) | 7.33 | ~20 | 6.91 | 1.44 |
+| **Dense + PGO** | **6.02** | **9.77** | 4.29 | **1.10** |
+
+The dense path beats the classical engine everywhere, beats GPS on the tail
+(p90) and on height by 2.4x. Horizontal remains behind raw GPS (4.29 vs 3.26).
+
+What mattered, in measured order:
+1. **Undistort first.** Raw AGZ frames (k1 = −0.281) break the dense model:
+   90.1 m median chained error distorted → 7.6 m undistorted. COLMAP models
+   distortion internally; a feed-forward pointmap model does not.
+2. **Pairwise, not global.** Skipping MASt3R's global alignment and assembling
+   with the GPS-anchored graph: 33.5 → 6.0 m.
+3. **Cycle-consistency noise estimation.** Skip edges vs composed sequential
+   edges give a truth-free per-dataset noise figure (here 15% translation,
+   2.1° rotation). Fixed guessed sigmas made PGO *worse than GPS* (22 m).
+4. **Per-edge anisotropic sigmas.** Direction noise = rot_err × edge length;
+   magnitude noise = rel_err × length. A constant clamp doubled horizontal
+   error when 22 m skips met a 0.10 m perpendicular sigma.
+
+Runtime: 62 frames → 233 edges in ~127 s on an RTX 5060 laptop (8 GB), PGO 5 s.
+License: MASt3R checkpoint is CC-BY-NC-SA — engine is opt-in
+(`allow_noncommercial=True`), per the SuperPoint precedent.
+
+Reproduce: `python -m eval.agz_dense_eval <dir with agz_pick.npy>`.

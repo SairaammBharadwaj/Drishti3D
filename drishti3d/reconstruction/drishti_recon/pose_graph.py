@@ -105,7 +105,8 @@ def _rotation_average(edges, Rs0, n, *, rot_sigma_rad, irls_iters=3,
     return Rotation.from_rotvec(x.reshape(n, 3)).as_matrix()
 
 
-def _linear_centres(edges, priors, Rs, cs0, n, *, trans_sigma_m, irls_iters=3):
+def _linear_centres(edges, priors, Rs, cs0, n, *, trans_sigma_m, irls_iters=3,
+                    trans_sigma_par_m=None):
     """Stage B: with rotations fixed, centres are exactly linear.
 
     Each edge row is Ri^T (c_j - c_i) = t_ij and each prior row is c_i = xyz,
@@ -123,8 +124,9 @@ def _linear_centres(edges, priors, Rs, cs0, n, *, trans_sigma_m, irls_iters=3):
     # dominates the first linear solve and ruptures the trajectory locally
     # before IRLS can react (measured: max error 14.9 m with, 2.1 m without).
     cs_init = np.asarray(cs0, float)
+    _ts0 = np.mean(trans_sigma_m) if np.ndim(trans_sigma_m) else trans_sigma_m
     re0 = np.array([np.linalg.norm(Rs[e.i].T @ (cs_init[e.j] - cs_init[e.i])
-                                   - e.t_ij) for e in edges]) / trans_sigma_m
+                                   - e.t_ij) for e in edges]) / _ts0
     c0_ = 3.0 * max(np.median(re0), 1e-6)
     w_edge = 1.0 / (1.0 + (re0 / c0_) ** 2)
     w_pri = np.ones(len(prior_items))
@@ -132,11 +134,35 @@ def _linear_centres(edges, priors, Rs, cs0, n, *, trans_sigma_m, irls_iters=3):
     for _ in range(irls_iters):
         A = _lil((m, 3 * n)); b = np.zeros(m); k = 0
         for kk, e in enumerate(edges):
-            w = np.sqrt(e.weight * w_edge[kk]) / trans_sigma_m
+            w = np.sqrt(e.weight * w_edge[kk])
             RiT = Rs[e.i].T
-            A[k:k + 3, 3 * e.j:3 * e.j + 3] = w * RiT
-            A[k:k + 3, 3 * e.i:3 * e.i + 3] = -w * RiT
-            b[k:k + 3] = w * e.t_ij
+            if trans_sigma_par_m is not None:
+                # Anisotropic edge: the dense model's translation DIRECTION is
+                # far more reliable than its MAGNITUDE (measured on AGZ:
+                # 2.1 deg rotation error but 15% scale wander). Whiten in a
+                # frame aligned with t_ij: loose along it, stiff across it.
+                # Both sigmas are per-edge and grow with edge length — a
+                # direction error of angle a displaces the far end by a*L, so
+                # clamping the perpendicular sigma at a global constant makes
+                # long skip edges wrongly stiff (measured: horizontal error
+                # doubled when a 0.10 m clamp met 22 m skips at 2 deg noise).
+                L = np.linalg.norm(e.t_ij)
+                if L > 1e-9:
+                    u = e.t_ij / L
+                    P_par = np.outer(u, u)
+                    sig_par = np.take(trans_sigma_par_m, kk,
+                                      mode="clip") if np.ndim(trans_sigma_par_m) else trans_sigma_par_m
+                    sig_perp = np.take(trans_sigma_m, kk,
+                                       mode="clip") if np.ndim(trans_sigma_m) else trans_sigma_m
+                    W = (P_par / sig_par
+                         + (np.eye(3) - P_par) / sig_perp)
+                else:
+                    W = np.eye(3) / np.mean(trans_sigma_m)
+            else:
+                W = np.eye(3) / trans_sigma_m
+            A[k:k + 3, 3 * e.j:3 * e.j + 3] = w * (W @ RiT)
+            A[k:k + 3, 3 * e.i:3 * e.i + 3] = -w * (W @ RiT)
+            b[k:k + 3] = w * (W @ e.t_ij)
             k += 3
         for kk, (i, (xyz, sig)) in enumerate(prior_items):
             w = np.sqrt(w_pri[kk]) / sig
@@ -147,8 +173,9 @@ def _linear_centres(edges, priors, Rs, cs0, n, *, trans_sigma_m, irls_iters=3):
                    atol=1e-10, btol=1e-10, iter_lim=8000)
         cs = sol[0].reshape(n, 3)
         # reweight
+        _ts = np.mean(trans_sigma_m) if np.ndim(trans_sigma_m) else trans_sigma_m
         re = np.array([np.linalg.norm(Rs[e.i].T @ (cs[e.j] - cs[e.i]) - e.t_ij)
-                       for e in edges]) / trans_sigma_m
+                       for e in edges]) / _ts
         ce = 3.0 * max(np.median(re), 1e-6)
         w_edge = 1.0 / (1.0 + (re / ce) ** 2)
         rp = np.array([np.linalg.norm(cs[i] - xyz) / sig
@@ -162,6 +189,7 @@ def _linear_centres(edges, priors, Rs, cs0, n, *, trans_sigma_m, irls_iters=3):
 def optimize(graph: PoseGraph, Rs0, cs0, *,
              rot_sigma_rad: float = 0.003,
              trans_sigma_m: float = 0.10,
+             trans_sigma_par_m: float | None = None,
              joint_polish: bool = False,
              loss: str = "cauchy",
              f_scale: float = 10.0,
@@ -193,7 +221,8 @@ def optimize(graph: PoseGraph, Rs0, cs0, *,
         priors.setdefault(0, (cs0[0].copy(), 1e-4))
 
     Rs = _rotation_average(edges, Rs0, n, rot_sigma_rad=rot_sigma_rad)
-    cs = _linear_centres(edges, priors, Rs, cs0, n, trans_sigma_m=trans_sigma_m)
+    cs = _linear_centres(edges, priors, Rs, cs0, n, trans_sigma_m=trans_sigma_m,
+                         trans_sigma_par_m=trans_sigma_par_m)
 
     # Gauge correction. Rotation averaging determines orientations only up to
     # one global rotation (measured: an identical 6.7 deg offset at every node
@@ -261,7 +290,8 @@ def optimize(graph: PoseGraph, Rs0, cs0, *,
             cs_try = (G @ (cs - mc).T).T + mp
             Rs_try = np.einsum("ab,nbc->nac", G, Rs)
             cs_try = _linear_centres(edges, priors, Rs_try, cs_try, n,
-                                     trans_sigma_m=trans_sigma_m)
+                                     trans_sigma_m=trans_sigma_m,
+                                     trans_sigma_par_m=trans_sigma_par_m)
             if _prior_cost(cs_try) < cost_before:
                 cs, Rs = cs_try, Rs_try
             else:
@@ -328,3 +358,46 @@ def chain_initialization(edges, n, *, c0=None, R0=None):
         Rs.append(Rs[-1] @ e.R_ij)
         cs.append(cs[-1] + Rs[-2] @ e.t_ij)
     return np.array(Rs), np.array(cs)
+
+
+def cycle_consistency(edges, *, max_report: int = 10_000):
+    """Estimate edge noise without ground truth via composition cycles.
+
+    For every skip edge (i, i+k) whose chain of sequential edges also exists,
+    compare the skip measurement against the composed sequential motion. The
+    discrepancy, normalised by the skip translation's length, is a scale-free
+    per-edge noise estimate. Median across cycles ~ relative translation
+    noise; it is what ``trans_sigma_m`` should be proportional to.
+
+    Returns dict(rel_trans_err, rot_err_rad, n_cycles). On clean geometry
+    rel_trans_err is a few percent; on out-of-distribution imagery the dense
+    model was measured at ~30%, and stiff sigmas then make PGO *worse* than
+    raw GPS — this estimator exists so the pipeline can see that coming.
+    """
+    from scipy.spatial.transform import Rotation as _Rot
+    seq = {(e.i, e.j): e for e in edges if e.j == e.i + 1}
+    rels, rots, n_cyc = [], [], 0
+    for e in edges:
+        k = e.j - e.i
+        if k < 2:
+            continue
+        R = np.eye(3); t = np.zeros(3); ok = True
+        for s in range(e.i, e.j):
+            se = seq.get((s, s + 1))
+            if se is None:
+                ok = False; break
+            t = t + R @ se.t_ij
+            R = R @ se.R_ij
+        if not ok:
+            continue
+        n_cyc += 1
+        L = max(np.linalg.norm(e.t_ij), 1e-9)
+        rels.append(np.linalg.norm(t - e.t_ij) / L)
+        rots.append(np.linalg.norm(_Rot.from_matrix(e.R_ij.T @ R).as_rotvec()))
+        if n_cyc >= max_report:
+            break
+    if not rels:
+        return dict(rel_trans_err=float("nan"), rot_err_rad=float("nan"),
+                    n_cycles=0)
+    return dict(rel_trans_err=float(np.median(rels)),
+                rot_err_rad=float(np.median(rots)), n_cycles=n_cyc)

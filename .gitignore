@@ -24,3 +24,6 @@ Thumbs.db
 
 # Logs
 *.log
+# Large third-party checkouts and model weights — fetched by docs/ENVIRONMENT.md steps
+drishti3d/third_party/
+drishti3d/models/
