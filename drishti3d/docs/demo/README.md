@@ -1,8 +1,8 @@
 # Demo assets
 
 Generated from the real 63-second single drone pass over Gymnasium Neubiberg
-(Wikimedia Commons, CC-BY-SA). Regenerate with the dense engine plus
-`render_dense` — see `docs/BENCHMARK.md`.
+(Wikimedia Commons, CC-BY-SA). Regenerate with `eval/render_pov.py` (`pov_dense` for the densified layer,
+`pov_colmap` for the measured one) driven by `drishti_recon.dense3d`.
 
 | File | What it shows |
 |---|---|
