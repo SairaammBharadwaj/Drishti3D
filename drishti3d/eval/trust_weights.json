@@ -1,0 +1,92 @@
+{
+  "weights": [
+    0.0,
+    0.0,
+    0.22222222222222227,
+    0.7777777777777778
+  ],
+  "weight_order": [
+    "O",
+    "N",
+    "E",
+    "P"
+  ],
+  "normalisation": {
+    "obs_saturation": 50.0,
+    "resid_saturation_px": 0.29806286288848316,
+    "parallax_saturation_deg": 59.53609156107863
+  },
+  "spearman": 0.6247494085067278,
+  "n_points": 12659,
+  "scene": "oblique_pass/seed0",
+  "error_metric": "analytic_surface_distance",
+  "error_median_m": 0.02046392283531162,
+  "decile_profile": [
+    {
+      "decile": 1,
+      "n": 1266,
+      "median_err_m": 0.10109489868670352,
+      "p90_err_m": 0.45505450492171207
+    },
+    {
+      "decile": 2,
+      "n": 1266,
+      "median_err_m": 0.06937320157209825,
+      "p90_err_m": 0.23882621938151516
+    },
+    {
+      "decile": 3,
+      "n": 1266,
+      "median_err_m": 0.050301975519403186,
+      "p90_err_m": 0.16447638515375118
+    },
+    {
+      "decile": 4,
+      "n": 1266,
+      "median_err_m": 0.03241762633523848,
+      "p90_err_m": 0.101059935257652
+    },
+    {
+      "decile": 5,
+      "n": 1266,
+      "median_err_m": 0.022631652772652444,
+      "p90_err_m": 0.07498763324339208
+    },
+    {
+      "decile": 6,
+      "n": 1266,
+      "median_err_m": 0.020471815323631404,
+      "p90_err_m": 0.062088357826233675
+    },
+    {
+      "decile": 7,
+      "n": 1266,
+      "median_err_m": 0.01391198303218033,
+      "p90_err_m": 0.04114687804615258
+    },
+    {
+      "decile": 8,
+      "n": 1266,
+      "median_err_m": 0.011935841606710795,
+      "p90_err_m": 0.042278873548475815
+    },
+    {
+      "decile": 9,
+      "n": 1266,
+      "median_err_m": 0.008178530210010138,
+      "p90_err_m": 0.024103137378578054
+    },
+    {
+      "decile": 10,
+      "n": 1266,
+      "median_err_m": 0.00609967685375068,
+      "p90_err_m": 0.016219014932161713
+    }
+  ],
+  "components_present": [
+    "O",
+    "E",
+    "P"
+  ],
+  "note": "N (network confidence) is absent for the classical engine; its weight is reported as 0 and redistributed at score time. The terms are correlated (obs_count vs parallax rho=0.88), so these weights rank well but are not per-term importances."
+}

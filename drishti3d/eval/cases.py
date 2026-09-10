@@ -43,6 +43,14 @@ class EvalCase:
     gps: np.ndarray | None = None    # (N,4) real GPS lat,lon,alt,acc (or None)
     gt_cloud_path: Path | None = None
     gt_cloud_pts: np.ndarray | None = None    # in-memory GT cloud (M,3), if any
+    #: Exact point->surface distance function, when the scene's geometry is
+    #: known analytically. Nearest-neighbour distance to a *sampled* GT cloud
+    #: cannot resolve error below that cloud's own spacing: the synthetic
+    #: scene's 3,750-point sample has 0.33 m median self-spacing, which floored
+    #: measured accuracy at 0.78 m where the analytic value is 0.02 m. When
+    #: this is set, accuracy is scored against it and the sampled cloud is used
+    #: only for completeness (which asks the opposite question and is sound).
+    gt_surface_distance: object | None = None
     reference_distances: list | None = None   # [{name,meters,a,b}] for dimensional error
     frame_stride: int = 1            # subsample very long sequences
     meta: dict = field(default_factory=dict)
@@ -128,6 +136,55 @@ def _exif_gps(path: Path):
 # --------------------------------------------------------------------------- #
 # adapters
 # --------------------------------------------------------------------------- #
+def _exif_intrinsics(path: Path) -> dict | None:
+    """Recover fx, fy, cx, cy from EXIF, in pixels at the image's own resolution.
+
+    Guessing ``0.9 * max(w, h)`` is a poor stand-in for a real camera: measured on
+    the Bellus set (Canon PowerShot S110) the guess was 3643 px against a true
+    2795 px -- a 30% error, which collapsed registration to 21% because both
+    essential-matrix estimation and PnP depend directly on focal length.
+
+    EXIF gives focal length in millimetres and the focal-plane resolution in
+    pixels per inch, which together fix the sensor width and hence the focal
+    length in pixels.
+    """
+    try:
+        from PIL import Image, ExifTags
+    except Exception:
+        return None
+    try:
+        img = Image.open(path)
+        w, h = img.size
+        exif = img.getexif()
+        ifd = exif.get_ifd(ExifTags.IFD.Exif)
+        tags = {ExifTags.TAGS.get(k, k): v for k, v in ifd.items()}
+        base = {ExifTags.TAGS.get(k, k): v for k, v in exif.items()}
+
+        f_mm = tags.get("FocalLength") or base.get("FocalLength")
+        fpx = tags.get("FocalPlaneXResolution")
+        unit = tags.get("FocalPlaneResolutionUnit", 2)
+        exif_w = tags.get("ExifImageWidth") or w
+
+        if f_mm and fpx:
+            # unit 2 = inches, 3 = centimetres
+            per_mm = float(fpx) / (25.4 if unit in (2, None) else 10.0)
+            sensor_w = float(exif_w) / per_mm
+            if sensor_w > 0:
+                fx = float(f_mm) * w / sensor_w
+                return {"fx": fx, "fy": fx, "cx": w / 2.0, "cy": h / 2.0,
+                        "width": w, "height": h, "source": "exif_focal_plane"}
+
+        f35 = tags.get("FocalLengthIn35mmFilm")
+        if f35:
+            # 35 mm frame is 36 mm wide by definition
+            fx = float(f35) * w / 36.0
+            return {"fx": fx, "fy": fx, "cx": w / 2.0, "cy": h / 2.0,
+                    "width": w, "height": h, "source": "exif_35mm_equivalent"}
+    except Exception:
+        return None
+    return None
+
+
 def _load_odm(root: Path, name: str, stride: int) -> EvalCase:
     # images live in root, or root/images
     img_dir = root / "images" if (root / "images").is_dir() else root
@@ -147,7 +204,12 @@ def _load_odm(root: Path, name: str, stride: int) -> EvalCase:
             gps = np.column_stack([arr, np.full(len(arr), 5.0)])  # 5 m default acc
 
     gt_cloud = _find_cloud(root)
+    # Real intrinsics from EXIF where the camera recorded them. Without this the
+    # pipeline falls back to a 0.9*max(w,h) guess, which on this dataset was 30%
+    # wrong and cost most of the registration.
+    intr = _exif_intrinsics(images[0]) if images else None
     return EvalCase(name=name, kind="odm", images=images, gps=gps,
+                    intrinsics=intr,
                     gt_cloud_path=gt_cloud, frame_stride=stride,
                     meta={"img_dir": str(img_dir)})
 
@@ -222,9 +284,13 @@ def _load_synthetic(root: Path, name: str, stride: int) -> EvalCase:
     cloud = np.array(gt["scene_points_enu"], float) if "scene_points_enu" in gt else None
     # frames come from the pre-rendered video, not a folder -> passed via meta
     video = next(iter(root.glob("*.mp4")), None)
+    # The synthetic scene's geometry is fixed across seeds (only textures shift
+    # with the seed), so one analytic distance function serves every case.
+    from drishti_recon import synth as _synth
     return EvalCase(name=name, kind="synthetic", images=[],
                     intrinsics=gt.get("intrinsics"), gt_centers=centers, gps=gps,
                     gt_cloud_pts=cloud,
+                    gt_surface_distance=_synth.surface_distance,
                     reference_distances=gt.get("reference_distances"),
                     frame_stride=stride,
                     meta={"video": str(video) if video else None,

@@ -1,0 +1,393 @@
+{
+  "n_measurements": 39,
+  "n_usable": 36,
+  "bundle_adjust": false,
+  "measurements": [
+    {
+      "scene": "low_parallax_s2",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 0.0,
+      "error_m": -12.0,
+      "sigma_m": null,
+      "scale_sigma_relative": 0.0
+    },
+    {
+      "scene": "low_parallax_s2",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 0.0,
+      "error_m": -8.0,
+      "sigma_m": null,
+      "scale_sigma_relative": 0.0
+    },
+    {
+      "scene": "low_parallax_s2",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 0.0,
+      "error_m": -9.0,
+      "sigma_m": null,
+      "scale_sigma_relative": 0.0
+    },
+    {
+      "scene": "nadir_grid_s0",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 11.99960851807402,
+      "error_m": -0.0003914819259804858,
+      "sigma_m": 0.7062979794051794,
+      "scale_sigma_relative": 0.005939098177428062
+    },
+    {
+      "scene": "nadir_grid_s0",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 8.096629729943047,
+      "error_m": 0.09662972994304653,
+      "sigma_m": 0.6721057497617189,
+      "scale_sigma_relative": 0.005939098177428062
+    },
+    {
+      "scene": "nadir_grid_s0",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.529029134542563,
+      "error_m": -0.4709708654574367,
+      "sigma_m": 0.6727503611578302,
+      "scale_sigma_relative": 0.005939098177428062
+    },
+    {
+      "scene": "nadir_grid_s1",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 12.028772267231966,
+      "error_m": 0.028772267231966353,
+      "sigma_m": 0.15370586763342964,
+      "scale_sigma_relative": 0.0034176355062120263
+    },
+    {
+      "scene": "nadir_grid_s1",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 8.233423252634216,
+      "error_m": 0.23342325263421593,
+      "sigma_m": 0.15186857727367983,
+      "scale_sigma_relative": 0.0034176355062120263
+    },
+    {
+      "scene": "nadir_grid_s1",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.94942727533957,
+      "error_m": -0.05057272466043017,
+      "sigma_m": 0.050176994982351876,
+      "scale_sigma_relative": 0.0034176355062120263
+    },
+    {
+      "scene": "nadir_grid_s2",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 12.732650874271505,
+      "error_m": 0.7326508742715045,
+      "sigma_m": 0.08503498200002008,
+      "scale_sigma_relative": 0.00519625997313088
+    },
+    {
+      "scene": "nadir_grid_s2",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 8.10289588835649,
+      "error_m": 0.10289588835649077,
+      "sigma_m": 0.06973434957537124,
+      "scale_sigma_relative": 0.00519625997313088
+    },
+    {
+      "scene": "nadir_grid_s2",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 9.01157548194671,
+      "error_m": 0.011575481946710653,
+      "sigma_m": 0.07062629201070515,
+      "scale_sigma_relative": 0.00519625997313088
+    },
+    {
+      "scene": "nadir_grid_s3",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 11.79243525807958,
+      "error_m": -0.20756474192041985,
+      "sigma_m": 1.0664271268307328,
+      "scale_sigma_relative": 0.005788883345860962
+    },
+    {
+      "scene": "nadir_grid_s3",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 8.037795824892154,
+      "error_m": 0.03779582489215372,
+      "sigma_m": 0.7787437754393624,
+      "scale_sigma_relative": 0.005788883345860962
+    },
+    {
+      "scene": "nadir_grid_s3",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.653855925105905,
+      "error_m": -0.34614407489409516,
+      "sigma_m": 0.7661973445110489,
+      "scale_sigma_relative": 0.005788883345860962
+    },
+    {
+      "scene": "nadir_grid_s4",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 11.961921944314172,
+      "error_m": -0.038078055685828005,
+      "sigma_m": 0.5821387454055679,
+      "scale_sigma_relative": 0.006936725846322188
+    },
+    {
+      "scene": "nadir_grid_s4",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 7.466352329851754,
+      "error_m": -0.5336476701482464,
+      "sigma_m": 2.1305903466094858,
+      "scale_sigma_relative": 0.006936725846322188
+    },
+    {
+      "scene": "nadir_grid_s4",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.975936274372131,
+      "error_m": -0.02406372562786885,
+      "sigma_m": 0.3804334215593464,
+      "scale_sigma_relative": 0.006936725846322188
+    },
+    {
+      "scene": "nadir_grid_s5",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 12.172266789867896,
+      "error_m": 0.172266789867896,
+      "sigma_m": 2.1933844175917745,
+      "scale_sigma_relative": 0.007562258454124487
+    },
+    {
+      "scene": "nadir_grid_s5",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 7.549691492763398,
+      "error_m": -0.45030850723660176,
+      "sigma_m": 2.3031539656797455,
+      "scale_sigma_relative": 0.007562258454124487
+    },
+    {
+      "scene": "nadir_grid_s5",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.910130256251183,
+      "error_m": -0.0898697437488174,
+      "sigma_m": 2.1827373745306393,
+      "scale_sigma_relative": 0.007562258454124487
+    },
+    {
+      "scene": "oblique_pass_s0",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 12.227330499354737,
+      "error_m": 0.22733049935473737,
+      "sigma_m": 0.06670883826791114,
+      "scale_sigma_relative": 0.005244748086457041
+    },
+    {
+      "scene": "oblique_pass_s0",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 8.269604327192074,
+      "error_m": 0.2696043271920736,
+      "sigma_m": 0.047017728546101506,
+      "scale_sigma_relative": 0.005244748086457041
+    },
+    {
+      "scene": "oblique_pass_s0",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.766648925446924,
+      "error_m": -0.23335107455307558,
+      "sigma_m": 0.07022618077340488,
+      "scale_sigma_relative": 0.005244748086457041
+    },
+    {
+      "scene": "oblique_pass_s1",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 11.627445490346716,
+      "error_m": -0.37255450965328407,
+      "sigma_m": 0.09435447732488798,
+      "scale_sigma_relative": 0.0048206995054431104
+    },
+    {
+      "scene": "oblique_pass_s1",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 8.433669828491134,
+      "error_m": 0.43366982849113356,
+      "sigma_m": 0.0849522513399704,
+      "scale_sigma_relative": 0.0048206995054431104
+    },
+    {
+      "scene": "oblique_pass_s1",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.685236959786218,
+      "error_m": -0.31476304021378176,
+      "sigma_m": 0.0884060123064199,
+      "scale_sigma_relative": 0.0048206995054431104
+    },
+    {
+      "scene": "oblique_pass_s2",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 12.626548648005624,
+      "error_m": 0.6265486480056239,
+      "sigma_m": 0.17071191293098936,
+      "scale_sigma_relative": 0.00519815527517955
+    },
+    {
+      "scene": "oblique_pass_s2",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 7.4997635400095986,
+      "error_m": -0.5002364599904014,
+      "sigma_m": 0.04474335919788124,
+      "scale_sigma_relative": 0.00519815527517955
+    },
+    {
+      "scene": "oblique_pass_s2",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.995845681380866,
+      "error_m": -0.004154318619134401,
+      "sigma_m": 0.04825623550487891,
+      "scale_sigma_relative": 0.00519815527517955
+    },
+    {
+      "scene": "orbit_s0",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 12.024532429580368,
+      "error_m": 0.024532429580368387,
+      "sigma_m": 0.06092366287321426,
+      "scale_sigma_relative": 0.0026569558798457365
+    },
+    {
+      "scene": "orbit_s0",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 7.769570458954545,
+      "error_m": -0.23042954104545466,
+      "sigma_m": 0.13266587728624243,
+      "scale_sigma_relative": 0.0026569558798457365
+    },
+    {
+      "scene": "orbit_s0",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.72920444580843,
+      "error_m": -0.27079555419157053,
+      "sigma_m": 0.03496815583792477,
+      "scale_sigma_relative": 0.0026569558798457365
+    },
+    {
+      "scene": "orbit_s1",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 11.963679250861052,
+      "error_m": -0.036320749138948116,
+      "sigma_m": 0.25318831723006413,
+      "scale_sigma_relative": 0.002462664680248017
+    },
+    {
+      "scene": "orbit_s1",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 7.732974249303897,
+      "error_m": -0.2670257506961029,
+      "sigma_m": 0.24346793717958806,
+      "scale_sigma_relative": 0.002462664680248017
+    },
+    {
+      "scene": "orbit_s1",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.706161926330783,
+      "error_m": -0.29383807366921744,
+      "sigma_m": 0.16628184532517462,
+      "scale_sigma_relative": 0.002462664680248017
+    },
+    {
+      "scene": "orbit_s2",
+      "name": "building_width_E",
+      "true_m": 12.0,
+      "measured_m": 11.848944956104242,
+      "error_m": -0.15105504389575763,
+      "sigma_m": 0.09053242377673555,
+      "scale_sigma_relative": 0.002684184394371105
+    },
+    {
+      "scene": "orbit_s2",
+      "name": "building_depth_N",
+      "true_m": 8.0,
+      "measured_m": 8.081267585946968,
+      "error_m": 0.08126758594696781,
+      "sigma_m": 0.02661254568175706,
+      "scale_sigma_relative": 0.002684184394371105
+    },
+    {
+      "scene": "orbit_s2",
+      "name": "building_height",
+      "true_m": 9.0,
+      "measured_m": 8.566904199552141,
+      "error_m": -0.4330958004478589,
+      "sigma_m": 0.11446065270804195,
+      "scale_sigma_relative": 0.002684184394371105
+    }
+  ],
+  "calibration": {
+    "n": 36,
+    "scale_factor": 1.5601527677679559,
+    "median_abs_z": 1.0523230418594862,
+    "coverage_raw": {
+      "50": 0.4444444444444444,
+      "80": 0.5277777777777778,
+      "95": 0.6666666666666666
+    },
+    "coverage_calibrated": {
+      "50": 0.5,
+      "80": 0.6666666666666666,
+      "95": 0.6944444444444444
+    },
+    "conformal_factors": {
+      "50": 1.4755409490881883,
+      "80": 3.94845607983687,
+      "95": 11.180127486138533
+    },
+    "coverage_conformal": {
+      "50": 0.5555555555555556,
+      "80": 0.8611111111111112,
+      "95": 1.0
+    }
+  },
+  "coverage_leave_one_out": {
+    "50": 0.5277777777777778,
+    "80": 0.8333333333333334,
+    "95": 0.9722222222222222
+  },
+  "error_summary_m": {
+    "median_abs": 0.228880020200096,
+    "p90_abs": 0.4856036627239191,
+    "max_abs": 0.7326508742715045
+  }
+}

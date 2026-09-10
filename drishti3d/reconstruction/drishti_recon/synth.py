@@ -51,19 +51,32 @@ def _look_at(cam_c: np.ndarray, target: np.ndarray) -> np.ndarray:
     fwd = fwd / np.linalg.norm(fwd)
     world_up = np.array([0.0, 0.0, 1.0])
     right = np.cross(fwd, world_up)
-    right /= np.linalg.norm(right)
+    n = np.linalg.norm(right)
+    if n < 1e-8:
+        # Straight-down (nadir) view: the world-up reference is parallel to the
+        # view direction, so it cannot define a heading.  Fall back to north,
+        # which fixes the image roll without changing any oblique pose.
+        right = np.cross(fwd, np.array([0.0, 1.0, 0.0]))
+        n = np.linalg.norm(right)
+    right = right / n
     down = np.cross(fwd, right)
     # rows map world vectors into camera axes
     return np.stack([right, down, fwd], axis=0)
 
 
-def _build_scene() -> tuple[list[Surface], dict]:
-    """Ground plane + a box building. Returns surfaces and metadata."""
+def _build_scene(tex_offset: int = 0) -> tuple[list[Surface], dict]:
+    """Ground plane + a box building. Returns surfaces and metadata.
+
+    ``tex_offset`` shifts every texture seed so that different benchmark
+    seeds render a genuinely different scene appearance (not merely different
+    GPS noise on identical pixels), which is what makes repeated trials
+    independent rather than cosmetic.
+    """
     surfaces: list[Surface] = []
     # Ground: 60m x 60m centred at origin, z=0
     g = 30.0
     ground = np.array([[-g, -g, 0], [g, -g, 0], [g, g, 0], [-g, g, 0]], float)
-    surfaces.append(Surface(ground, _procedural_texture(1, 1024)))
+    surfaces.append(Surface(ground, _procedural_texture(1 + tex_offset, 1024)))
 
     # Building box: footprint 12 (E) x 8 (N), height 9, centred near origin
     cx, cy = 2.0, -1.0
@@ -71,7 +84,7 @@ def _build_scene() -> tuple[list[Surface], dict]:
     x0, x1 = cx - ex, cx + ex
     y0, y1 = cy - ny, cy + ny
     roof = np.array([[x0, y0, h], [x1, y0, h], [x1, y1, h], [x0, y1, h]], float)
-    surfaces.append(Surface(roof, _procedural_texture(2)))
+    surfaces.append(Surface(roof, _procedural_texture(2 + tex_offset)))
     walls = [
         np.array([[x0, y0, 0], [x1, y0, 0], [x1, y0, h], [x0, y0, h]], float),  # south
         np.array([[x1, y0, 0], [x1, y1, 0], [x1, y1, h], [x1, y0, h]], float),  # east
@@ -79,7 +92,7 @@ def _build_scene() -> tuple[list[Surface], dict]:
         np.array([[x0, y1, 0], [x0, y0, 0], [x0, y0, h], [x0, y1, h]], float),  # west
     ]
     for i, w in enumerate(walls):
-        surfaces.append(Surface(w, _procedural_texture(10 + i)))
+        surfaces.append(Surface(w, _procedural_texture(10 + tex_offset + i)))
 
     meta = {
         "building": {"cx": cx, "cy": cy, "ex": ex, "ny": ny, "height": h},
@@ -127,10 +140,100 @@ def _render_frame(K, R, C, surfaces, w, h):
     return img
 
 
+# --------------------------------------------------------------------------- #
+# capture regimes
+# --------------------------------------------------------------------------- #
+#: Named capture regimes.  A regime fixes the *flight geometry*, which is the
+#: dominant driver of reconstructability -- baseline-to-depth ratio, triangulation
+#: angle and how well GPS constrains the vertical axis.  Benchmarking across
+#: regimes (rather than one favourable pass) is what makes a reported accuracy
+#: number meaningful; see docs/BENCHMARK.md.
+REGIMES = ("oblique_pass", "nadir_grid", "orbit", "low_parallax")
+
+
+def _trajectory(regime: str, n_frames: int):
+    """Return (centres (N,3) ENU, targets (N,3) ENU aim points) for a regime.
+
+    ``targets`` is per-frame so nadir passes can look straight down while
+    oblique/orbit passes keep the building framed.
+    """
+    t = np.linspace(0, 1, n_frames)
+    building = np.array([2.0, -1.0, 4.0])
+
+    if regime == "oblique_pass":
+        # Single oblique pass flying east, descending gently, building framed.
+        centres = np.stack([-22 + 44 * t,
+                            -14 + 6 * np.sin(t * np.pi),
+                            46 - 6 * t], 1)
+        targets = np.tile(building, (n_frames, 1))
+
+    elif regime == "nadir_grid":
+        # Lawn-mower nadir mapping grid at constant altitude, camera straight
+        # down.  This is the hard case: constant altitude means GPS barely
+        # constrains the vertical axis, and the view directions are nearly
+        # parallel, so triangulation angles come only from the baseline.
+        strips, alt = 3, 45.0
+        u = t * strips                      # 0..strips along the boustrophedon
+        leg = np.floor(np.clip(u, 0, strips - 1e-9)).astype(int)
+        frac = u - leg
+        span = 24.0
+        east = np.where(leg % 2 == 0, -span + 2 * span * frac,
+                        span - 2 * span * frac)
+        north = -16.0 + leg * 16.0
+        centres = np.stack([east, north, np.full(n_frames, alt)], 1)
+        # look straight down: aim at the ground point directly below
+        targets = np.stack([east, north, np.zeros(n_frames)], 1)
+
+    elif regime == "orbit":
+        # Circular orbit around the building looking inward -- the strongest
+        # possible parallax for a single pass, and the regime a pilot would be
+        # told to fly if the goal is measurable geometry.
+        radius, alt = 26.0, 30.0
+        ang = 2 * np.pi * t
+        centres = np.stack([building[0] + radius * np.cos(ang),
+                            building[1] + radius * np.sin(ang),
+                            np.full(n_frames, alt)], 1)
+        targets = np.tile(building, (n_frames, 1))
+
+    elif regime == "low_parallax":
+        # High, fast, nearly-straight pass: short baseline relative to depth, so
+        # triangulation angles are small and depth is weakly observed.  This is
+        # the failure-mode probe -- a system that only reports its best regime is
+        # not reporting its field behaviour.
+        centres = np.stack([-10 + 20 * t,
+                            -18 + 1.5 * t,
+                            np.full(n_frames, 78.0)], 1)
+        targets = np.tile(building, (n_frames, 1))
+
+    else:
+        raise ValueError(f"unknown regime {regime!r}; expected one of {REGIMES}")
+
+    return centres, targets
+
+
 def generate(out_dir: str | Path, *, n_frames: int = 90, fps: int = 30,
              width: int = 960, height: int = 540,
-             origin=(28.6139, 77.2090, 220.0), seed: int = 0) -> dict:
+             origin=(28.6139, 77.2090, 220.0), seed: int = 0,
+             regime: str = "oblique_pass",
+             gps_sigma_h: float = 0.33, gps_sigma_v: float = 0.30,
+             gps_outlier_frac: float = 0.0,
+             gps_outlier_sigma_h: float = 6.0,
+             gps_outlier_sigma_v: float = 10.0) -> dict:
     """Generate the synthetic dataset into ``out_dir``.
+
+    Parameters
+    ----------
+    regime
+        Capture geometry, one of :data:`REGIMES`.  See :func:`_trajectory`.
+    gps_sigma_h, gps_sigma_v
+        Nominal GNSS noise (metres) applied in the local ENU frame.  Noise is
+        added metrically rather than in degrees so the horizontal sigma means the
+        same thing at every latitude.
+    gps_outlier_frac
+        Fraction of samples degraded to ``gps_outlier_sigma_*``.  Degraded
+        samples honestly report their larger sigma in the ``gps_accuracy``
+        column, which is what an uncertainty-weighted alignment is supposed to
+        exploit.  Keep at 0.0 for a homoscedastic track.
 
     Returns a manifest dict with paths and the camera intrinsics used.
     """
@@ -138,27 +241,20 @@ def generate(out_dir: str | Path, *, n_frames: int = 90, fps: int = 30,
     out_dir.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
 
-    surfaces, meta = _build_scene()
+    surfaces, meta = _build_scene(tex_offset=int(seed) * 1000)
 
     focal = 0.9 * max(width, height)
     K = np.array([[focal, 0, width / 2.0],
                   [0, focal, height / 2.0],
                   [0, 0, 1.0]], float)
 
-    # Single-pass oblique trajectory: fly east across the scene at ~45 m,
-    # descending gently, camera looking down-forward at the building.
-    t = np.linspace(0, 1, n_frames)
-    east = -22 + 44 * t
-    north = -14 + 6 * np.sin(t * np.pi)      # gentle lateral drift
-    up = 46 - 6 * t
-    centres = np.stack([east, north, up], 1)
-    target = np.array([2.0, -1.0, 4.0])      # aim at the building
+    centres, targets = _trajectory(regime, n_frames)
 
     frames = []
     cam_gt = []
     for i in range(n_frames):
         C = centres[i]
-        R = _look_at(C, target)
+        R = _look_at(C, targets[i])
         img = _render_frame(K, R, C, surfaces, width, height)
         frames.append(img)
         # store ground-truth pose
@@ -187,18 +283,29 @@ def generate(out_dir: str | Path, *, n_frames: int = 90, fps: int = 30,
 
     # Telemetry: convert ENU camera centres to WGS84 about the origin.
     frame = ENUFrame(*origin)
-    geo = frame.enu_to_geodetic(centres)
+    # Perturb in ENU metres, then convert -- so sigma_h is metres everywhere.
+    sig_h = np.full(n_frames, float(gps_sigma_h))
+    sig_v = np.full(n_frames, float(gps_sigma_v))
+    if gps_outlier_frac > 0:
+        n_bad = int(round(gps_outlier_frac * n_frames))
+        if n_bad:
+            bad = rng.choice(n_frames, n_bad, replace=False)
+            sig_h[bad] = float(gps_outlier_sigma_h)
+            sig_v[bad] = float(gps_outlier_sigma_v)
+    noisy = centres.copy()
+    noisy[:, 0] += rng.normal(0, 1, n_frames) * sig_h
+    noisy[:, 1] += rng.normal(0, 1, n_frames) * sig_h
+    noisy[:, 2] += rng.normal(0, 1, n_frames) * sig_v
+    geo = frame.enu_to_geodetic(noisy)
     tel_path = out_dir / "synthetic_telemetry.csv"
     with open(tel_path, "w", newline="") as f:
         f.write("timestamp,latitude,longitude,altitude,roll,pitch,yaw,gps_accuracy\n")
         for i in range(n_frames):
             lat, lon, alt = geo[i]
-            # small realistic GPS noise (~0.3 m) added to challenge alignment
-            nlat = lat + rng.normal(0, 3e-6)
-            nlon = lon + rng.normal(0, 3e-6)
-            nalt = alt + rng.normal(0, 0.3)
-            f.write(f"{i / fps:.4f},{nlat:.8f},{nlon:.8f},{nalt:.3f},"
-                    f"0.0,-35.0,90.0,0.5\n")
+            # Report the sigma actually used for this sample: a receiver that
+            # knows its fix degraded says so, and the aligner should use it.
+            f.write(f"{i / fps:.4f},{lat:.8f},{lon:.8f},{alt:.3f},"
+                    f"0.0,-35.0,90.0,{sig_h[i]:.2f}\n")
 
     gt_path = out_dir / "ground_truth.json"
     with open(gt_path, "w") as f:
@@ -215,7 +322,11 @@ def generate(out_dir: str | Path, *, n_frames: int = 90, fps: int = 30,
         "video": str(video_path),
         "telemetry": str(tel_path),
         "ground_truth": str(gt_path),
-        "n_frames": n_frames, "fps": fps,
+        "n_frames": n_frames, "fps": fps, "regime": regime, "seed": int(seed),
+        "gps_noise": {"sigma_h": float(gps_sigma_h), "sigma_v": float(gps_sigma_v),
+                      "outlier_frac": float(gps_outlier_frac),
+                      "outlier_sigma_h": float(gps_outlier_sigma_h),
+                      "outlier_sigma_v": float(gps_outlier_sigma_v)},
         "intrinsics": {"fx": focal, "fy": focal,
                        "cx": width / 2, "cy": height / 2,
                        "width": width, "height": height},
@@ -227,3 +338,42 @@ if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "sample_data/synthetic"
     m = generate(out)
     print(json.dumps(m, indent=2))
+
+
+def scene_surfaces(tex_offset: int = 0):
+    """The scene's exact geometry as planar quads, without rendering textures.
+
+    Exposed so evaluation can measure against the true surfaces instead of a
+    sampled point cloud. ``scene_points_enu`` in ``ground_truth.json`` is a
+    3,750-point sample of a 60x60 m scene: its own nearest-neighbour spacing is
+    0.33 m median and 2.5 m at p90, so nearest-neighbour distance to it floors
+    out well above real reconstruction error (measured: 30 % of points scored
+    an "error" below that sampling floor). Point-to-surface distance has no
+    such floor.
+    """
+    surfaces, meta = _build_scene(tex_offset)
+    return [s.corners.copy() for s in surfaces], meta
+
+
+def surface_distance(points, tex_offset: int = 0):
+    """Exact distance from each point to the nearest scene surface (metres).
+
+    Each surface is a planar rectangle. A point is projected into the quad's
+    plane, clamped to the quad's extent, and the distance taken to that closest
+    point -- exact for rectangles, which is all this scene contains.
+    """
+    pts = np.asarray(points, float).reshape(-1, 3)
+    quads, _ = scene_surfaces(tex_offset)
+    best = np.full(len(pts), np.inf)
+    for c in quads:
+        o = c[0]
+        u = c[1] - c[0]
+        v = c[3] - c[0]
+        lu = np.linalg.norm(u); lv = np.linalg.norm(v)
+        uh = u / lu; vh = v / lv
+        d = pts - o
+        a = np.clip(d @ uh, 0.0, lu)
+        b = np.clip(d @ vh, 0.0, lv)
+        closest = o + a[:, None] * uh + b[:, None] * vh
+        best = np.minimum(best, np.linalg.norm(pts - closest, axis=1))
+    return best

@@ -1,0 +1,501 @@
+{
+  "input": {
+    "video": {
+      "path": "/tmp/drishti3d-bench/mp_final/capture.mp4",
+      "width": 1920,
+      "height": 1446,
+      "fps": 5.0,
+      "frame_count": 122,
+      "duration": 24.4,
+      "codec": "h264",
+      "sha256": "5ac88bfc1daaa37dc6b9274504ba3916b7e83c8aff46fe4e3d77c1b9b5cc0959"
+    },
+    "telemetry": {
+      "n_valid": 122,
+      "warnings": [],
+      "has_rtk": false
+    },
+    "scale_source": "gps"
+  },
+  "frames": {
+    "total_analyzed": 122,
+    "accepted": 122,
+    "rejected": 0,
+    "accepted_fraction": 1.0,
+    "keyframes": 122
+  },
+  "reconstruction": {
+    "n_keyframes": 122,
+    "n_registered": 99,
+    "registered_fraction": 0.8114754098360656,
+    "n_points": 31991,
+    "median_reproj_err": 0.7067490983568643,
+    "p90_reproj_err": 2.3139591240891972,
+    "mean_track_length": 2.366134225250852,
+    "mean_tri_angle": 28.8397981811291,
+    "matcher": {
+      "name": "lightglue+disk",
+      "kind": "learned",
+      "licence": "Apache-2.0 (DISK, via kornia)",
+      "device": "cuda",
+      "max_keypoints": 2048
+    },
+    "heading_normalised": false,
+    "rotation_rescued_pairs": 209,
+    "canonical_orientation": false,
+    "n_frames_rotated": 0,
+    "init_pair": {
+      "frames": [
+        70,
+        113
+      ],
+      "median_tri_angle": 39.86225765301479,
+      "n_inliers": 685,
+      "cheirality": 0.8594730238393977,
+      "spread_px": 259.54803466796875,
+      "connectivity": 7
+    },
+    "uncertainty": {
+      "sigma_px_estimated": 0.7582681596146928,
+      "n_with_covariance": 31991,
+      "n_observable": 31991,
+      "median_sigma_recon_frame": 0.0018375526677347407
+    },
+    "bundle_adjustment": {
+      "enabled": true,
+      "n_solves": 13,
+      "final": {
+        "n_cameras": 99,
+        "n_points": 31991,
+        "n_observations": 75695,
+        "rmse_px_before": 1.5494450950095295,
+        "rmse_px_after": 1.5494450950095295,
+        "cost_before": 90863.52492744192,
+        "cost_after": 90863.52492744192,
+        "n_iterations": 200,
+        "converged": false,
+        "message": "The maximum number of function evaluations is exceeded.",
+        "accepted": false,
+        "n_fixed_single_view_points": 0,
+        "jacobian": "analytic",
+        "refined_focal": null,
+        "refined_dist": null
+      },
+      "history": [
+        {
+          "stage": "incremental@8",
+          "n_cameras": 10,
+          "n_points": 5308,
+          "n_observations": 13245,
+          "rmse_px_before": 2.0367785855489595,
+          "rmse_px_after": 1.5722037222426024,
+          "cost_before": 27473.2227508828,
+          "cost_after": 16369.658044186319,
+          "n_iterations": 27,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@16",
+          "n_cameras": 18,
+          "n_points": 8122,
+          "n_observations": 20457,
+          "rmse_px_before": 1.682720912686794,
+          "rmse_px_after": 1.6154865933693652,
+          "cost_before": 28962.505799528273,
+          "cost_after": 26694.307932833442,
+          "n_iterations": 16,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@24",
+          "n_cameras": 26,
+          "n_points": 10129,
+          "n_observations": 25572,
+          "rmse_px_before": 1.735148554226205,
+          "rmse_px_after": 1.6521939899540514,
+          "cost_before": 38495.32809991284,
+          "cost_after": 34902.51931990953,
+          "n_iterations": 31,
+          "converged": true,
+          "message": "`ftol` termination condition is satisfied.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@32",
+          "n_cameras": 34,
+          "n_points": 12063,
+          "n_observations": 30145,
+          "rmse_px_before": 1.7745203695279437,
+          "rmse_px_after": 1.6665090050754887,
+          "cost_before": 47462.135012329396,
+          "cost_after": 41860.134749105266,
+          "n_iterations": 40,
+          "converged": false,
+          "message": "The maximum number of function evaluations is exceeded.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@40",
+          "n_cameras": 42,
+          "n_points": 14139,
+          "n_observations": 35125,
+          "rmse_px_before": 1.7581962775171935,
+          "rmse_px_after": 1.6636623031497004,
+          "cost_before": 54290.15101421025,
+          "cost_after": 48609.00029730649,
+          "n_iterations": 40,
+          "converged": false,
+          "message": "The maximum number of function evaluations is exceeded.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@48",
+          "n_cameras": 50,
+          "n_points": 16722,
+          "n_observations": 40868,
+          "rmse_px_before": 1.6798818027706033,
+          "rmse_px_after": 1.6263749498657751,
+          "cost_before": 57664.80667173167,
+          "cost_after": 54049.88098827513,
+          "n_iterations": 40,
+          "converged": false,
+          "message": "The maximum number of function evaluations is exceeded.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@56",
+          "n_cameras": 58,
+          "n_points": 19290,
+          "n_observations": 46404,
+          "rmse_px_before": 1.658245516462083,
+          "rmse_px_after": 1.587869012871138,
+          "cost_before": 63800.35363089088,
+          "cost_after": 58499.85230324767,
+          "n_iterations": 40,
+          "converged": false,
+          "message": "The maximum number of function evaluations is exceeded.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@64",
+          "n_cameras": 66,
+          "n_points": 23542,
+          "n_observations": 56021,
+          "rmse_px_before": 1.6247557386048639,
+          "rmse_px_after": 1.5510674621426637,
+          "cost_before": 73942.99211133059,
+          "cost_after": 67387.94862715238,
+          "n_iterations": 40,
+          "converged": false,
+          "message": "The maximum number of function evaluations is exceeded.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@72",
+          "n_cameras": 74,
+          "n_points": 25704,
+          "n_observations": 61163,
+          "rmse_px_before": 1.5786359580001967,
+          "rmse_px_after": 1.560152082878004,
+          "cost_before": 76211.89583694469,
+          "cost_after": 74437.64998563073,
+          "n_iterations": 40,
+          "converged": false,
+          "message": "The maximum number of function evaluations is exceeded.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@80",
+          "n_cameras": 82,
+          "n_points": 27618,
+          "n_observations": 65422,
+          "rmse_px_before": 1.5847489749030494,
+          "rmse_px_after": 1.5536882346443677,
+          "cost_before": 82151.36427246791,
+          "cost_after": 78962.62458488041,
+          "n_iterations": 40,
+          "converged": false,
+          "message": "The maximum number of function evaluations is exceeded.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@88",
+          "n_cameras": 90,
+          "n_points": 30300,
+          "n_observations": 71941,
+          "rmse_px_before": 1.5803004863377677,
+          "rmse_px_after": 1.5527993264299675,
+          "cost_before": 89830.91476229783,
+          "cost_after": 86731.55695423823,
+          "n_iterations": 40,
+          "converged": false,
+          "message": "The maximum number of function evaluations is exceeded.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "incremental@96",
+          "n_cameras": 98,
+          "n_points": 31316,
+          "n_observations": 74220,
+          "rmse_px_before": 1.5698331372734964,
+          "rmse_px_after": 1.5561597565497591,
+          "cost_before": 91452.99628730908,
+          "cost_after": 89866.80760315472,
+          "n_iterations": 40,
+          "converged": false,
+          "message": "The maximum number of function evaluations is exceeded.",
+          "accepted": true,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        },
+        {
+          "stage": "final",
+          "n_cameras": 99,
+          "n_points": 31991,
+          "n_observations": 75695,
+          "rmse_px_before": 1.5494450950095295,
+          "rmse_px_after": 1.5494450950095295,
+          "cost_before": 90863.52492744192,
+          "cost_after": 90863.52492744192,
+          "n_iterations": 200,
+          "converged": false,
+          "message": "The maximum number of function evaluations is exceeded.",
+          "accepted": false,
+          "n_fixed_single_view_points": 0,
+          "jacobian": "analytic",
+          "refined_focal": null,
+          "refined_dist": null
+        }
+      ]
+    }
+  },
+  "cloud": {
+    "n_points": 31936,
+    "bbox_min": [
+      -167.13722033073012,
+      -211.1132098467138,
+      -176.42280588637018
+    ],
+    "bbox_max": [
+      134.78399748256973,
+      141.34729217961564,
+      -55.783686282632516
+    ],
+    "dimensions_m": [
+      301.92121781329985,
+      352.46050202632944,
+      120.63911960373767
+    ],
+    "median_point_spacing_m": 0.9806295731059786,
+    "class_counts": {
+      "OBSERVED_HIGH_CONFIDENCE": 3816,
+      "OBSERVED_LOW_CONFIDENCE": 28120,
+      "AI_ASSISTED": 0,
+      "DYNAMIC_EXCLUDED": 0,
+      "UNOBSERVED": 0,
+      "AI_GEOMETRICALLY_VERIFIED": 0
+    },
+    "class_fractions": {
+      "OBSERVED_HIGH_CONFIDENCE": 0.11948897795591182,
+      "OBSERVED_LOW_CONFIDENCE": 0.8805110220440882,
+      "AI_ASSISTED": 0.0,
+      "DYNAMIC_EXCLUDED": 0.0,
+      "UNOBSERVED": 0.0,
+      "AI_GEOMETRICALLY_VERIFIED": 0.0
+    }
+  },
+  "uncertainty": {
+    "n_points": 31936,
+    "n_with_finite_uncertainty": 31936,
+    "fraction_observable": 1.0,
+    "scale_sigma_relative": 0.017706158679167704,
+    "note": "1-sigma along each point's worst-constrained axis, propagated from pixel noise and camera geometry. Pose and systematic error are NOT modelled, so these are optimistic until calibrated against independent truth.",
+    "sigma_major_m": {
+      "median": 0.20798758874095297,
+      "p90": 0.41353525814115,
+      "max": 6.291797332701577
+    }
+  },
+  "coverage": {
+    "voxel_m": 2.25,
+    "grid_shape": [
+      160,
+      183,
+      90
+    ],
+    "n_cells": 2635200,
+    "counts": {
+      "UNSEEN": 1116298,
+      "OCCLUDED": 181826,
+      "DYNAMIC_EXCLUDED": 0,
+      "EMPTY": 1323797,
+      "WEAK": 1191,
+      "OBSERVED": 12088
+    },
+    "fraction_explained": 0.5073907103825137,
+    "fraction_unseen": 0.42361035215543413,
+    "fraction_occluded": 0.06899893746205221,
+    "surface_cells": 13279,
+    "measurable_surface_fraction": 0.9103095112583779,
+    "note": "UNSEEN and OCCLUDED are space the flight did not establish. They are not reconstructed geometry and are excluded from measurement by default."
+  },
+  "sensors": {
+    "time_offset": {
+      "offset_s": 0.00266246931239712,
+      "correlation": 0.7739428646679088,
+      "confidence": 0.7441488355079211,
+      "accepted": true,
+      "reason": "",
+      "search_s": 2.0,
+      "n_samples": 1210
+    },
+    "rolling_shutter": {
+      "max_rate_deg_s": 757.014042290257,
+      "p95_rate_deg_s": 618.1188538862932,
+      "readout_s": 0.016666666666666666,
+      "worst_smear_deg": 10.301980898104887,
+      "severity": "severe",
+      "message": "rolling-shutter smear ~10.30 deg per frame at the 95th percentile turn rate (618.1 deg/s, readout 16.7 ms). Poses and reprojection residuals are biased; treat measurements from fast-yaw segments as unreliable."
+    },
+    "lever_arm_body_m": null,
+    "lever_arm_applied": false,
+    "lens_distortion_corrected": false
+  },
+  "capture_assessment": {
+    "score": 0.9102543046486838,
+    "grade": "excellent",
+    "factors": {
+      "parallax": 1.0,
+      "coverage": 0.8456511839708563,
+      "registration": 0.8114754098360656,
+      "redundancy": 0.9103095112583779,
+      "image_quality": 1.0
+    },
+    "limiting_factor": "registration",
+    "achievable_sigma_m": 0.20798758874095297,
+    "meets_requirement": null,
+    "messages": []
+  },
+  "recapture_plan": {
+    "actions": [],
+    "waypoints": [],
+    "expected_gain": "capture is adequate; a repeat flight is unlikely to help materially",
+    "unfixable": []
+  },
+  "inferred_verification": null,
+  "alignment": {
+    "scale": 69.26096245824242,
+    "n_inliers": 51,
+    "n_total": 99,
+    "alignment_rmse_3d_m": 13.119399147689565,
+    "alignment_rmse_horizontal_m": 7.9778567559012465,
+    "alignment_rmse_vertical_m": 10.415010109391085,
+    "scale_source": "gps",
+    "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS.",
+    "normalized_rmse": 2.0575521943783097,
+    "scale_sigma": 1.2263455915575174,
+    "degenerate": false,
+    "conditioning": {
+      "principal_extent_m": [
+        77.1584725911822,
+        71.15336614948467,
+        3.821201212109717
+      ],
+      "vertical_extent_m": 18.810619702846623,
+      "extent_ratios": [
+        0.9221717817884356,
+        0.049524065002634725
+      ],
+      "sigma_source": "weights_as_inverse_sigma",
+      "median_sigma_h_m": 5.0,
+      "median_sigma_v_m": 8.0,
+      "scored_in": "mahalanobis",
+      "sigma_recon_m": 0.2372545593197031,
+      "median_sigma_total_h_m": 5.00562580762066,
+      "error_budget": "gnss_dominated"
+    },
+    "scale_sigma_relative": 0.017706158679167704
+  },
+  "timings_s": {
+    "ingestion": 0.145,
+    "telemetry": 0.001,
+    "frames": 0.75,
+    "quality": 0.554,
+    "sync": 0.001,
+    "keyframes": 0.01,
+    "masking": 0.034,
+    "sfm": 655.938,
+    "densify": 0.0,
+    "georegistration": 0.11,
+    "fusion": 0.071,
+    "mesh": 0.0,
+    "report": 0.033,
+    "exports": 0.411
+  },
+  "performance": {
+    "processing_time_s": 657.614,
+    "video_duration_s": 24.4,
+    "processing_to_video_ratio": 26.951393442622955
+  },
+  "ground_truth_evaluation": null,
+  "warnings": [
+    "video presentation timestamps are not strictly increasing; falling back to frame_index/fps timing (frame-to-GPS association may drift if the stream is variable-frame-rate)",
+    "rolling-shutter smear ~10.30 deg per frame at the 95th percentile turn rate (618.1 deg/s, readout 16.7 ms). Poses and reprojection residuals are biased; treat measurements from fast-yaw segments as unreliable."
+  ],
+  "limitations": [
+    "Monocular single-pass video cannot measure surfaces never observed.",
+    "Absolute accuracy is GPS-limited unless RTK/PPK or GCPs are provided.",
+    "AI-assisted geometry is excluded from measurement by default.",
+    "Alignment residual is not a certified accuracy statement."
+  ]
+}

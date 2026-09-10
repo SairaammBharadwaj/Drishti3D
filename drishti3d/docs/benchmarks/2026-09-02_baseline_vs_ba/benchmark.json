@@ -1,0 +1,5068 @@
+{
+  "provenance": {
+    "generated_utc": "2026-09-02T14:53:55.962412+00:00",
+    "git_commit": "efae0334cc3d483ab7774338362fecf3b9e31e9c",
+    "git_branch": "main",
+    "git_dirty": true,
+    "python": "3.12.14",
+    "executable": "/home/naveen/Drishti3D/drishti3d/.venv/bin/python",
+    "platform": "Linux-7.1.9-arch1-2-x86_64-with-glibc2.44",
+    "cpu_count": 24,
+    "library_versions": {
+      "numpy": "2.5.2",
+      "scipy": "1.18.1",
+      "cv2": "5.0.0",
+      "pyproj": "3.7.2",
+      "open3d": "0.19.0"
+    }
+  },
+  "config": {
+    "variants": [
+      "baseline",
+      "ba"
+    ],
+    "regimes": [
+      "oblique_pass",
+      "nadir_grid",
+      "orbit",
+      "low_parallax"
+    ],
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "frames": 60,
+    "width": 960,
+    "height": 540,
+    "cloud_thr": 0.5,
+    "gps_outlier_frac": 0.0,
+    "max_frames": 400
+  },
+  "scenes": {
+    "oblique_pass_s0": {
+      "video": "/tmp/drishti3d-bench/scenes/oblique_pass_s0/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/oblique_pass_s0/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/oblique_pass_s0/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "oblique_pass",
+      "seed": 0,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "099ac80ef025438ce5a9ff4d0e9b732619caa42c99f668ddcebaac4325be7d4d",
+        "telemetry": "f87c4ae0e4377112f0ada515e8fb1631434a17bead5c02b8b968e1b2f4ca23c3",
+        "ground_truth": "c82e446328cf531a23253b254a1ec3d58457cba56cb780a81353ec406644e057"
+      }
+    },
+    "oblique_pass_s1": {
+      "video": "/tmp/drishti3d-bench/scenes/oblique_pass_s1/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/oblique_pass_s1/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/oblique_pass_s1/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "oblique_pass",
+      "seed": 1,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "db15a84a1d84a271b21a6f042a19aadf38f085de383c059dc77a415559e641dc",
+        "telemetry": "df65b3a891a8677c427b13ee22a19b00871ff77a8d76a9576a409f14f51c2d63",
+        "ground_truth": "c82e446328cf531a23253b254a1ec3d58457cba56cb780a81353ec406644e057"
+      }
+    },
+    "oblique_pass_s2": {
+      "video": "/tmp/drishti3d-bench/scenes/oblique_pass_s2/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/oblique_pass_s2/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/oblique_pass_s2/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "oblique_pass",
+      "seed": 2,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "ecb06cc17f5ea8edd16aca4f56a51f71930067f35a887af8cb7d66fc08ad903d",
+        "telemetry": "5622e6bcfff61d1979dd13d9429ee5454863d42a59d487733557b5480a2b3da0",
+        "ground_truth": "c82e446328cf531a23253b254a1ec3d58457cba56cb780a81353ec406644e057"
+      }
+    },
+    "nadir_grid_s0": {
+      "video": "/tmp/drishti3d-bench/scenes/nadir_grid_s0/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/nadir_grid_s0/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/nadir_grid_s0/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "nadir_grid",
+      "seed": 0,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "5649a583a06ca29d4547a0809a2ecfe23713d1b18e7d31ff341773a6fe89cb1d",
+        "telemetry": "fb3f33fc1a4274fa9c6fca8d65cdaa86d19023208a24e3b5fe691393666b54c9",
+        "ground_truth": "38f4ee27651dac50b93703ceeb6be2c37bff3118503b9c1fb21ff7f226abf5f0"
+      }
+    },
+    "nadir_grid_s1": {
+      "video": "/tmp/drishti3d-bench/scenes/nadir_grid_s1/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/nadir_grid_s1/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/nadir_grid_s1/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "nadir_grid",
+      "seed": 1,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "59df55993ebecd42f8f6a04312fc3cc5bb0a043b3648137660a0a02809ed0ee0",
+        "telemetry": "4515e10d5a6ae2fb7a2bd25b610af9f3f4e2910abe95b11605d4c53463853806",
+        "ground_truth": "38f4ee27651dac50b93703ceeb6be2c37bff3118503b9c1fb21ff7f226abf5f0"
+      }
+    },
+    "nadir_grid_s2": {
+      "video": "/tmp/drishti3d-bench/scenes/nadir_grid_s2/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/nadir_grid_s2/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/nadir_grid_s2/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "nadir_grid",
+      "seed": 2,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "15621194b52b283ee7fe95fae1b7be8c967b8390fb85fe15ce4216fd1148dd69",
+        "telemetry": "9249b7d88b0b47e18a5fb402155d79040f7bad8640a18a7c8553150eec601248",
+        "ground_truth": "38f4ee27651dac50b93703ceeb6be2c37bff3118503b9c1fb21ff7f226abf5f0"
+      }
+    },
+    "orbit_s0": {
+      "video": "/tmp/drishti3d-bench/scenes/orbit_s0/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/orbit_s0/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/orbit_s0/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "orbit",
+      "seed": 0,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "876ceeac46821070f0d3e679f601440a7a465f65d1b37b6e07f84756c83fd5d4",
+        "telemetry": "c7a8ad4297e3b4997b9df66c3b78598f947820d493a494d6b499d55b15457af1",
+        "ground_truth": "dccc73ede0fb5098c4b62d7144e35028461d1700193a4169c596f695ce7fbae3"
+      }
+    },
+    "orbit_s1": {
+      "video": "/tmp/drishti3d-bench/scenes/orbit_s1/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/orbit_s1/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/orbit_s1/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "orbit",
+      "seed": 1,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "33f6efd57eb2e3929dd0c66d8380f3c8d9c5af187c39f196c44ae06984d1c278",
+        "telemetry": "895a4ec26c47645153e4e8b94667f0ea6c705d2a00f1dbf189ee5df5ec44516c",
+        "ground_truth": "dccc73ede0fb5098c4b62d7144e35028461d1700193a4169c596f695ce7fbae3"
+      }
+    },
+    "orbit_s2": {
+      "video": "/tmp/drishti3d-bench/scenes/orbit_s2/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/orbit_s2/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/orbit_s2/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "orbit",
+      "seed": 2,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "5533e8908acda130ca832deff8bb4b2d22372bc55ec084035595fd75e13e9437",
+        "telemetry": "39e624696e7838734ca2e8ee8739eab9e9879c15c89ffc201ba58170401f254d",
+        "ground_truth": "dccc73ede0fb5098c4b62d7144e35028461d1700193a4169c596f695ce7fbae3"
+      }
+    },
+    "low_parallax_s0": {
+      "video": "/tmp/drishti3d-bench/scenes/low_parallax_s0/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/low_parallax_s0/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/low_parallax_s0/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "low_parallax",
+      "seed": 0,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "a97381a9bd9877099679ef4cffbcd978c64097efb83cb5599e8135a631f09603",
+        "telemetry": "c7c1d79c187934fba9184dbf88af3e2f197d5ee48e78feace2a4141b54daf409",
+        "ground_truth": "28a07ef5c810748775a01a6c63b5ca808b1f23f6d8a1965cd596dcf23df8fdd8"
+      }
+    },
+    "low_parallax_s1": {
+      "video": "/tmp/drishti3d-bench/scenes/low_parallax_s1/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/low_parallax_s1/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/low_parallax_s1/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "low_parallax",
+      "seed": 1,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "e04b35684cf53245e8ca7356a5d2e7d8b3c6f95aecf6815604291a447245a5b9",
+        "telemetry": "764a23344e942ecd892965b77822fe648d83e09d29a3efbaef64438ca2ea0728",
+        "ground_truth": "28a07ef5c810748775a01a6c63b5ca808b1f23f6d8a1965cd596dcf23df8fdd8"
+      }
+    },
+    "low_parallax_s2": {
+      "video": "/tmp/drishti3d-bench/scenes/low_parallax_s2/synthetic_flight.mp4",
+      "telemetry": "/tmp/drishti3d-bench/scenes/low_parallax_s2/synthetic_telemetry.csv",
+      "ground_truth": "/tmp/drishti3d-bench/scenes/low_parallax_s2/ground_truth.json",
+      "n_frames": 60,
+      "fps": 10,
+      "regime": "low_parallax",
+      "seed": 2,
+      "gps_noise": {
+        "sigma_h": 0.33,
+        "sigma_v": 0.3,
+        "outlier_frac": 0.0,
+        "outlier_sigma_h": 6.0,
+        "outlier_sigma_v": 10.0
+      },
+      "intrinsics": {
+        "fx": 864.0,
+        "fy": 864.0,
+        "cx": 480.0,
+        "cy": 270.0,
+        "width": 960,
+        "height": 540
+      },
+      "input_sha256": {
+        "video": "2408e2b22f3b5046a21b2fb8761b46a78f95efde23cf8469b3bfbeb78ded2ef0",
+        "telemetry": "6c8246058b62f93d860266129dc0ee7b8d46983a49740cff18185838cee17e25",
+        "ground_truth": "28a07ef5c810748775a01a6c63b5ca808b1f23f6d8a1965cd596dcf23df8fdd8"
+      }
+    }
+  },
+  "cells": [
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__oblique_pass_s0",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:oblique_pass_s0",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 11.257779939726223,
+        "ate_median": 1.7347473894397556,
+        "ate_max": 29.443305582479944,
+        "ate_axis_rmse": [
+          1.2903835651466036,
+          10.475335032026429,
+          3.9166152980477387
+        ],
+        "scale_error": 0.7131234629602152,
+        "cloud_acc_median": 2.853464779707022,
+        "cloud_acc_rmse": 4.470280315693766,
+        "cloud_completeness": 0.027733333333333332,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 12056,
+        "dim_error_pct": 51.385318005384015,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 13179,
+          "median_reproj_err": 1.2986733166773303,
+          "p90_reproj_err": 3.5506718013375713,
+          "mean_track_length": 11.48888383033614,
+          "mean_tri_angle": 7.165686733083564,
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 0.7564569436308215,
+          "n_inliers": 38,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 1.8757519521366517,
+          "alignment_rmse_horizontal_m": 1.8184284883111297,
+          "alignment_rmse_vertical_m": 0.46017737758712035,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 12056,
+          "bbox_min": [
+            -61.54272813873217,
+            -16.490444480130293,
+            -120.53257955964074
+          ],
+          "bbox_max": [
+            5.9507913148971125,
+            57.31304357555153,
+            -23.469844969621143
+          ],
+          "dimensions_m": [
+            67.49351945362929,
+            73.80348805568183,
+            97.0627345900196
+          ],
+          "median_point_spacing_m": 0.38340299535142075,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 6545,
+            "OBSERVED_LOW_CONFIDENCE": 5511,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.5428832116788321,
+            "OBSERVED_LOW_CONFIDENCE": 0.45711678832116787,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.061,
+          "telemetry": 0.001,
+          "frames": 0.229,
+          "quality": 0.168,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.008,
+          "sfm": 95.042,
+          "densify": 0.0,
+          "georegistration": 0.04,
+          "fusion": 0.054,
+          "mesh": 0.0,
+          "report": 0.051,
+          "exports": 0.07
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 11.153006144818324,
+            "mean": 12.354018150579744,
+            "p90": 20.454475366640676,
+            "rmse": 14.88833237124706
+          },
+          "completeness_at_0.5m": 0.0016,
+          "completeness_at_1.0m": 0.0096,
+          "completeness_at_2.0m": 0.025333333333333333,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 4.129896137590741,
+              "abs_error_m": 7.870103862409259,
+              "pct_error": 65.5841988534105
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 9.215334420328373,
+              "abs_error_m": 1.2153344203283734,
+              "pct_error": 15.191680254104668
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 15.604206741777318,
+              "abs_error_m": 6.604206741777318,
+              "pct_error": 73.38007490863687
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 95.604,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 15.934
+        }
+      },
+      "status": "ok",
+      "runtime_s": 96.05,
+      "peak_rss_mb": 992.0,
+      "variant": "baseline",
+      "regime": "oblique_pass",
+      "seed": 0,
+      "scene": "oblique_pass_s0"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__oblique_pass_s1",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:oblique_pass_s1",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 13.114354421761265,
+        "ate_median": 1.7835004207467686,
+        "ate_max": 38.42464313582806,
+        "ate_axis_rmse": [
+          7.3928161819533775,
+          6.191664054104191,
+          8.887961354581353
+        ],
+        "scale_error": 0.055525257876526624,
+        "cloud_acc_median": 2.0494868755683906,
+        "cloud_acc_rmse": 3.583641823525419,
+        "cloud_completeness": 0.12426666666666666,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 9767,
+        "dim_error_pct": 46.53609900203704,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 10846,
+          "median_reproj_err": 1.4174835598907682,
+          "p90_reproj_err": 3.502868177529737,
+          "mean_track_length": 8.328877005347593,
+          "mean_tri_angle": 6.23622568420926,
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 1.7349050124946068,
+          "n_inliers": 38,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 1.6965308939260386,
+          "alignment_rmse_horizontal_m": 1.644318537745961,
+          "alignment_rmse_vertical_m": 0.41765251162954653,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 9767,
+          "bbox_min": [
+            -3.1779870575126967,
+            7.646631051297205,
+            -81.32708683881052
+          ],
+          "bbox_max": [
+            120.3421472161462,
+            92.0944402916406,
+            56.357371011143286
+          ],
+          "dimensions_m": [
+            123.5201342736589,
+            84.44780924034339,
+            137.6844578499538
+          ],
+          "median_point_spacing_m": 0.5202715074485261,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 3717,
+            "OBSERVED_LOW_CONFIDENCE": 6050,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.38056721613596806,
+            "OBSERVED_LOW_CONFIDENCE": 0.619432783864032,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.062,
+          "telemetry": 0.001,
+          "frames": 0.231,
+          "quality": 0.167,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.008,
+          "sfm": 98.182,
+          "densify": 0.0,
+          "georegistration": 0.041,
+          "fusion": 0.023,
+          "mesh": 0.0,
+          "report": 0.036,
+          "exports": 0.059
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 38.449251069314094,
+            "mean": 40.00159601348733,
+            "p90": 52.02326011282105,
+            "rmse": 41.78819054236859
+          },
+          "completeness_at_0.5m": 0.0,
+          "completeness_at_1.0m": 0.0,
+          "completeness_at_2.0m": 0.0,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 8.698111092469935,
+              "abs_error_m": 3.3018889075300653,
+              "pct_error": 27.51574089608388
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 4.631402380953852,
+              "abs_error_m": 3.368597619046148,
+              "pct_error": 42.10747023807685
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 2.701342271524464,
+              "abs_error_m": 6.298657728475536,
+              "pct_error": 69.9850858719504
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 98.71600000000001,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 16.45266666666667
+        }
+      },
+      "status": "ok",
+      "runtime_s": 99.07,
+      "peak_rss_mb": 985.8,
+      "variant": "baseline",
+      "regime": "oblique_pass",
+      "seed": 1,
+      "scene": "oblique_pass_s1"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__oblique_pass_s2",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "status": "error",
+      "error": "RuntimeError: reconstruction produced no 3D points",
+      "traceback": "Traceback (most recent call last):\n  File \"/home/naveen/Drishti3D/drishti3d/eval/_bench_worker.py\", line 34, in main\n    est = run_case(case, Path(spec[\"work_dir\"]),\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/eval/harness.py\", line 156, in run_case\n    result = pipeline.run(proj, video, telemetry, **kw)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/reconstruction/drishti_recon/pipeline.py\", line 224, in run\n    raise RuntimeError(\"reconstruction produced no 3D points\")\nRuntimeError: reconstruction produced no 3D points\n",
+      "runtime_s": 6.79,
+      "peak_rss_mb": 975.2,
+      "variant": "baseline",
+      "regime": "oblique_pass",
+      "seed": 2,
+      "scene": "oblique_pass_s2"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__nadir_grid_s0",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s0",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 40,
+        "n_matched": 40,
+        "ate_rmse": 2.312449866903225,
+        "ate_median": 1.0887232509785596,
+        "ate_max": 8.625431592066269,
+        "ate_axis_rmse": [
+          1.9744708030974643,
+          1.0671859991413803,
+          0.5567795595143656
+        ],
+        "scale_error": 0.0047033323565984775,
+        "cloud_acc_median": 0.9925047473496367,
+        "cloud_acc_rmse": 1.1180759823961592,
+        "cloud_completeness": 0.45626666666666665,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 16086,
+        "dim_error_pct": 5.526771954822185,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 40,
+          "registered_fraction": 0.6666666666666666,
+          "n_points": 19988,
+          "median_reproj_err": 0.5723567453273777,
+          "p90_reproj_err": 2.880641152107519,
+          "mean_track_length": 6.990844506704023,
+          "mean_tri_angle": 19.164921584637387,
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 2.329739920319728,
+          "n_inliers": 37,
+          "n_total": 40,
+          "alignment_rmse_3d_m": 1.4126418519897348,
+          "alignment_rmse_horizontal_m": 1.3666616846543695,
+          "alignment_rmse_vertical_m": 0.35748124662794334,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 16086,
+          "bbox_min": [
+            -29.534564184859796,
+            -14.026584044820021,
+            -53.65846338854627
+          ],
+          "bbox_max": [
+            31.608951948794775,
+            29.43696324832718,
+            -34.22518604234768
+          ],
+          "dimensions_m": [
+            61.14351613365457,
+            43.4635472931472,
+            19.433277346198587
+          ],
+          "median_point_spacing_m": 0.2537693707654948,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 9574,
+            "OBSERVED_LOW_CONFIDENCE": 6512,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.5951759293795847,
+            "OBSERVED_LOW_CONFIDENCE": 0.40482407062041526,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.027,
+          "telemetry": 0.001,
+          "frames": 0.126,
+          "quality": 0.175,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 37.584,
+          "densify": 0.0,
+          "georegistration": 0.039,
+          "fusion": 0.037,
+          "mesh": 0.0,
+          "report": 0.044,
+          "exports": 0.09
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 1.5802937667578854,
+            "mean": 1.5905618662497487,
+            "p90": 2.202327342693681,
+            "rmse": 1.7181203913025538
+          },
+          "completeness_at_0.5m": 0.1864,
+          "completeness_at_1.0m": 0.6277333333333334,
+          "completeness_at_2.0m": 0.8930666666666667,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 12.535960016314563,
+              "abs_error_m": 0.5359600163145632,
+              "pct_error": 4.466333469288028
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 7.269200504850302,
+              "abs_error_m": 0.7307994951496983,
+              "pct_error": 9.134993689371228
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.731891016477343,
+              "abs_error_m": 0.2681089835226569,
+              "pct_error": 2.978988705807299
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 37.999,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 6.333166666666667
+        }
+      },
+      "status": "ok",
+      "runtime_s": 38.4,
+      "peak_rss_mb": 988.7,
+      "variant": "baseline",
+      "regime": "nadir_grid",
+      "seed": 0,
+      "scene": "nadir_grid_s0"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__nadir_grid_s1",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s1",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 40,
+        "n_matched": 40,
+        "ate_rmse": 1.7888563940837112,
+        "ate_median": 1.5064942693835999,
+        "ate_max": 3.465846364013848,
+        "ate_axis_rmse": [
+          1.221168705875342,
+          1.2650515218441447,
+          0.3292397872747679
+        ],
+        "scale_error": 0.008234373654083194,
+        "cloud_acc_median": 1.0079168752667904,
+        "cloud_acc_rmse": 1.0932756913577548,
+        "cloud_completeness": 0.3224,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 16531,
+        "dim_error_pct": 5.9502414287594805,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 40,
+          "registered_fraction": 0.6666666666666666,
+          "n_points": 19868,
+          "median_reproj_err": 0.8408019429156401,
+          "p90_reproj_err": 2.361051921048093,
+          "mean_track_length": 7.109422186430441,
+          "mean_tri_angle": 20.51576936667831,
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 2.5564487395394933,
+          "n_inliers": 38,
+          "n_total": 40,
+          "alignment_rmse_3d_m": 1.7164437460391981,
+          "alignment_rmse_horizontal_m": 1.662634393533022,
+          "alignment_rmse_vertical_m": 0.42641060816794435,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 16531,
+          "bbox_min": [
+            -31.345619164507912,
+            -15.665786749744221,
+            -49.17432979149927
+          ],
+          "bbox_max": [
+            31.080527974226552,
+            30.44074225500996,
+            -34.11471480756148
+          ],
+          "dimensions_m": [
+            62.426147138734464,
+            46.10652900475418,
+            15.059614983937792
+          ],
+          "median_point_spacing_m": 0.26778781138488106,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 10236,
+            "OBSERVED_LOW_CONFIDENCE": 6295,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.6192002903635594,
+            "OBSERVED_LOW_CONFIDENCE": 0.3807997096364406,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.025,
+          "telemetry": 0.001,
+          "frames": 0.113,
+          "quality": 0.165,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 36.74,
+          "densify": 0.0,
+          "georegistration": 0.039,
+          "fusion": 0.04,
+          "mesh": 0.0,
+          "report": 0.044,
+          "exports": 0.092
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 1.2554703535867842,
+            "mean": 1.2285370129705548,
+            "p90": 1.8298786473980562,
+            "rmse": 1.3488639572137846
+          },
+          "completeness_at_0.5m": 0.26426666666666665,
+          "completeness_at_1.0m": 0.5581333333333334,
+          "completeness_at_2.0m": 0.8186666666666667,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 12.728003676596854,
+              "abs_error_m": 0.7280036765968543,
+              "pct_error": 6.066697304973786
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 7.922177247722783,
+              "abs_error_m": 0.0778227522772168,
+              "pct_error": 0.97278440346521
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 9.97301183200555,
+              "abs_error_m": 0.9730118320055503,
+              "pct_error": 10.811242577839447
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 37.133,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 6.188833333333334
+        }
+      },
+      "status": "ok",
+      "runtime_s": 37.57,
+      "peak_rss_mb": 993.6,
+      "variant": "baseline",
+      "regime": "nadir_grid",
+      "seed": 1,
+      "scene": "nadir_grid_s1"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__nadir_grid_s2",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s2",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 40,
+        "n_matched": 40,
+        "ate_rmse": 0.7161137152162508,
+        "ate_median": 0.4129556330567676,
+        "ate_max": 1.844317428356448,
+        "ate_axis_rmse": [
+          0.526446344566295,
+          0.45242104435999736,
+          0.17603493412904334
+        ],
+        "scale_error": 0.003540416054491513,
+        "cloud_acc_median": 0.939165945659761,
+        "cloud_acc_rmse": 0.9975038979756261,
+        "cloud_completeness": 0.4896,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 16346,
+        "dim_error_pct": 4.649701140460718,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 40,
+          "registered_fraction": 0.6666666666666666,
+          "n_points": 20183,
+          "median_reproj_err": 0.4459221819813859,
+          "p90_reproj_err": 1.143048706122526,
+          "mean_track_length": 7.068671654362582,
+          "mean_tri_angle": 20.89975416216777,
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 2.4852673296044507,
+          "n_inliers": 40,
+          "n_total": 40,
+          "alignment_rmse_3d_m": 0.973952985645217,
+          "alignment_rmse_horizontal_m": 0.9210686033510839,
+          "alignment_rmse_vertical_m": 0.31657076012815216,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 16346,
+          "bbox_min": [
+            -31.25839028561097,
+            -14.617266398101302,
+            -50.23222934575804
+          ],
+          "bbox_max": [
+            32.75928966558491,
+            30.519252988306846,
+            -35.677654856930666
+          ],
+          "dimensions_m": [
+            64.01767995119587,
+            45.136519386408146,
+            14.554574488827377
+          ],
+          "median_point_spacing_m": 0.23116168112950086,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 10434,
+            "OBSERVED_LOW_CONFIDENCE": 5912,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.6383213018475468,
+            "OBSERVED_LOW_CONFIDENCE": 0.3616786981524532,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.026,
+          "telemetry": 0.001,
+          "frames": 0.137,
+          "quality": 0.202,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 38.226,
+          "densify": 0.0,
+          "georegistration": 0.002,
+          "fusion": 0.037,
+          "mesh": 0.0,
+          "report": 0.042,
+          "exports": 0.091
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 1.3917745665921823,
+            "mean": 1.3554925878919368,
+            "p90": 1.8851162774755086,
+            "rmse": 1.4456914284626559
+          },
+          "completeness_at_0.5m": 0.28,
+          "completeness_at_1.0m": 0.6866666666666666,
+          "completeness_at_2.0m": 0.8866666666666667,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 12.049113409379451,
+              "abs_error_m": 0.04911340937945141,
+              "pct_error": 0.40927841149542843
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 7.5687438374416045,
+              "abs_error_m": 0.4312561625583955,
+              "pct_error": 5.390702031979943
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.26657893198839,
+              "abs_error_m": 0.7334210680116104,
+              "pct_error": 8.149122977906782
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 38.641,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 6.440166666666666
+        }
+      },
+      "status": "ok",
+      "runtime_s": 39.0,
+      "peak_rss_mb": 992.6,
+      "variant": "baseline",
+      "regime": "nadir_grid",
+      "seed": 2,
+      "scene": "nadir_grid_s2"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__orbit_s0",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:orbit_s0",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 1.2335111833566546,
+        "ate_median": 0.9884672955153768,
+        "ate_max": 3.076527213669668,
+        "ate_axis_rmse": [
+          0.6398289594938206,
+          0.9055799561925191,
+          0.5404569224289244
+        ],
+        "scale_error": 0.00014297742060931373,
+        "cloud_acc_median": 0.69211232322316,
+        "cloud_acc_rmse": 0.874368022107928,
+        "cloud_completeness": 0.9282666666666667,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 25062,
+        "dim_error_pct": 4.3307186290084125,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 32585,
+          "median_reproj_err": 0.2860882617120831,
+          "p90_reproj_err": 0.959389425511152,
+          "mean_track_length": 5.574650912996778,
+          "mean_tri_angle": 20.23990041634151,
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 3.0353621838270315,
+          "n_inliers": 60,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 1.342832665688378,
+          "alignment_rmse_horizontal_m": 1.1719766702598178,
+          "alignment_rmse_vertical_m": 0.6554923740261709,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 25062,
+          "bbox_min": [
+            -32.95440283360948,
+            -29.2608226553701,
+            -33.1159532196792
+          ],
+          "bbox_max": [
+            28.815343102418186,
+            32.08117843663547,
+            -20.321961562027866
+          ],
+          "dimensions_m": [
+            61.76974593602766,
+            61.34200109200557,
+            12.793991657651333
+          ],
+          "median_point_spacing_m": 0.1639492646112395,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 16480,
+            "OBSERVED_LOW_CONFIDENCE": 8582,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.6575692283137818,
+            "OBSERVED_LOW_CONFIDENCE": 0.34243077168621816,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.054,
+          "telemetry": 0.001,
+          "frames": 0.279,
+          "quality": 0.165,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.007,
+          "sfm": 62.535,
+          "densify": 0.0,
+          "georegistration": 0.004,
+          "fusion": 0.059,
+          "mesh": 0.0,
+          "report": 0.065,
+          "exports": 0.133
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 1.037766597034935,
+            "mean": 1.131214968260138,
+            "p90": 1.975925678847887,
+            "rmse": 1.2781090981326466
+          },
+          "completeness_at_0.5m": 0.37466666666666665,
+          "completeness_at_1.0m": 0.9189333333333334,
+          "completeness_at_2.0m": 0.9872,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 11.745664302930246,
+              "abs_error_m": 0.2543356970697541,
+              "pct_error": 2.119464142247951
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 8.514440093879488,
+              "abs_error_m": 0.5144400938794877,
+              "pct_error": 6.430501173493597
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 9.399797151415532,
+              "abs_error_m": 0.39979715141553207,
+              "pct_error": 4.44219057128369
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 63.105,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 10.5175
+        }
+      },
+      "status": "ok",
+      "runtime_s": 63.74,
+      "peak_rss_mb": 989.8,
+      "variant": "baseline",
+      "regime": "orbit",
+      "seed": 0,
+      "scene": "orbit_s0"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__orbit_s1",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:orbit_s1",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 0.5461619115302766,
+        "ate_median": 0.5209271017614214,
+        "ate_max": 0.7884502505005705,
+        "ate_axis_rmse": [
+          0.392573022000569,
+          0.32041814340342084,
+          0.20374363642001506
+        ],
+        "scale_error": 0.00027570182324387904,
+        "cloud_acc_median": 0.6503793762222564,
+        "cloud_acc_rmse": 0.8326872392768333,
+        "cloud_completeness": 0.9416,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 24224,
+        "dim_error_pct": 1.0258654380774714,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 33311,
+          "median_reproj_err": 0.21910058644553343,
+          "p90_reproj_err": 0.7113941548899189,
+          "mean_track_length": 5.789438924079133,
+          "mean_tri_angle": 20.843212291784823,
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 2.7194726786287617,
+          "n_inliers": 60,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.7446675642247469,
+          "alignment_rmse_horizontal_m": 0.6537106146830411,
+          "alignment_rmse_vertical_m": 0.3566401736472464,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 24224,
+          "bbox_min": [
+            -33.08351533486672,
+            -29.87351591281383,
+            -32.07706716096105
+          ],
+          "bbox_max": [
+            28.079728210619002,
+            31.224904885948213,
+            -20.594048162775465
+          ],
+          "dimensions_m": [
+            61.16324354548572,
+            61.09842079876204,
+            11.483018998185585
+          ],
+          "median_point_spacing_m": 0.1518071807287656,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 16192,
+            "OBSERVED_LOW_CONFIDENCE": 8032,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.6684280052840158,
+            "OBSERVED_LOW_CONFIDENCE": 0.33157199471598414,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.051,
+          "telemetry": 0.001,
+          "frames": 0.274,
+          "quality": 0.184,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.007,
+          "sfm": 62.724,
+          "densify": 0.0,
+          "georegistration": 0.001,
+          "fusion": 0.057,
+          "mesh": 0.0,
+          "report": 0.062,
+          "exports": 0.129
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.7376206195239725,
+            "mean": 0.7494108958040787,
+            "p90": 1.4381738491968172,
+            "rmse": 0.9066568980676595
+          },
+          "completeness_at_0.5m": 0.9202666666666667,
+          "completeness_at_1.0m": 0.9794666666666667,
+          "completeness_at_2.0m": 0.9933333333333333,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 11.836601061928569,
+              "abs_error_m": 0.16339893807143113,
+              "pct_error": 1.3616578172619263
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 7.882153852180657,
+              "abs_error_m": 0.11784614781934266,
+              "pct_error": 1.4730768477417833
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.978142451569417,
+              "abs_error_m": 0.021857548430583407,
+              "pct_error": 0.2428616492287045
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 63.3,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 10.549999999999999
+        }
+      },
+      "status": "ok",
+      "runtime_s": 63.87,
+      "peak_rss_mb": 978.0,
+      "variant": "baseline",
+      "regime": "orbit",
+      "seed": 1,
+      "scene": "orbit_s1"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__orbit_s2",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:orbit_s2",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 1.605878498314648,
+        "ate_median": 1.035253260705736,
+        "ate_max": 4.419086493508152,
+        "ate_axis_rmse": [
+          0.7804135235845635,
+          1.1818810865954588,
+          0.7569396149651381
+        ],
+        "scale_error": 0.008781395421407323,
+        "cloud_acc_median": 0.6837290614454647,
+        "cloud_acc_rmse": 0.8991712860224036,
+        "cloud_completeness": 0.9216,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 25438,
+        "dim_error_pct": 5.115430519345907,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 32702,
+          "median_reproj_err": 0.33735113068360717,
+          "p90_reproj_err": 1.1259910253321248,
+          "mean_track_length": 5.4311357103541065,
+          "mean_tri_angle": 19.797909571188246,
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": {
+          "scale": 3.057885521671394,
+          "n_inliers": 60,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 1.6427168501738867,
+          "alignment_rmse_horizontal_m": 1.4633914634666878,
+          "alignment_rmse_vertical_m": 0.7463270559868789,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 25438,
+          "bbox_min": [
+            -32.05537983490111,
+            -29.851846103296886,
+            -33.49652746478126
+          ],
+          "bbox_max": [
+            28.951511481142116,
+            31.585045374665373,
+            -20.552552716605284
+          ],
+          "dimensions_m": [
+            61.00689131604322,
+            61.43689147796226,
+            12.943974748175975
+          ],
+          "median_point_spacing_m": 0.16736535960935012,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 16268,
+            "OBSERVED_LOW_CONFIDENCE": 9170,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.639515685195377,
+            "OBSERVED_LOW_CONFIDENCE": 0.360484314804623,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.052,
+          "telemetry": 0.001,
+          "frames": 0.268,
+          "quality": 0.184,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.007,
+          "sfm": 63.679,
+          "densify": 0.0,
+          "georegistration": 0.024,
+          "fusion": 0.059,
+          "mesh": 0.0,
+          "report": 0.067,
+          "exports": 0.136
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 1.1232412173952562,
+            "mean": 1.2081526508886569,
+            "p90": 2.150522395229375,
+            "rmse": 1.3828183624148767
+          },
+          "completeness_at_0.5m": 0.48586666666666667,
+          "completeness_at_1.0m": 0.8746666666666667,
+          "completeness_at_2.0m": 0.9808,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 11.802424767373969,
+              "abs_error_m": 0.19757523262603094,
+              "pct_error": 1.6464602718835912
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 8.732506252254822,
+              "abs_error_m": 0.7325062522548222,
+              "pct_error": 9.156328153185278
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.591084718032803,
+              "abs_error_m": 0.4089152819671966,
+              "pct_error": 4.543503132968851
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 64.275,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 10.7125
+        }
+      },
+      "status": "ok",
+      "runtime_s": 64.92,
+      "peak_rss_mb": 972.8,
+      "variant": "baseline",
+      "regime": "orbit",
+      "seed": 2,
+      "scene": "orbit_s2"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__low_parallax_s0",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "status": "error",
+      "error": "RuntimeError: reconstruction produced no 3D points",
+      "traceback": "Traceback (most recent call last):\n  File \"/home/naveen/Drishti3D/drishti3d/eval/_bench_worker.py\", line 34, in main\n    est = run_case(case, Path(spec[\"work_dir\"]),\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/eval/harness.py\", line 156, in run_case\n    result = pipeline.run(proj, video, telemetry, **kw)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/reconstruction/drishti_recon/pipeline.py\", line 224, in run\n    raise RuntimeError(\"reconstruction produced no 3D points\")\nRuntimeError: reconstruction produced no 3D points\n",
+      "runtime_s": 7.22,
+      "peak_rss_mb": 997.8,
+      "variant": "baseline",
+      "regime": "low_parallax",
+      "seed": 0,
+      "scene": "low_parallax_s0"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__low_parallax_s1",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "status": "error",
+      "error": "RuntimeError: reconstruction produced no 3D points",
+      "traceback": "Traceback (most recent call last):\n  File \"/home/naveen/Drishti3D/drishti3d/eval/_bench_worker.py\", line 34, in main\n    est = run_case(case, Path(spec[\"work_dir\"]),\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/eval/harness.py\", line 156, in run_case\n    result = pipeline.run(proj, video, telemetry, **kw)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/reconstruction/drishti_recon/pipeline.py\", line 224, in run\n    raise RuntimeError(\"reconstruction produced no 3D points\")\nRuntimeError: reconstruction produced no 3D points\n",
+      "runtime_s": 7.17,
+      "peak_rss_mb": 1004.1,
+      "variant": "baseline",
+      "regime": "low_parallax",
+      "seed": 1,
+      "scene": "low_parallax_s1"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/baseline__low_parallax_s2",
+        "params_override": {
+          "bundle_adjust": false
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:low_parallax_s2",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 2,
+        "n_matched": 2,
+        "ate_rmse": null,
+        "ate_median": null,
+        "ate_max": null,
+        "ate_axis_rmse": null,
+        "scale_error": null,
+        "cloud_acc_median": 86.70977889912771,
+        "cloud_acc_rmse": 86.70977889912771,
+        "cloud_completeness": 0.0,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 1,
+        "dim_error_pct": 100.0,
+        "warnings": [
+          "fewer than 3 registered cameras; metric scale unavailable",
+          "only 2 matched cameras; ATE skipped",
+          "cloud accuracy from pipeline's uncropped surface metric"
+        ]
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 2,
+          "registered_fraction": 0.03333333333333333,
+          "n_points": 1,
+          "median_reproj_err": 0.6799636541163117,
+          "p90_reproj_err": 0.6799636541163117,
+          "mean_track_length": 2.0,
+          "mean_tri_angle": 1.7379273284302084,
+          "bundle_adjustment": {
+            "enabled": false,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": null,
+        "cloud": {
+          "n_points": 1,
+          "bbox_min": [
+            -7.684003376740615,
+            -1.2115978794305,
+            16.60544438596005
+          ],
+          "bbox_max": [
+            -7.684003376740615,
+            -1.2115978794305,
+            16.60544438596005
+          ],
+          "dimensions_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "median_point_spacing_m": Infinity,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 0,
+            "OBSERVED_LOW_CONFIDENCE": 1,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.0,
+            "OBSERVED_LOW_CONFIDENCE": 1.0,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.051,
+          "telemetry": 0.001,
+          "frames": 0.19,
+          "quality": 0.178,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 6.883,
+          "densify": 0.0,
+          "georegistration": 0.0,
+          "fusion": 0.003,
+          "mesh": 0.0,
+          "report": 0.006,
+          "exports": 0.011
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 86.70977889912771,
+            "mean": 86.70977889912771,
+            "p90": 86.70977889912771,
+            "rmse": 86.70977889912771
+          },
+          "completeness_at_0.5m": 0.0,
+          "completeness_at_1.0m": 0.0,
+          "completeness_at_2.0m": 0.0,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 0.0,
+              "abs_error_m": 12.0,
+              "pct_error": 100.0
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 0.0,
+              "abs_error_m": 8.0,
+              "pct_error": 100.0
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 0.0,
+              "abs_error_m": 9.0,
+              "pct_error": 100.0
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 7.316,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 1.2193333333333334
+        }
+      },
+      "status": "ok",
+      "runtime_s": 7.38,
+      "peak_rss_mb": 997.5,
+      "variant": "baseline",
+      "regime": "low_parallax",
+      "seed": 2,
+      "scene": "low_parallax_s2"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__oblique_pass_s0",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:oblique_pass_s0",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 0.002262548885672667,
+        "ate_median": 0.002048894175411148,
+        "ate_max": 0.0050764999573616135,
+        "ate_axis_rmse": [
+          0.0018703343652936798,
+          0.001136896381748215,
+          0.0005730998510102146
+        ],
+        "scale_error": 0.0035258605981489666,
+        "cloud_acc_median": 0.7656125357365643,
+        "cloud_acc_rmse": 0.8647877938917549,
+        "cloud_completeness": 0.4069333333333333,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 10836,
+        "dim_error_pct": 4.337534642726081,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 18373,
+          "median_reproj_err": 0.07177452159484041,
+          "p90_reproj_err": 0.19129015985608924,
+          "mean_track_length": 11.6578675229957,
+          "mean_tri_angle": 12.074698834260511,
+          "bundle_adjustment": {
+            "enabled": true,
+            "n_solves": 8,
+            "final": {
+              "n_cameras": 60,
+              "n_points": 18374,
+              "n_observations": 214208,
+              "rmse_px_before": 0.3944218306352073,
+              "rmse_px_after": 0.39322526726851986,
+              "cost_before": 16662.01724390429,
+              "cost_after": 16561.074973093786,
+              "n_iterations": 36,
+              "converged": true,
+              "message": "`ftol` termination condition is satisfied.",
+              "accepted": true,
+              "n_fixed_single_view_points": 0,
+              "refined_focal": null,
+              "refined_dist": null
+            },
+            "history": [
+              {
+                "stage": "incremental@7",
+                "n_cameras": 10,
+                "n_points": 3408,
+                "n_observations": 23494,
+                "rmse_px_before": 3.3070463149902114,
+                "rmse_px_after": 2.6587670247619046,
+                "cost_before": 128471.71545552305,
+                "cost_after": 83040.03745426904,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@15",
+                "n_cameras": 18,
+                "n_points": 7212,
+                "n_observations": 64734,
+                "rmse_px_before": 0.5042205951991368,
+                "rmse_px_after": 0.23304599258293784,
+                "cost_before": 8228.934571899728,
+                "cost_after": 1757.8658386067764,
+                "n_iterations": 17,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@23",
+                "n_cameras": 26,
+                "n_points": 9133,
+                "n_observations": 93327,
+                "rmse_px_before": 0.16888194944704088,
+                "rmse_px_after": 0.16888194944704088,
+                "cost_before": 1330.8949494308454,
+                "cost_after": 1330.8949494308454,
+                "n_iterations": 6,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": false,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@31",
+                "n_cameras": 34,
+                "n_points": 11384,
+                "n_observations": 120511,
+                "rmse_px_before": 2.615169039264778,
+                "rmse_px_after": 2.194736238525243,
+                "cost_before": 412093.93861179694,
+                "cost_after": 290242.738960292,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@39",
+                "n_cameras": 42,
+                "n_points": 13896,
+                "n_observations": 148675,
+                "rmse_px_before": 4.4401024481150175,
+                "rmse_px_after": 1.809208669955882,
+                "cost_before": 1465527.3685225593,
+                "cost_after": 243324.18200068377,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@47",
+                "n_cameras": 50,
+                "n_points": 15980,
+                "n_observations": 177451,
+                "rmse_px_before": 2.4240550901584723,
+                "rmse_px_after": 1.5297437363483934,
+                "cost_before": 521354.86030547094,
+                "cost_after": 207627.95318759853,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@55",
+                "n_cameras": 58,
+                "n_points": 17868,
+                "n_observations": 206696,
+                "rmse_px_before": 1.289852023429851,
+                "rmse_px_after": 0.36862223044564574,
+                "cost_before": 171941.952909983,
+                "cost_after": 14043.168981583429,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "final",
+                "n_cameras": 60,
+                "n_points": 18374,
+                "n_observations": 214208,
+                "rmse_px_before": 0.3944218306352073,
+                "rmse_px_after": 0.39322526726851986,
+                "cost_before": 16662.01724390429,
+                "cost_after": 16561.074973093786,
+                "n_iterations": 36,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              }
+            ]
+          }
+        },
+        "alignment": {
+          "scale": 0.6191914489864001,
+          "n_inliers": 60,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.5321171930841289,
+          "alignment_rmse_horizontal_m": 0.4433427363680329,
+          "alignment_rmse_vertical_m": 0.2942718560879327,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 10836,
+          "bbox_min": [
+            -29.699433020735725,
+            -18.48205036836588,
+            -44.52569472143245
+          ],
+          "bbox_max": [
+            30.361820527860374,
+            40.217268145506665,
+            -32.582041292834596
+          ],
+          "dimensions_m": [
+            60.0612535485961,
+            58.69931851387254,
+            11.943653428597855
+          ],
+          "median_point_spacing_m": 0.15435910951930307,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 7028,
+            "OBSERVED_LOW_CONFIDENCE": 3808,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.648578811369509,
+            "OBSERVED_LOW_CONFIDENCE": 0.35142118863049093,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.056,
+          "telemetry": 0.001,
+          "frames": 0.242,
+          "quality": 0.201,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.008,
+          "sfm": 342.121,
+          "densify": 0.0,
+          "georegistration": 0.001,
+          "fusion": 0.028,
+          "mesh": 0.0,
+          "report": 0.031,
+          "exports": 0.065
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.7999732453218353,
+            "mean": 0.7770288616551737,
+            "p90": 1.3389380915156102,
+            "rmse": 0.891868459254621
+          },
+          "completeness_at_0.5m": 0.4130666666666667,
+          "completeness_at_1.0m": 0.5648,
+          "completeness_at_2.0m": 0.7517333333333334,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 11.925743703633522,
+              "abs_error_m": 0.07425629636647813,
+              "pct_error": 0.6188024697206511
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 8.790893546098562,
+              "abs_error_m": 0.7908935460985624,
+              "pct_error": 9.88616932623203
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 9.2256868919003,
+              "abs_error_m": 0.22568689190030078,
+              "pct_error": 2.507632132225564
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 342.659,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 57.109833333333334
+        }
+      },
+      "status": "ok",
+      "runtime_s": 342.95,
+      "peak_rss_mb": 1708.0,
+      "variant": "ba",
+      "regime": "oblique_pass",
+      "seed": 0,
+      "scene": "oblique_pass_s0"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__oblique_pass_s1",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:oblique_pass_s1",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 7.181739526859068,
+        "ate_median": 1.254241034920644,
+        "ate_max": 20.16629134847073,
+        "ate_axis_rmse": [
+          7.074137385107604,
+          1.195255113172074,
+          0.3245429135089463
+        ],
+        "scale_error": 0.019755602602586353,
+        "cloud_acc_median": 3.805636659863903,
+        "cloud_acc_rmse": 4.780166500337124,
+        "cloud_completeness": 0.0032,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 8001,
+        "dim_error_pct": 121.54541495990593,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 8772,
+          "median_reproj_err": 0.6201631232059122,
+          "p90_reproj_err": 1.9884443491509476,
+          "mean_track_length": 12.642156862745098,
+          "mean_tri_angle": 3.934523853754679,
+          "bundle_adjustment": {
+            "enabled": true,
+            "n_solves": 8,
+            "final": {
+              "n_cameras": 60,
+              "n_points": 8949,
+              "n_observations": 112332,
+              "rmse_px_before": 1.7867836325971596,
+              "rmse_px_after": 1.767393400192369,
+              "cost_before": 179315.33287861067,
+              "cost_after": 175444.57892399168,
+              "n_iterations": 157,
+              "converged": true,
+              "message": "`ftol` termination condition is satisfied.",
+              "accepted": true,
+              "n_fixed_single_view_points": 0,
+              "refined_focal": null,
+              "refined_dist": null
+            },
+            "history": [
+              {
+                "stage": "incremental@7",
+                "n_cameras": 10,
+                "n_points": 1900,
+                "n_observations": 11021,
+                "rmse_px_before": 4.272401137869667,
+                "rmse_px_after": 0.6269300133377274,
+                "cost_before": 100585.42397635529,
+                "cost_after": 2165.8537619670856,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@15",
+                "n_cameras": 18,
+                "n_points": 6405,
+                "n_observations": 61077,
+                "rmse_px_before": 2.805475050985954,
+                "rmse_px_after": 1.6939502239364694,
+                "cost_before": 240359.07455706716,
+                "cost_after": 87629.22900922483,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@23",
+                "n_cameras": 26,
+                "n_points": 5716,
+                "n_observations": 74351,
+                "rmse_px_before": 4.399591654137578,
+                "rmse_px_after": 2.8023829449734423,
+                "cost_before": 719584.0981367242,
+                "cost_after": 291952.2192551707,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@31",
+                "n_cameras": 34,
+                "n_points": 5619,
+                "n_observations": 79238,
+                "rmse_px_before": 4.7836747986010595,
+                "rmse_px_after": 3.883519747720934,
+                "cost_before": 906623.1526663239,
+                "cost_after": 597522.8877721512,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@39",
+                "n_cameras": 42,
+                "n_points": 4979,
+                "n_observations": 74761,
+                "rmse_px_before": 3.5250213739577556,
+                "rmse_px_after": 1.8091368181458491,
+                "cost_before": 464481.7080626337,
+                "cost_after": 122345.48036870913,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@47",
+                "n_cameras": 50,
+                "n_points": 6024,
+                "n_observations": 88165,
+                "rmse_px_before": 3.7513161602213287,
+                "rmse_px_after": 2.3681595370168047,
+                "cost_before": 620345.3798603085,
+                "cost_after": 247222.57689800346,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@55",
+                "n_cameras": 58,
+                "n_points": 7882,
+                "n_observations": 105046,
+                "rmse_px_before": 2.4632015254424044,
+                "rmse_px_after": 2.2236944207278286,
+                "cost_before": 318676.04145480756,
+                "cost_after": 259716.61681890968,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "final",
+                "n_cameras": 60,
+                "n_points": 8949,
+                "n_observations": 112332,
+                "rmse_px_before": 1.7867836325971596,
+                "rmse_px_after": 1.767393400192369,
+                "cost_before": 179315.33287861067,
+                "cost_after": 175444.57892399168,
+                "n_iterations": 157,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              }
+            ]
+          }
+        },
+        "alignment": {
+          "scale": 2.9149552190213295,
+          "n_inliers": 42,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 1.4325427431118574,
+          "alignment_rmse_horizontal_m": 1.3895371017145712,
+          "alignment_rmse_vertical_m": 0.3483753059576905,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 8001,
+          "bbox_min": [
+            24.788801124847964,
+            -33.61249091076404,
+            -62.61292093824973
+          ],
+          "bbox_max": [
+            216.136283988399,
+            92.21717786240339,
+            134.16698297312192
+          ],
+          "dimensions_m": [
+            191.34748286355102,
+            125.82966877316743,
+            196.77990391137166
+          ],
+          "median_point_spacing_m": 0.640741449841962,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 5793,
+            "OBSERVED_LOW_CONFIDENCE": 2208,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.724034495688039,
+            "OBSERVED_LOW_CONFIDENCE": 0.275965504311961,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.056,
+          "telemetry": 0.001,
+          "frames": 0.231,
+          "quality": 0.169,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.008,
+          "sfm": 585.868,
+          "densify": 0.0,
+          "georegistration": 0.039,
+          "fusion": 0.018,
+          "mesh": 0.0,
+          "report": 0.046,
+          "exports": 0.052
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 60.833259100550045,
+            "mean": 74.9106407051937,
+            "p90": 125.14000954684093,
+            "rmse": 82.82994600063824
+          },
+          "completeness_at_0.5m": 0.0,
+          "completeness_at_1.0m": 0.0,
+          "completeness_at_2.0m": 0.0,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 31.756349385566136,
+              "abs_error_m": 19.756349385566136,
+              "pct_error": 164.6362448797178
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 0.0,
+              "abs_error_m": 8.0,
+              "pct_error": 100.0
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 0.0,
+              "abs_error_m": 9.0,
+              "pct_error": 100.0
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 586.3910000000001,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 97.73183333333334
+        }
+      },
+      "status": "ok",
+      "runtime_s": 369.29,
+      "peak_rss_mb": 1327.8,
+      "variant": "ba",
+      "regime": "oblique_pass",
+      "seed": 1,
+      "scene": "oblique_pass_s1"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/oblique_pass_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__oblique_pass_s2",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "status": "error",
+      "error": "RuntimeError: reconstruction produced no 3D points",
+      "traceback": "Traceback (most recent call last):\n  File \"/home/naveen/Drishti3D/drishti3d/eval/_bench_worker.py\", line 34, in main\n    est = run_case(case, Path(spec[\"work_dir\"]),\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/eval/harness.py\", line 156, in run_case\n    result = pipeline.run(proj, video, telemetry, **kw)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/reconstruction/drishti_recon/pipeline.py\", line 224, in run\n    raise RuntimeError(\"reconstruction produced no 3D points\")\nRuntimeError: reconstruction produced no 3D points\n",
+      "runtime_s": 6.75,
+      "peak_rss_mb": 981.7,
+      "variant": "ba",
+      "regime": "oblique_pass",
+      "seed": 2,
+      "scene": "oblique_pass_s2"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__nadir_grid_s0",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s0",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 40,
+        "n_matched": 40,
+        "ate_rmse": 0.02077124662833249,
+        "ate_median": 0.020843339896796164,
+        "ate_max": 0.03217812147502814,
+        "ate_axis_rmse": [
+          0.0127181072738444,
+          0.015832814412816577,
+          0.004360782227457324
+        ],
+        "scale_error": 0.003151475778610635,
+        "cloud_acc_median": 0.8844764895148833,
+        "cloud_acc_rmse": 0.9272839090072682,
+        "cloud_completeness": 0.4168,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 12748,
+        "dim_error_pct": 1.99869126453828,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 40,
+          "registered_fraction": 0.6666666666666666,
+          "n_points": 20134,
+          "median_reproj_err": 0.03755951389454298,
+          "p90_reproj_err": 0.1186207369934893,
+          "mean_track_length": 7.086073308830834,
+          "mean_tri_angle": 20.57966257608848,
+          "bundle_adjustment": {
+            "enabled": true,
+            "n_solves": 5,
+            "final": {
+              "n_cameras": 40,
+              "n_points": 20139,
+              "n_observations": 142710,
+              "rmse_px_before": 3.460687064403528,
+              "rmse_px_after": 2.4332206640453444,
+              "cost_before": 854572.8080088171,
+              "cost_after": 422461.7585895239,
+              "n_iterations": 200,
+              "converged": false,
+              "message": "The maximum number of function evaluations is exceeded.",
+              "accepted": true,
+              "n_fixed_single_view_points": 0,
+              "refined_focal": null,
+              "refined_dist": null
+            },
+            "history": [
+              {
+                "stage": "incremental@27",
+                "n_cameras": 10,
+                "n_points": 8930,
+                "n_observations": 33926,
+                "rmse_px_before": 0.9259517456086581,
+                "rmse_px_after": 0.7535232721759226,
+                "cost_before": 14543.849492825018,
+                "cost_after": 9631.545968178754,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@35",
+                "n_cameras": 18,
+                "n_points": 11324,
+                "n_observations": 62771,
+                "rmse_px_before": 9.59219764981152,
+                "rmse_px_after": 5.418826638492857,
+                "cost_before": 2887787.8819373427,
+                "cost_after": 921593.8457434485,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@43",
+                "n_cameras": 26,
+                "n_points": 15088,
+                "n_observations": 91474,
+                "rmse_px_before": 8.130162886338516,
+                "rmse_px_after": 4.237302855464828,
+                "cost_before": 3023195.0524153686,
+                "cost_after": 821195.7370572095,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@51",
+                "n_cameras": 34,
+                "n_points": 17807,
+                "n_observations": 120882,
+                "rmse_px_before": 6.323354834468922,
+                "rmse_px_after": 6.186710272508426,
+                "cost_before": 2416722.2857719962,
+                "cost_after": 2313402.484099896,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "final",
+                "n_cameras": 40,
+                "n_points": 20139,
+                "n_observations": 142710,
+                "rmse_px_before": 3.460687064403528,
+                "rmse_px_after": 2.4332206640453444,
+                "cost_before": 854572.8080088171,
+                "cost_after": 422461.7585895239,
+                "n_iterations": 200,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              }
+            ]
+          }
+        },
+        "alignment": {
+          "scale": 2.4043845386042717,
+          "n_inliers": 40,
+          "n_total": 40,
+          "alignment_rmse_3d_m": 0.4987078238330124,
+          "alignment_rmse_horizontal_m": 0.41871014336339973,
+          "alignment_rmse_vertical_m": 0.2709083044073402,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 12748,
+          "bbox_min": [
+            -30.04942593865377,
+            -13.332804317454766,
+            -45.638416529407365
+          ],
+          "bbox_max": [
+            30.362091040110784,
+            30.264787155950877,
+            -35.492825440004566
+          ],
+          "dimensions_m": [
+            60.41151697876455,
+            43.59759147340564,
+            10.1455910894028
+          ],
+          "median_point_spacing_m": 0.20023868058134286,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 8469,
+            "OBSERVED_LOW_CONFIDENCE": 4279,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.6643395042359586,
+            "OBSERVED_LOW_CONFIDENCE": 0.33566049576404144,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.026,
+          "telemetry": 0.001,
+          "frames": 0.118,
+          "quality": 0.198,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.01,
+          "sfm": 218.88,
+          "densify": 0.0,
+          "georegistration": 0.002,
+          "fusion": 0.031,
+          "mesh": 0.0,
+          "report": 0.034,
+          "exports": 0.074
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.9100969458160122,
+            "mean": 0.851676725587786,
+            "p90": 1.3612255237159618,
+            "rmse": 0.9497133537600531
+          },
+          "completeness_at_0.5m": 0.3658666666666667,
+          "completeness_at_1.0m": 0.5141333333333333,
+          "completeness_at_2.0m": 0.7093333333333334,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 12.442727518617746,
+              "abs_error_m": 0.44272751861774573,
+              "pct_error": 3.6893959884812144
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 8.16780201097905,
+              "abs_error_m": 0.16780201097905056,
+              "pct_error": 2.097525137238132
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 9.018823740110594,
+              "abs_error_m": 0.0188237401105944,
+              "pct_error": 0.20915266789549333
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 219.267,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 36.5445
+        }
+      },
+      "status": "ok",
+      "runtime_s": 219.56,
+      "peak_rss_mb": 1440.8,
+      "variant": "ba",
+      "regime": "nadir_grid",
+      "seed": 0,
+      "scene": "nadir_grid_s0"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__nadir_grid_s1",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s1",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 40,
+        "n_matched": 40,
+        "ate_rmse": 0.020148690433852416,
+        "ate_median": 0.01910324651573731,
+        "ate_max": 0.03218862331204433,
+        "ate_axis_rmse": [
+          0.010348024271576299,
+          0.017185795848142015,
+          0.0018805693127529985
+        ],
+        "scale_error": 0.0009641529953796635,
+        "cloud_acc_median": 0.8907681297963559,
+        "cloud_acc_rmse": 0.9346841144629805,
+        "cloud_completeness": 0.5082666666666666,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 13163,
+        "dim_error_pct": 3.4122089166757745,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 40,
+          "registered_fraction": 0.6666666666666666,
+          "n_points": 20065,
+          "median_reproj_err": 0.03699970473502064,
+          "p90_reproj_err": 0.11910057705100416,
+          "mean_track_length": 7.087814602541739,
+          "mean_tri_angle": 20.645700876285765,
+          "bundle_adjustment": {
+            "enabled": true,
+            "n_solves": 5,
+            "final": {
+              "n_cameras": 40,
+              "n_points": 20072,
+              "n_observations": 142296,
+              "rmse_px_before": 2.828207439701321,
+              "rmse_px_after": 2.8222859269568965,
+              "cost_before": 569095.5859443687,
+              "cost_after": 566715.011680743,
+              "n_iterations": 200,
+              "converged": false,
+              "message": "The maximum number of function evaluations is exceeded.",
+              "accepted": true,
+              "n_fixed_single_view_points": 0,
+              "refined_focal": null,
+              "refined_dist": null
+            },
+            "history": [
+              {
+                "stage": "incremental@27",
+                "n_cameras": 10,
+                "n_points": 8796,
+                "n_observations": 33711,
+                "rmse_px_before": 5.487035165819142,
+                "rmse_px_after": 4.510361047582734,
+                "cost_before": 507477.89180127997,
+                "cost_after": 342897.4501977322,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@35",
+                "n_cameras": 18,
+                "n_points": 11398,
+                "n_observations": 62611,
+                "rmse_px_before": 3.569272030025949,
+                "rmse_px_after": 3.450758476068343,
+                "cost_before": 398822.76676692365,
+                "cost_after": 372777.568620261,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@43",
+                "n_cameras": 26,
+                "n_points": 15973,
+                "n_observations": 90610,
+                "rmse_px_before": 10.002658293754138,
+                "rmse_px_after": 4.811819857925044,
+                "cost_before": 4532909.00011957,
+                "cost_after": 1048974.3166857427,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@51",
+                "n_cameras": 34,
+                "n_points": 17991,
+                "n_observations": 120489,
+                "rmse_px_before": 9.174273256376141,
+                "rmse_px_after": 4.96407880483357,
+                "cost_before": 5070616.289311367,
+                "cost_after": 1484549.6909999293,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "final",
+                "n_cameras": 40,
+                "n_points": 20072,
+                "n_observations": 142296,
+                "rmse_px_before": 2.828207439701321,
+                "rmse_px_after": 2.8222859269568965,
+                "cost_before": 569095.5859443687,
+                "cost_after": 566715.011680743,
+                "n_iterations": 200,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              }
+            ]
+          }
+        },
+        "alignment": {
+          "scale": 2.552867219297391,
+          "n_inliers": 40,
+          "n_total": 40,
+          "alignment_rmse_3d_m": 0.4994174610599331,
+          "alignment_rmse_horizontal_m": 0.42677192581428897,
+          "alignment_rmse_vertical_m": 0.2593906778361797,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 13163,
+          "bbox_min": [
+            -30.694513566185964,
+            -13.503296460863524,
+            -45.944241599251455
+          ],
+          "bbox_max": [
+            30.647739551417484,
+            30.39496687790199,
+            -35.300504110152964
+          ],
+          "dimensions_m": [
+            61.34225311760345,
+            43.89826333876552,
+            10.643737489098491
+          ],
+          "median_point_spacing_m": 0.20712378380668126,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 8610,
+            "OBSERVED_LOW_CONFIDENCE": 4553,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.6541062067917648,
+            "OBSERVED_LOW_CONFIDENCE": 0.3458937932082352,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.027,
+          "telemetry": 0.001,
+          "frames": 0.136,
+          "quality": 0.169,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 207.325,
+          "densify": 0.0,
+          "georegistration": 0.001,
+          "fusion": 0.032,
+          "mesh": 0.0,
+          "report": 0.035,
+          "exports": 0.076
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.8884872202175769,
+            "mean": 0.8359044863566504,
+            "p90": 1.3661586788885565,
+            "rmse": 0.9384404917009231
+          },
+          "completeness_at_0.5m": 0.49546666666666667,
+          "completeness_at_1.0m": 0.6490666666666667,
+          "completeness_at_2.0m": 0.8106666666666666,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 12.084276255497514,
+              "abs_error_m": 0.08427625549751383,
+              "pct_error": 0.7023021291459486
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 7.461952809939349,
+              "abs_error_m": 0.5380471900606514,
+              "pct_error": 6.725589875758143
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.747213872938909,
+              "abs_error_m": 0.25278612706109094,
+              "pct_error": 2.8087347451232327
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 207.701,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 34.61683333333333
+        }
+      },
+      "status": "ok",
+      "runtime_s": 208.04,
+      "peak_rss_mb": 1451.8,
+      "variant": "ba",
+      "regime": "nadir_grid",
+      "seed": 1,
+      "scene": "nadir_grid_s1"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/nadir_grid_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__nadir_grid_s2",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:nadir_grid_s2",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 40,
+        "n_matched": 40,
+        "ate_rmse": 0.01806649376284397,
+        "ate_median": 0.0170843263072293,
+        "ate_max": 0.02827055275967192,
+        "ate_axis_rmse": [
+          0.012423012121718549,
+          0.012476363069167051,
+          0.004050596409522754
+        ],
+        "scale_error": 0.003822022982120643,
+        "cloud_acc_median": 0.8787398412159583,
+        "cloud_acc_rmse": 0.9257986938729416,
+        "cloud_completeness": 0.5112,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 12970,
+        "dim_error_pct": 1.4993687436125658,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 40,
+          "registered_fraction": 0.6666666666666666,
+          "n_points": 20146,
+          "median_reproj_err": 0.03743632759291951,
+          "p90_reproj_err": 0.12075816396206074,
+          "mean_track_length": 7.07539958304378,
+          "mean_tri_angle": 20.740261407084954,
+          "bundle_adjustment": {
+            "enabled": true,
+            "n_solves": 5,
+            "final": {
+              "n_cameras": 40,
+              "n_points": 20154,
+              "n_observations": 142596,
+              "rmse_px_before": 9.179069336704723,
+              "rmse_px_after": 4.3511928034183915,
+              "cost_before": 6007235.369588965,
+              "cost_after": 1349876.3935750527,
+              "n_iterations": 200,
+              "converged": false,
+              "message": "The maximum number of function evaluations is exceeded.",
+              "accepted": true,
+              "n_fixed_single_view_points": 0,
+              "refined_focal": null,
+              "refined_dist": null
+            },
+            "history": [
+              {
+                "stage": "incremental@27",
+                "n_cameras": 10,
+                "n_points": 8837,
+                "n_observations": 33502,
+                "rmse_px_before": 8.581583948768252,
+                "rmse_px_after": 4.946882619226075,
+                "cost_before": 1233603.660001498,
+                "cost_after": 409924.56975836575,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@35",
+                "n_cameras": 18,
+                "n_points": 11354,
+                "n_observations": 62374,
+                "rmse_px_before": 1.874607366817347,
+                "rmse_px_after": 1.6715301213469038,
+                "cost_before": 109595.88274131072,
+                "cost_after": 87136.88176467843,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@43",
+                "n_cameras": 26,
+                "n_points": 15462,
+                "n_observations": 90807,
+                "rmse_px_before": 5.60373731185934,
+                "rmse_px_after": 3.627674380687649,
+                "cost_before": 1425754.8890102438,
+                "cost_after": 597511.0321932506,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@51",
+                "n_cameras": 34,
+                "n_points": 17942,
+                "n_observations": 120843,
+                "rmse_px_before": 3.8035923926337087,
+                "rmse_px_after": 3.477598353268453,
+                "cost_before": 874136.878668202,
+                "cost_after": 730718.9088635825,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "final",
+                "n_cameras": 40,
+                "n_points": 20154,
+                "n_observations": 142596,
+                "rmse_px_before": 9.179069336704723,
+                "rmse_px_after": 4.3511928034183915,
+                "cost_before": 6007235.369588965,
+                "cost_after": 1349876.3935750527,
+                "n_iterations": 200,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              }
+            ]
+          }
+        },
+        "alignment": {
+          "scale": 2.51792999439569,
+          "n_inliers": 40,
+          "n_total": 40,
+          "alignment_rmse_3d_m": 0.5320786287659374,
+          "alignment_rmse_horizontal_m": 0.46070759841829595,
+          "alignment_rmse_vertical_m": 0.26618823405456216,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 12970,
+          "bbox_min": [
+            -30.748461442158938,
+            -14.076941093632701,
+            -46.0294808063807
+          ],
+          "bbox_max": [
+            30.79371171120542,
+            29.846286919029275,
+            -35.58740619197241
+          ],
+          "dimensions_m": [
+            61.54217315336436,
+            43.92322801266198,
+            10.442074614408284
+          ],
+          "median_point_spacing_m": 0.2056744057490116,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 8533,
+            "OBSERVED_LOW_CONFIDENCE": 4437,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.6579028527370856,
+            "OBSERVED_LOW_CONFIDENCE": 0.3420971472629144,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.025,
+          "telemetry": 0.0,
+          "frames": 0.133,
+          "quality": 0.186,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.009,
+          "sfm": 204.419,
+          "densify": 0.0,
+          "georegistration": 0.002,
+          "fusion": 0.031,
+          "mesh": 0.0,
+          "report": 0.034,
+          "exports": 0.076
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.8996507394344078,
+            "mean": 0.8464694715703421,
+            "p90": 1.3636574130014487,
+            "rmse": 0.9443324277459451
+          },
+          "completeness_at_0.5m": 0.5042666666666666,
+          "completeness_at_1.0m": 0.6410666666666667,
+          "completeness_at_2.0m": 0.7984,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 12.1828167798379,
+              "abs_error_m": 0.1828167798378999,
+              "pct_error": 1.5234731653158327
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 7.79273619518127,
+              "abs_error_m": 0.20726380481873008,
+              "pct_error": 2.590797560234126
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 9.034545195475896,
+              "abs_error_m": 0.034545195475896406,
+              "pct_error": 0.38383550528773785
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 204.806,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 34.13433333333334
+        }
+      },
+      "status": "ok",
+      "runtime_s": 205.11,
+      "peak_rss_mb": 1446.0,
+      "variant": "ba",
+      "regime": "nadir_grid",
+      "seed": 2,
+      "scene": "nadir_grid_s2"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__orbit_s0",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:orbit_s0",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 0.0034657277101990927,
+        "ate_median": 0.003258232029808299,
+        "ate_max": 0.006602830566901527,
+        "ate_axis_rmse": [
+          0.0020821270858802535,
+          0.0014729005989922701,
+          0.0023466101476329352
+        ],
+        "scale_error": 0.0013813856220652454,
+        "cloud_acc_median": 0.6705820779512716,
+        "cloud_acc_rmse": 0.8211848318855416,
+        "cloud_completeness": 0.9509333333333333,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 20106,
+        "dim_error_pct": 2.022102227665343,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 33461,
+          "median_reproj_err": 0.1283431195114606,
+          "p90_reproj_err": 0.32462624527236866,
+          "mean_track_length": 5.932010400167359,
+          "mean_tri_angle": 21.214535587208545,
+          "bundle_adjustment": {
+            "enabled": true,
+            "n_solves": 8,
+            "final": {
+              "n_cameras": 60,
+              "n_points": 33463,
+              "n_observations": 198520,
+              "rmse_px_before": 0.568607901376099,
+              "rmse_px_after": 0.5666880706949533,
+              "cost_before": 32092.241491057724,
+              "cost_after": 31875.896773390545,
+              "n_iterations": 19,
+              "converged": true,
+              "message": "`ftol` termination condition is satisfied.",
+              "accepted": true,
+              "n_fixed_single_view_points": 0,
+              "refined_focal": null,
+              "refined_dist": null
+            },
+            "history": [
+              {
+                "stage": "incremental@7",
+                "n_cameras": 10,
+                "n_points": 7775,
+                "n_observations": 31020,
+                "rmse_px_before": 3.343535564442289,
+                "rmse_px_after": 1.7449339467861773,
+                "cost_before": 173389.85839640844,
+                "cost_after": 47224.762363811635,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@15",
+                "n_cameras": 18,
+                "n_points": 12333,
+                "n_observations": 57349,
+                "rmse_px_before": 4.002891638285224,
+                "rmse_px_after": 3.687511528626282,
+                "cost_before": 459455.57001997274,
+                "cost_after": 389908.4321541946,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@23",
+                "n_cameras": 26,
+                "n_points": 16877,
+                "n_observations": 83975,
+                "rmse_px_before": 4.1546500527086785,
+                "rmse_px_after": 1.3591836578505503,
+                "cost_before": 724751.1525765768,
+                "cost_after": 77566.87680955902,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@31",
+                "n_cameras": 34,
+                "n_points": 21307,
+                "n_observations": 110284,
+                "rmse_px_before": 0.2988557376007434,
+                "rmse_px_after": 0.29730362040321984,
+                "cost_before": 4924.994049097997,
+                "cost_after": 4873.970649631489,
+                "n_iterations": 8,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@39",
+                "n_cameras": 42,
+                "n_points": 25775,
+                "n_observations": 137048,
+                "rmse_px_before": 0.6601162729791197,
+                "rmse_px_after": 0.6570586021399777,
+                "cost_before": 29859.57241270372,
+                "cost_after": 29583.59287942014,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@47",
+                "n_cameras": 50,
+                "n_points": 29883,
+                "n_observations": 163512,
+                "rmse_px_before": 1.383106246109038,
+                "rmse_px_after": 1.3809642424057291,
+                "cost_before": 156397.82899344026,
+                "cost_after": 155913.7803955969,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@55",
+                "n_cameras": 58,
+                "n_points": 33072,
+                "n_observations": 191571,
+                "rmse_px_before": 0.6685824730760402,
+                "rmse_px_after": 0.6167865832486426,
+                "cost_before": 42816.3601959807,
+                "cost_after": 36439.26486010173,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "final",
+                "n_cameras": 60,
+                "n_points": 33463,
+                "n_observations": 198520,
+                "rmse_px_before": 0.568607901376099,
+                "rmse_px_after": 0.5666880706949533,
+                "cost_before": 32092.241491057724,
+                "cost_after": 31875.896773390545,
+                "n_iterations": 19,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              }
+            ]
+          }
+        },
+        "alignment": {
+          "scale": 2.9637065598904258,
+          "n_inliers": 60,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.5247572588444244,
+          "alignment_rmse_horizontal_m": 0.4346494258244033,
+          "alignment_rmse_vertical_m": 0.2940239060696097,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 20106,
+          "bbox_min": [
+            -32.645735424696994,
+            -29.07739119006807,
+            -30.85515949409385
+          ],
+          "bbox_max": [
+            27.929964645379968,
+            31.119514884452556,
+            -20.71977595055566
+          ],
+          "dimensions_m": [
+            60.57570007007696,
+            60.196906074520626,
+            10.13538354353819
+          ],
+          "median_point_spacing_m": 0.14176141067770354,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 13236,
+            "OBSERVED_LOW_CONFIDENCE": 6870,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.6583109519546404,
+            "OBSERVED_LOW_CONFIDENCE": 0.3416890480453596,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.052,
+          "telemetry": 0.0,
+          "frames": 0.273,
+          "quality": 0.168,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.007,
+          "sfm": 241.388,
+          "densify": 0.0,
+          "georegistration": 0.002,
+          "fusion": 0.052,
+          "mesh": 0.0,
+          "report": 0.054,
+          "exports": 0.111
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.6744628896054659,
+            "mean": 0.6773088305706939,
+            "p90": 1.302790066603658,
+            "rmse": 0.8227483292555876
+          },
+          "completeness_at_0.5m": 0.9488,
+          "completeness_at_1.0m": 0.9874666666666667,
+          "completeness_at_2.0m": 0.9938666666666667,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 11.99670337722963,
+              "abs_error_m": 0.0032966227703692397,
+              "pct_error": 0.027471856419743663
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 7.726938890800171,
+              "abs_error_m": 0.27306110919982896,
+              "pct_error": 3.413263864997862
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.763698613457942,
+              "abs_error_m": 0.236301386542058,
+              "pct_error": 2.6255709615784224
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 241.943,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 40.32383333333333
+        }
+      },
+      "status": "ok",
+      "runtime_s": 242.43,
+      "peak_rss_mb": 1628.4,
+      "variant": "ba",
+      "regime": "orbit",
+      "seed": 0,
+      "scene": "orbit_s0"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__orbit_s1",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:orbit_s1",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 0.004069060171156883,
+        "ate_median": 0.003323150302898413,
+        "ate_max": 0.008585755609406878,
+        "ate_axis_rmse": [
+          0.0026178531596598303,
+          0.00263116108691835,
+          0.0016676590915534778
+        ],
+        "scale_error": 0.00028917289552932157,
+        "cloud_acc_median": 0.6167967468178888,
+        "cloud_acc_rmse": 0.8116639736649839,
+        "cloud_completeness": 0.9514666666666667,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 21952,
+        "dim_error_pct": 1.4346964256836838,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 33567,
+          "median_reproj_err": 0.12992634856651122,
+          "p90_reproj_err": 0.3240742452170578,
+          "mean_track_length": 5.901659367831501,
+          "mean_tri_angle": 21.10244777956981,
+          "bundle_adjustment": {
+            "enabled": true,
+            "n_solves": 8,
+            "final": {
+              "n_cameras": 60,
+              "n_points": 33567,
+              "n_observations": 198101,
+              "rmse_px_before": 0.3373525501230192,
+              "rmse_px_after": 0.33565620068894336,
+              "cost_before": 11272.614804901174,
+              "cost_after": 11159.533007828257,
+              "n_iterations": 6,
+              "converged": true,
+              "message": "`ftol` termination condition is satisfied.",
+              "accepted": true,
+              "n_fixed_single_view_points": 0,
+              "refined_focal": null,
+              "refined_dist": null
+            },
+            "history": [
+              {
+                "stage": "incremental@7",
+                "n_cameras": 10,
+                "n_points": 8486,
+                "n_observations": 29896,
+                "rmse_px_before": 8.166169870223559,
+                "rmse_px_after": 3.5884644532786387,
+                "cost_before": 996827.2660620393,
+                "cost_after": 192486.54897577828,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@15",
+                "n_cameras": 18,
+                "n_points": 12305,
+                "n_observations": 57334,
+                "rmse_px_before": 5.826241937195052,
+                "rmse_px_after": 2.773541945671358,
+                "cost_before": 973104.0415393076,
+                "cost_after": 220521.8986777309,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@23",
+                "n_cameras": 26,
+                "n_points": 16532,
+                "n_observations": 84392,
+                "rmse_px_before": 3.483177048439381,
+                "rmse_px_after": 2.9301258362554035,
+                "cost_before": 511943.9131132967,
+                "cost_after": 362279.5564178332,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@31",
+                "n_cameras": 34,
+                "n_points": 21016,
+                "n_observations": 110790,
+                "rmse_px_before": 3.098429619325872,
+                "rmse_px_after": 1.8608348313082013,
+                "cost_before": 531806.7409372096,
+                "cost_after": 191816.61379395722,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@39",
+                "n_cameras": 42,
+                "n_points": 25517,
+                "n_observations": 137430,
+                "rmse_px_before": 0.8845523134480787,
+                "rmse_px_after": 0.37844540441821967,
+                "cost_before": 53764.86952397857,
+                "cost_after": 9841.425801267918,
+                "n_iterations": 35,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@47",
+                "n_cameras": 50,
+                "n_points": 29809,
+                "n_observations": 163743,
+                "rmse_px_before": 0.32876210214155716,
+                "rmse_px_after": 0.32515175522897355,
+                "cost_before": 8849.041763177042,
+                "cost_after": 8655.75495132074,
+                "n_iterations": 6,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@55",
+                "n_cameras": 58,
+                "n_points": 33188,
+                "n_observations": 191171,
+                "rmse_px_before": 0.6011854415179807,
+                "rmse_px_after": 0.5887941560638782,
+                "cost_before": 34546.88754784812,
+                "cost_after": 33137.44332625743,
+                "n_iterations": 13,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "final",
+                "n_cameras": 60,
+                "n_points": 33567,
+                "n_observations": 198101,
+                "rmse_px_before": 0.3373525501230192,
+                "rmse_px_after": 0.33565620068894336,
+                "cost_before": 11272.614804901174,
+                "cost_after": 11159.533007828257,
+                "n_iterations": 6,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              }
+            ]
+          }
+        },
+        "alignment": {
+          "scale": 2.7242339129673216,
+          "n_inliers": 60,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.4877147727948991,
+          "alignment_rmse_horizontal_m": 0.39460529458713733,
+          "alignment_rmse_vertical_m": 0.28662233179949304,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 21952,
+          "bbox_min": [
+            -32.465952713250275,
+            -29.49167467661819,
+            -31.154377729582073
+          ],
+          "bbox_max": [
+            27.820960934995178,
+            31.033727580125305,
+            -20.558126312990385
+          ],
+          "dimensions_m": [
+            60.28691364824545,
+            60.52540225674349,
+            10.596251416591688
+          ],
+          "median_point_spacing_m": 0.13115903233698512,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 14752,
+            "OBSERVED_LOW_CONFIDENCE": 7200,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.6720116618075802,
+            "OBSERVED_LOW_CONFIDENCE": 0.32798833819241985,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.052,
+          "telemetry": 0.001,
+          "frames": 0.298,
+          "quality": 0.186,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.008,
+          "sfm": 202.932,
+          "densify": 0.0,
+          "georegistration": 0.002,
+          "fusion": 0.059,
+          "mesh": 0.0,
+          "report": 0.061,
+          "exports": 0.118
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.624571676312381,
+            "mean": 0.6602015008053477,
+            "p90": 1.3064004700865992,
+            "rmse": 0.8133156154185093
+          },
+          "completeness_at_0.5m": 0.9538666666666666,
+          "completeness_at_1.0m": 0.9898666666666667,
+          "completeness_at_2.0m": 0.9949333333333333,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 12.014952231016867,
+              "abs_error_m": 0.014952231016867046,
+              "pct_error": 0.12460192514055872
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 8.285190603269765,
+              "abs_error_m": 0.28519060326976486,
+              "pct_error": 3.564882540872061
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.944685567006541,
+              "abs_error_m": 0.05531443299345895,
+              "pct_error": 0.6146048110384328
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 203.539,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 33.92316666666667
+        }
+      },
+      "status": "ok",
+      "runtime_s": 204.1,
+      "peak_rss_mb": 1600.4,
+      "variant": "ba",
+      "regime": "orbit",
+      "seed": 1,
+      "scene": "orbit_s1"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/orbit_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__orbit_s2",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:orbit_s2",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 60,
+        "n_matched": 60,
+        "ate_rmse": 0.002952309784817919,
+        "ate_median": 0.002755194247525095,
+        "ate_max": 0.004911552872804528,
+        "ate_axis_rmse": [
+          0.001758664825858324,
+          0.0018406993242137376,
+          0.0014950107336268292
+        ],
+        "scale_error": 7.623727700634131e-05,
+        "cloud_acc_median": 0.6626997266558057,
+        "cloud_acc_rmse": 0.8215475884363067,
+        "cloud_completeness": 0.9546666666666667,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 20088,
+        "dim_error_pct": 2.314133620500971,
+        "warnings": []
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 33696,
+          "median_reproj_err": 0.12790824646868215,
+          "p90_reproj_err": 0.31992162517114786,
+          "mean_track_length": 5.8713793922127255,
+          "mean_tri_angle": 21.04083977085251,
+          "bundle_adjustment": {
+            "enabled": true,
+            "n_solves": 8,
+            "final": {
+              "n_cameras": 60,
+              "n_points": 33696,
+              "n_observations": 197842,
+              "rmse_px_before": 0.3377992354401013,
+              "rmse_px_after": 0.3360735889825412,
+              "cost_before": 11287.709465374135,
+              "cost_after": 11172.67757282928,
+              "n_iterations": 6,
+              "converged": true,
+              "message": "`ftol` termination condition is satisfied.",
+              "accepted": true,
+              "n_fixed_single_view_points": 0,
+              "refined_focal": null,
+              "refined_dist": null
+            },
+            "history": [
+              {
+                "stage": "incremental@7",
+                "n_cameras": 10,
+                "n_points": 8315,
+                "n_observations": 29705,
+                "rmse_px_before": 0.8556228296736694,
+                "rmse_px_after": 0.23128771075455146,
+                "cost_before": 10873.37306194949,
+                "cost_after": 794.519711432169,
+                "n_iterations": 23,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@15",
+                "n_cameras": 18,
+                "n_points": 12839,
+                "n_observations": 56206,
+                "rmse_px_before": 5.519196280711847,
+                "rmse_px_after": 5.519196280711847,
+                "cost_before": 856060.3097219147,
+                "cost_after": 856060.3097219147,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": false,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@23",
+                "n_cameras": 26,
+                "n_points": 17359,
+                "n_observations": 82583,
+                "rmse_px_before": 4.75217245304022,
+                "rmse_px_after": 4.503456772300378,
+                "cost_before": 932491.8501521378,
+                "cost_after": 837437.9862244471,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@31",
+                "n_cameras": 34,
+                "n_points": 21887,
+                "n_observations": 108977,
+                "rmse_px_before": 2.8038976579611377,
+                "rmse_px_after": 1.2683348130840595,
+                "cost_before": 428379.9819755597,
+                "cost_after": 87654.18955363524,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@39",
+                "n_cameras": 42,
+                "n_points": 26193,
+                "n_observations": 135786,
+                "rmse_px_before": 1.5256961412662495,
+                "rmse_px_after": 0.9862818769281023,
+                "cost_before": 158037.84353972532,
+                "cost_after": 66043.04751380284,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@47",
+                "n_cameras": 50,
+                "n_points": 29859,
+                "n_observations": 163022,
+                "rmse_px_before": 3.01208081849191,
+                "rmse_px_after": 1.2611310257606598,
+                "cost_before": 739519.2137952707,
+                "cost_after": 129639.28929320045,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "incremental@55",
+                "n_cameras": 58,
+                "n_points": 33282,
+                "n_observations": 190949,
+                "rmse_px_before": 2.7192059726751467,
+                "rmse_px_after": 1.3973341160901622,
+                "cost_before": 705946.1980663672,
+                "cost_after": 186418.0315178791,
+                "n_iterations": 40,
+                "converged": false,
+                "message": "The maximum number of function evaluations is exceeded.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              },
+              {
+                "stage": "final",
+                "n_cameras": 60,
+                "n_points": 33696,
+                "n_observations": 197842,
+                "rmse_px_before": 0.3377992354401013,
+                "rmse_px_after": 0.3360735889825412,
+                "cost_before": 11287.709465374135,
+                "cost_after": 11172.67757282928,
+                "n_iterations": 6,
+                "converged": true,
+                "message": "`ftol` termination condition is satisfied.",
+                "accepted": true,
+                "n_fixed_single_view_points": 0,
+                "refined_focal": null,
+                "refined_dist": null
+              }
+            ]
+          }
+        },
+        "alignment": {
+          "scale": 2.985160495683548,
+          "n_inliers": 60,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.5276374218965468,
+          "alignment_rmse_horizontal_m": 0.4582776927568761,
+          "alignment_rmse_vertical_m": 0.2615010617704426,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS."
+        },
+        "cloud": {
+          "n_points": 20088,
+          "bbox_min": [
+            -32.56253367774194,
+            -29.202060403537025,
+            -31.165697816836687
+          ],
+          "bbox_max": [
+            27.894101276558764,
+            31.221396111184298,
+            -20.63287377402851
+          ],
+          "dimensions_m": [
+            60.456634954300704,
+            60.42345651472132,
+            10.532824042808176
+          ],
+          "median_point_spacing_m": 0.14434514571298634,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 13201,
+            "OBSERVED_LOW_CONFIDENCE": 6887,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.6571585025886101,
+            "OBSERVED_LOW_CONFIDENCE": 0.34284149741138986,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.053,
+          "telemetry": 0.001,
+          "frames": 0.266,
+          "quality": 0.168,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.007,
+          "sfm": 237.935,
+          "densify": 0.0,
+          "georegistration": 0.001,
+          "fusion": 0.051,
+          "mesh": 0.0,
+          "report": 0.053,
+          "exports": 0.11
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 0.6661743010642363,
+            "mean": 0.676345786830886,
+            "p90": 1.3032204643723508,
+            "rmse": 0.8229587361184029
+          },
+          "completeness_at_0.5m": 0.9562666666666667,
+          "completeness_at_1.0m": 0.9928,
+          "completeness_at_2.0m": 0.9962666666666666,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 11.863623192760144,
+              "abs_error_m": 0.13637680723985568,
+              "pct_error": 1.1364733936654638
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 8.04077037800391,
+              "abs_error_m": 0.04077037800390926,
+              "pct_error": 0.5096297250488657
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 8.523333203149027,
+              "abs_error_m": 0.4766667968509726,
+              "pct_error": 5.296297742788584
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 238.483,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 39.747166666666665
+        }
+      },
+      "status": "ok",
+      "runtime_s": 238.97,
+      "peak_rss_mb": 1618.4,
+      "variant": "ba",
+      "regime": "orbit",
+      "seed": 2,
+      "scene": "orbit_s2"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s0",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__low_parallax_s0",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "status": "error",
+      "error": "RuntimeError: reconstruction produced no 3D points",
+      "traceback": "Traceback (most recent call last):\n  File \"/home/naveen/Drishti3D/drishti3d/eval/_bench_worker.py\", line 34, in main\n    est = run_case(case, Path(spec[\"work_dir\"]),\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/eval/harness.py\", line 156, in run_case\n    result = pipeline.run(proj, video, telemetry, **kw)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/reconstruction/drishti_recon/pipeline.py\", line 224, in run\n    raise RuntimeError(\"reconstruction produced no 3D points\")\nRuntimeError: reconstruction produced no 3D points\n",
+      "runtime_s": 7.21,
+      "peak_rss_mb": 990.6,
+      "variant": "ba",
+      "regime": "low_parallax",
+      "seed": 0,
+      "scene": "low_parallax_s0"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s1",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__low_parallax_s1",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "status": "error",
+      "error": "RuntimeError: reconstruction produced no 3D points",
+      "traceback": "Traceback (most recent call last):\n  File \"/home/naveen/Drishti3D/drishti3d/eval/_bench_worker.py\", line 34, in main\n    est = run_case(case, Path(spec[\"work_dir\"]),\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/eval/harness.py\", line 156, in run_case\n    result = pipeline.run(proj, video, telemetry, **kw)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/naveen/Drishti3D/drishti3d/reconstruction/drishti_recon/pipeline.py\", line 224, in run\n    raise RuntimeError(\"reconstruction produced no 3D points\")\nRuntimeError: reconstruction produced no 3D points\n",
+      "runtime_s": 6.96,
+      "peak_rss_mb": 986.1,
+      "variant": "ba",
+      "regime": "low_parallax",
+      "seed": 1,
+      "scene": "low_parallax_s1"
+    },
+    {
+      "spec": {
+        "scene_dir": "/tmp/drishti3d-bench/scenes/low_parallax_s2",
+        "work_dir": "/tmp/drishti3d-bench/bench_ab/work/ba__low_parallax_s2",
+        "params_override": {
+          "bundle_adjust": true,
+          "ba_every": 8
+        },
+        "max_frames": 400,
+        "cloud_thr": 0.5,
+        "do_mesh": false,
+        "gravity_align": false
+      },
+      "score": {
+        "name": "synthetic:low_parallax_s2",
+        "kind": "synthetic",
+        "n_images": 60,
+        "n_solved": 2,
+        "n_matched": 2,
+        "ate_rmse": null,
+        "ate_median": null,
+        "ate_max": null,
+        "ate_axis_rmse": null,
+        "scale_error": null,
+        "cloud_acc_median": 86.70977889912771,
+        "cloud_acc_rmse": 86.70977889912771,
+        "cloud_completeness": 0.0,
+        "cloud_thr": 0.5,
+        "n_cloud_pts": 1,
+        "dim_error_pct": 100.0,
+        "warnings": [
+          "fewer than 3 registered cameras; metric scale unavailable",
+          "only 2 matched cameras; ATE skipped",
+          "cloud accuracy from pipeline's uncropped surface metric"
+        ]
+      },
+      "report": {
+        "reconstruction": {
+          "n_keyframes": 60,
+          "n_registered": 2,
+          "registered_fraction": 0.03333333333333333,
+          "n_points": 1,
+          "median_reproj_err": 0.6799636541163117,
+          "p90_reproj_err": 0.6799636541163117,
+          "mean_track_length": 2.0,
+          "mean_tri_angle": 1.7379273284302084,
+          "bundle_adjustment": {
+            "enabled": true,
+            "n_solves": 0,
+            "final": null,
+            "history": []
+          }
+        },
+        "alignment": null,
+        "cloud": {
+          "n_points": 1,
+          "bbox_min": [
+            -7.684003376740615,
+            -1.2115978794305,
+            16.60544438596005
+          ],
+          "bbox_max": [
+            -7.684003376740615,
+            -1.2115978794305,
+            16.60544438596005
+          ],
+          "dimensions_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "median_point_spacing_m": Infinity,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 0,
+            "OBSERVED_LOW_CONFIDENCE": 1,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.0,
+            "OBSERVED_LOW_CONFIDENCE": 1.0,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0
+          }
+        },
+        "timings_s": {
+          "ingestion": 0.053,
+          "telemetry": 0.001,
+          "frames": 0.169,
+          "quality": 0.169,
+          "sync": 0.001,
+          "keyframes": 0.0,
+          "masking": 0.008,
+          "sfm": 6.869,
+          "densify": 0.0,
+          "georegistration": 0.0,
+          "fusion": 0.0,
+          "mesh": 0.0,
+          "report": 0.006,
+          "exports": 0.01
+        },
+        "ground_truth_evaluation": {
+          "surface_accuracy_m": {
+            "median": 86.70977889912771,
+            "mean": 86.70977889912771,
+            "p90": 86.70977889912771,
+            "rmse": 86.70977889912771
+          },
+          "completeness_at_0.5m": 0.0,
+          "completeness_at_1.0m": 0.0,
+          "completeness_at_2.0m": 0.0,
+          "dimensional_accuracy": [
+            {
+              "name": "building_width_E",
+              "truth_m": 12.0,
+              "measured_m": 0.0,
+              "abs_error_m": 12.0,
+              "pct_error": 100.0
+            },
+            {
+              "name": "building_depth_N",
+              "truth_m": 8.0,
+              "measured_m": 0.0,
+              "abs_error_m": 8.0,
+              "pct_error": 100.0
+            },
+            {
+              "name": "building_height",
+              "truth_m": 9.0,
+              "measured_m": 0.0,
+              "abs_error_m": 9.0,
+              "pct_error": 100.0
+            }
+          ]
+        },
+        "performance": {
+          "processing_time_s": 7.27,
+          "video_duration_s": 6.0,
+          "processing_to_video_ratio": 1.2116666666666667
+        }
+      },
+      "status": "ok",
+      "runtime_s": 7.34,
+      "peak_rss_mb": 992.0,
+      "variant": "ba",
+      "regime": "low_parallax",
+      "seed": 2,
+      "scene": "low_parallax_s2"
+    }
+  ],
+  "summary": {
+    "per_cell": {
+      "ba|low_parallax": {
+        "variant": "ba",
+        "regime": "low_parallax",
+        "n_trials": 3,
+        "n_failed": 2,
+        "failure_rate": 0.6666666666666666,
+        "registered_fraction": {
+          "median": 0.03333333333333333,
+          "worst": 0.03333333333333333,
+          "n": 1
+        },
+        "ate_rmse": {
+          "median": null,
+          "worst": null,
+          "n": 0
+        },
+        "ate_max": {
+          "median": null,
+          "worst": null,
+          "n": 0
+        },
+        "scale_error": {
+          "median": null,
+          "worst": null,
+          "n": 0
+        },
+        "cloud_acc_median": {
+          "median": 86.70977889912771,
+          "worst": 86.70977889912771,
+          "n": 1
+        },
+        "cloud_completeness": {
+          "median": 0.0,
+          "worst": 0.0,
+          "n": 1
+        },
+        "dim_error_pct": {
+          "median": 100.0,
+          "worst": 100.0,
+          "n": 1
+        },
+        "median_reproj_err": {
+          "median": 0.6799636541163117,
+          "worst": 0.6799636541163117,
+          "n": 1
+        },
+        "n_points": {
+          "median": 1.0,
+          "worst": 1.0,
+          "n": 1
+        },
+        "runtime_s": {
+          "median": 7.34,
+          "worst": 7.34,
+          "n": 1
+        },
+        "peak_rss_mb": {
+          "median": 992.0,
+          "worst": 992.0,
+          "n": 1
+        }
+      },
+      "ba|nadir_grid": {
+        "variant": "ba",
+        "regime": "nadir_grid",
+        "n_trials": 3,
+        "n_failed": 0,
+        "failure_rate": 0.0,
+        "registered_fraction": {
+          "median": 0.6666666666666666,
+          "worst": 0.6666666666666666,
+          "n": 3
+        },
+        "ate_rmse": {
+          "median": 0.020148690433852416,
+          "worst": 0.02077124662833249,
+          "n": 3
+        },
+        "ate_max": {
+          "median": 0.03217812147502814,
+          "worst": 0.03218862331204433,
+          "n": 3
+        },
+        "scale_error": {
+          "median": 0.003151475778610635,
+          "worst": 0.003822022982120643,
+          "n": 3
+        },
+        "cloud_acc_median": {
+          "median": 0.8844764895148833,
+          "worst": 0.8907681297963559,
+          "n": 3
+        },
+        "cloud_completeness": {
+          "median": 0.5082666666666666,
+          "worst": 0.4168,
+          "n": 3
+        },
+        "dim_error_pct": {
+          "median": 1.99869126453828,
+          "worst": 3.4122089166757745,
+          "n": 3
+        },
+        "median_reproj_err": {
+          "median": 0.03743632759291951,
+          "worst": 0.03699970473502064,
+          "n": 3
+        },
+        "n_points": {
+          "median": 20134.0,
+          "worst": 20065.0,
+          "n": 3
+        },
+        "runtime_s": {
+          "median": 208.04,
+          "worst": 219.56,
+          "n": 3
+        },
+        "peak_rss_mb": {
+          "median": 1446.0,
+          "worst": 1451.8,
+          "n": 3
+        }
+      },
+      "ba|oblique_pass": {
+        "variant": "ba",
+        "regime": "oblique_pass",
+        "n_trials": 3,
+        "n_failed": 1,
+        "failure_rate": 0.3333333333333333,
+        "registered_fraction": {
+          "median": 1.0,
+          "worst": 1.0,
+          "n": 2
+        },
+        "ate_rmse": {
+          "median": 3.5920010378723704,
+          "worst": 7.181739526859068,
+          "n": 2
+        },
+        "ate_max": {
+          "median": 10.085683924214045,
+          "worst": 20.16629134847073,
+          "n": 2
+        },
+        "scale_error": {
+          "median": 0.01164073160036766,
+          "worst": 0.019755602602586353,
+          "n": 2
+        },
+        "cloud_acc_median": {
+          "median": 2.2856245978002336,
+          "worst": 3.805636659863903,
+          "n": 2
+        },
+        "cloud_completeness": {
+          "median": 0.20506666666666665,
+          "worst": 0.0032,
+          "n": 2
+        },
+        "dim_error_pct": {
+          "median": 62.941474801316005,
+          "worst": 121.54541495990593,
+          "n": 2
+        },
+        "median_reproj_err": {
+          "median": 0.3459688224003763,
+          "worst": 0.07177452159484041,
+          "n": 2
+        },
+        "n_points": {
+          "median": 13572.5,
+          "worst": 8772.0,
+          "n": 2
+        },
+        "runtime_s": {
+          "median": 356.12,
+          "worst": 369.29,
+          "n": 2
+        },
+        "peak_rss_mb": {
+          "median": 1517.9,
+          "worst": 1708.0,
+          "n": 2
+        }
+      },
+      "ba|orbit": {
+        "variant": "ba",
+        "regime": "orbit",
+        "n_trials": 3,
+        "n_failed": 0,
+        "failure_rate": 0.0,
+        "registered_fraction": {
+          "median": 1.0,
+          "worst": 1.0,
+          "n": 3
+        },
+        "ate_rmse": {
+          "median": 0.0034657277101990927,
+          "worst": 0.004069060171156883,
+          "n": 3
+        },
+        "ate_max": {
+          "median": 0.006602830566901527,
+          "worst": 0.008585755609406878,
+          "n": 3
+        },
+        "scale_error": {
+          "median": 0.00028917289552932157,
+          "worst": 0.0013813856220652454,
+          "n": 3
+        },
+        "cloud_acc_median": {
+          "median": 0.6626997266558057,
+          "worst": 0.6705820779512716,
+          "n": 3
+        },
+        "cloud_completeness": {
+          "median": 0.9514666666666667,
+          "worst": 0.9509333333333333,
+          "n": 3
+        },
+        "dim_error_pct": {
+          "median": 2.022102227665343,
+          "worst": 2.314133620500971,
+          "n": 3
+        },
+        "median_reproj_err": {
+          "median": 0.1283431195114606,
+          "worst": 0.12790824646868215,
+          "n": 3
+        },
+        "n_points": {
+          "median": 33567.0,
+          "worst": 33461.0,
+          "n": 3
+        },
+        "runtime_s": {
+          "median": 238.97,
+          "worst": 242.43,
+          "n": 3
+        },
+        "peak_rss_mb": {
+          "median": 1618.4,
+          "worst": 1628.4,
+          "n": 3
+        }
+      },
+      "baseline|low_parallax": {
+        "variant": "baseline",
+        "regime": "low_parallax",
+        "n_trials": 3,
+        "n_failed": 2,
+        "failure_rate": 0.6666666666666666,
+        "registered_fraction": {
+          "median": 0.03333333333333333,
+          "worst": 0.03333333333333333,
+          "n": 1
+        },
+        "ate_rmse": {
+          "median": null,
+          "worst": null,
+          "n": 0
+        },
+        "ate_max": {
+          "median": null,
+          "worst": null,
+          "n": 0
+        },
+        "scale_error": {
+          "median": null,
+          "worst": null,
+          "n": 0
+        },
+        "cloud_acc_median": {
+          "median": 86.70977889912771,
+          "worst": 86.70977889912771,
+          "n": 1
+        },
+        "cloud_completeness": {
+          "median": 0.0,
+          "worst": 0.0,
+          "n": 1
+        },
+        "dim_error_pct": {
+          "median": 100.0,
+          "worst": 100.0,
+          "n": 1
+        },
+        "median_reproj_err": {
+          "median": 0.6799636541163117,
+          "worst": 0.6799636541163117,
+          "n": 1
+        },
+        "n_points": {
+          "median": 1.0,
+          "worst": 1.0,
+          "n": 1
+        },
+        "runtime_s": {
+          "median": 7.38,
+          "worst": 7.38,
+          "n": 1
+        },
+        "peak_rss_mb": {
+          "median": 997.5,
+          "worst": 997.5,
+          "n": 1
+        }
+      },
+      "baseline|nadir_grid": {
+        "variant": "baseline",
+        "regime": "nadir_grid",
+        "n_trials": 3,
+        "n_failed": 0,
+        "failure_rate": 0.0,
+        "registered_fraction": {
+          "median": 0.6666666666666666,
+          "worst": 0.6666666666666666,
+          "n": 3
+        },
+        "ate_rmse": {
+          "median": 1.7888563940837112,
+          "worst": 2.312449866903225,
+          "n": 3
+        },
+        "ate_max": {
+          "median": 3.465846364013848,
+          "worst": 8.625431592066269,
+          "n": 3
+        },
+        "scale_error": {
+          "median": 0.0047033323565984775,
+          "worst": 0.008234373654083194,
+          "n": 3
+        },
+        "cloud_acc_median": {
+          "median": 0.9925047473496367,
+          "worst": 1.0079168752667904,
+          "n": 3
+        },
+        "cloud_completeness": {
+          "median": 0.45626666666666665,
+          "worst": 0.3224,
+          "n": 3
+        },
+        "dim_error_pct": {
+          "median": 5.526771954822185,
+          "worst": 5.9502414287594805,
+          "n": 3
+        },
+        "median_reproj_err": {
+          "median": 0.5723567453273777,
+          "worst": 0.4459221819813859,
+          "n": 3
+        },
+        "n_points": {
+          "median": 19988.0,
+          "worst": 19868.0,
+          "n": 3
+        },
+        "runtime_s": {
+          "median": 38.4,
+          "worst": 39.0,
+          "n": 3
+        },
+        "peak_rss_mb": {
+          "median": 992.6,
+          "worst": 993.6,
+          "n": 3
+        }
+      },
+      "baseline|oblique_pass": {
+        "variant": "baseline",
+        "regime": "oblique_pass",
+        "n_trials": 3,
+        "n_failed": 1,
+        "failure_rate": 0.3333333333333333,
+        "registered_fraction": {
+          "median": 1.0,
+          "worst": 1.0,
+          "n": 2
+        },
+        "ate_rmse": {
+          "median": 12.186067180743745,
+          "worst": 13.114354421761265,
+          "n": 2
+        },
+        "ate_max": {
+          "median": 33.93397435915401,
+          "worst": 38.42464313582806,
+          "n": 2
+        },
+        "scale_error": {
+          "median": 0.3843243604183709,
+          "worst": 0.7131234629602152,
+          "n": 2
+        },
+        "cloud_acc_median": {
+          "median": 2.451475827637706,
+          "worst": 2.853464779707022,
+          "n": 2
+        },
+        "cloud_completeness": {
+          "median": 0.076,
+          "worst": 0.027733333333333332,
+          "n": 2
+        },
+        "dim_error_pct": {
+          "median": 48.96070850371053,
+          "worst": 51.385318005384015,
+          "n": 2
+        },
+        "median_reproj_err": {
+          "median": 1.3580784382840494,
+          "worst": 1.2986733166773303,
+          "n": 2
+        },
+        "n_points": {
+          "median": 12012.5,
+          "worst": 10846.0,
+          "n": 2
+        },
+        "runtime_s": {
+          "median": 97.56,
+          "worst": 99.07,
+          "n": 2
+        },
+        "peak_rss_mb": {
+          "median": 988.9,
+          "worst": 992.0,
+          "n": 2
+        }
+      },
+      "baseline|orbit": {
+        "variant": "baseline",
+        "regime": "orbit",
+        "n_trials": 3,
+        "n_failed": 0,
+        "failure_rate": 0.0,
+        "registered_fraction": {
+          "median": 1.0,
+          "worst": 1.0,
+          "n": 3
+        },
+        "ate_rmse": {
+          "median": 1.2335111833566546,
+          "worst": 1.605878498314648,
+          "n": 3
+        },
+        "ate_max": {
+          "median": 3.076527213669668,
+          "worst": 4.419086493508152,
+          "n": 3
+        },
+        "scale_error": {
+          "median": 0.00027570182324387904,
+          "worst": 0.008781395421407323,
+          "n": 3
+        },
+        "cloud_acc_median": {
+          "median": 0.6837290614454647,
+          "worst": 0.69211232322316,
+          "n": 3
+        },
+        "cloud_completeness": {
+          "median": 0.9282666666666667,
+          "worst": 0.9216,
+          "n": 3
+        },
+        "dim_error_pct": {
+          "median": 4.3307186290084125,
+          "worst": 5.115430519345907,
+          "n": 3
+        },
+        "median_reproj_err": {
+          "median": 0.2860882617120831,
+          "worst": 0.21910058644553343,
+          "n": 3
+        },
+        "n_points": {
+          "median": 32702.0,
+          "worst": 32585.0,
+          "n": 3
+        },
+        "runtime_s": {
+          "median": 63.87,
+          "worst": 64.92,
+          "n": 3
+        },
+        "peak_rss_mb": {
+          "median": 978.0,
+          "worst": 989.8,
+          "n": 3
+        }
+      }
+    },
+    "per_variant": {
+      "ba": {
+        "n_trials": 12,
+        "n_failed": 3,
+        "failure_rate": 0.25,
+        "registered_fraction": {
+          "median": 1.0,
+          "worst": 0.03333333333333333,
+          "n": 9
+        },
+        "ate_rmse": {
+          "median": 0.011067776967000427,
+          "worst": 7.181739526859068,
+          "n": 8
+        },
+        "ate_max": {
+          "median": 0.0184281541845394,
+          "worst": 20.16629134847073,
+          "n": 8
+        },
+        "scale_error": {
+          "median": 0.0022664307003379403,
+          "worst": 0.019755602602586353,
+          "n": 8
+        },
+        "cloud_acc_median": {
+          "median": 0.8787398412159583,
+          "worst": 86.70977889912771,
+          "n": 9
+        },
+        "cloud_completeness": {
+          "median": 0.5082666666666666,
+          "worst": 0.0,
+          "n": 9
+        },
+        "dim_error_pct": {
+          "median": 2.314133620500971,
+          "worst": 121.54541495990593,
+          "n": 9
+        },
+        "median_reproj_err": {
+          "median": 0.12790824646868215,
+          "worst": 0.03699970473502064,
+          "n": 9
+        },
+        "n_points": {
+          "median": 20134.0,
+          "worst": 1.0,
+          "n": 9
+        },
+        "runtime_s": {
+          "median": 219.56,
+          "worst": 369.29,
+          "n": 9
+        },
+        "peak_rss_mb": {
+          "median": 1451.8,
+          "worst": 1708.0,
+          "n": 9
+        }
+      },
+      "baseline": {
+        "n_trials": 12,
+        "n_failed": 3,
+        "failure_rate": 0.25,
+        "registered_fraction": {
+          "median": 1.0,
+          "worst": 0.03333333333333333,
+          "n": 9
+        },
+        "ate_rmse": {
+          "median": 1.6973674461991797,
+          "worst": 13.114354421761265,
+          "n": 8
+        },
+        "ate_max": {
+          "median": 3.9424664287609996,
+          "worst": 38.42464313582806,
+          "n": 8
+        },
+        "scale_error": {
+          "median": 0.0064688530053408355,
+          "worst": 0.7131234629602152,
+          "n": 8
+        },
+        "cloud_acc_median": {
+          "median": 0.9925047473496367,
+          "worst": 86.70977889912771,
+          "n": 9
+        },
+        "cloud_completeness": {
+          "median": 0.45626666666666665,
+          "worst": 0.0,
+          "n": 9
+        },
+        "dim_error_pct": {
+          "median": 5.526771954822185,
+          "worst": 100.0,
+          "n": 9
+        },
+        "median_reproj_err": {
+          "median": 0.5723567453273777,
+          "worst": 0.21910058644553343,
+          "n": 9
+        },
+        "n_points": {
+          "median": 19988.0,
+          "worst": 1.0,
+          "n": 9
+        },
+        "runtime_s": {
+          "median": 63.74,
+          "worst": 99.07,
+          "n": 9
+        },
+        "peak_rss_mb": {
+          "median": 989.8,
+          "worst": 997.5,
+          "n": 9
+        }
+      }
+    }
+  },
+  "total_runtime_s": 2626.2
+}

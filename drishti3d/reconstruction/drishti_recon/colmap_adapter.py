@@ -162,29 +162,148 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
         shutil.rmtree(work, ignore_errors=True)
 
 
-def reconstruct(image_dir, work_dir, intrinsics=None):
+def reconstruct(image_dir, work_dir, intrinsics=None, *,
+                num_threads=8, max_image_size=1920, single_camera=True,
+                position_priors=None, prior_sigma_m=5.0):
     """Run a COLMAP sparse reconstruction if available.
 
     Returns a dict with points/cameras compatible with the pipeline, or raises
     if PyCOLMAP is not installed.  This is a thin, optional path; the default
     verified engine is :func:`drishti_recon.sfm.reconstruct`.
+
+    ``num_threads`` is capped deliberately.  COLMAP otherwise sizes its SIFT
+    thread pool from the core count -- 24 extractors on this machine -- and each
+    holds full-resolution scale-space buffers.  That took a 64-frame 1080p run
+    past a 10 GB cgroup limit and returned SIGKILL.  ``max_image_size`` bounds
+    the same buffers; COLMAP's own default is 3200, above our native width.
+
+    ``intrinsics``, when given, is a dict with ``fx``, ``fy``, ``cx``, ``cy`` and
+    optionally ``k1``, ``k2``, ``p1``, ``p2``.  They are held fixed rather than
+    refined.  Previously this argument was accepted and silently ignored.
+
+    ``position_priors`` maps image filename -> (x, y, z) in a metric Cartesian
+    frame (UTM, say).  Supplying it turns on COLMAP's prior-position bundle
+    adjustment, which is what keeps a straight single pass from bowing: with no
+    loop closure, small rotation errors accumulate into a low-frequency bend that
+    a free reconstruction has nothing to correct against.  ``prior_sigma_m`` is
+    the per-axis 1-sigma of those priors; a robust loss is used so individual GNSS
+    outliers do not drag the solution.
     """
     if not is_available():
         raise RuntimeError("PyCOLMAP not installed. " + SETUP)
     import pycolmap  # type: ignore
+    import numpy as np
     from pathlib import Path
 
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
     db_path = work_dir / "database.db"
-    pycolmap.extract_features(db_path, image_dir)
-    pycolmap.match_exhaustive(db_path)
-    maps = pycolmap.incremental_mapping(db_path, image_dir, work_dir)
+
+    ext = pycolmap.FeatureExtractionOptions()
+    ext.num_threads = num_threads
+    ext.max_image_size = max_image_size
+    match = pycolmap.FeatureMatchingOptions()
+    match.num_threads = num_threads
+    mapper = pycolmap.IncrementalPipelineOptions()
+    mapper.num_threads = num_threads
+
+    # Camera handling.  Left to itself COLMAP's AUTO mode gives every image its
+    # own camera and self-calibrates each one.  On a well-conditioned capture
+    # that converges (a 64-frame pass agreed on f to within 1%), but on a nearly
+    # straight trajectory the focal/depth ambiguity is barely observable and the
+    # per-image estimates diverge -- measured 1062..2044 px against a surveyed
+    # 893.4.  So: share one camera across the pass, and when the true intrinsics
+    # are known, fix them instead of solving for them.
+    reader = pycolmap.ImageReaderOptions()
+    mode = pycolmap.CameraMode.SINGLE if single_camera else pycolmap.CameraMode.AUTO
+    if intrinsics is not None:
+        fx, fy, cx, cy = intrinsics["fx"], intrinsics["fy"], intrinsics["cx"], intrinsics["cy"]
+        k1, k2, p1, p2 = (intrinsics.get(k, 0.0) for k in ("k1", "k2", "p1", "p2"))
+        reader.camera_model = "OPENCV"
+        reader.camera_params = ",".join(
+            f"{v:.10g}" for v in (fx, fy, cx, cy, k1, k2, p1, p2))
+        mode = pycolmap.CameraMode.SINGLE
+        mapper.ba_refine_focal_length = False
+        mapper.ba_refine_extra_params = False
+
+    pycolmap.extract_features(db_path, image_dir, camera_mode=mode,
+                              reader_options=reader, extraction_options=ext)
+    pycolmap.match_exhaustive(db_path, matching_options=match)
+
+    prior_offset = None
+    if position_priors:
+        # Centre the priors. UTM northings run to 5.2e6; handing Ceres residuals
+        # built from coordinates that large costs significant conditioning, and
+        # the solved frame is shifted back afterwards so the caller still gets
+        # coordinates in the original datum.
+        import numpy as _np
+        _P = _np.asarray(list(position_priors.values()), float)
+        prior_offset = _P.mean(axis=0)
+        centred = {k: (_np.asarray(v, float) - prior_offset)
+                   for k, v in position_priors.items()}
+        n = _write_position_priors(pycolmap, db_path, centred, prior_sigma_m)
+        if n:
+            mapper.use_prior_position = True
+            mapper.use_robust_loss_on_prior_position = True
+
+    maps = pycolmap.incremental_mapping(db_path, image_dir, work_dir, options=mapper)
     if not maps:
         raise RuntimeError("COLMAP produced no reconstruction")
     rec = maps[0]
-    import numpy as np
+    if prior_offset is not None:
+        # Shift back into the caller's datum -- and write it, so the model on disk
+        # agrees with the object returned. Transforming only the in-memory copy
+        # left every saved reconstruction sitting at the centred origin, which
+        # reads as a ~5.2e6 m error against any georeferenced check.
+        rec.transform(pycolmap.Sim3d(1.0, pycolmap.Rotation3d(), prior_offset))
+        for sub in sorted(work_dir.glob("*")):
+            if sub.is_dir() and (sub / "images.bin").exists():
+                rec.write(str(sub))
+                break
     pts = np.array([p.xyz for p in rec.points3D.values()])
     cols = np.array([p.color for p in rec.points3D.values()], np.uint8)
+    track = float(np.mean([p.track.length() for p in rec.points3D.values()])) if len(pts) else 0.0
     return {"points": pts, "colors": cols, "engine": "colmap",
-            "num_images": rec.num_images(), "num_points": len(pts)}
+            "num_images": rec.num_images(), "num_points": len(pts),
+            "mean_track_length": track, "reconstruction": rec,
+            "prior_offset": None if prior_offset is None else prior_offset.tolist()}
+
+
+def _write_position_priors(pycolmap, db_path, priors, sigma_m):
+    """Attach metric position priors to the database images. Returns the count.
+
+    COLMAP already populates a pose prior per image from EXIF GPS during feature
+    extraction, in WGS84 and with an undefined covariance.  Inserting alongside
+    those trips a uniqueness constraint, so existing rows are updated in place --
+    which is also what we want, since it lets us state the covariance rather than
+    leave it NaN.
+    """
+    import numpy as np
+    db = pycolmap.Database.open(str(db_path))
+    try:
+        cov = np.eye(3) * float(sigma_m) ** 2
+        by_image = {}
+        for pp in db.read_all_pose_priors():
+            by_image[int(pp.corr_data_id.id)] = pp
+        written = 0
+        for img in db.read_all_images():
+            xyz = priors.get(img.name)
+            if xyz is None:
+                continue
+            pp = by_image.get(int(img.image_id))
+            if pp is None:
+                pp = pycolmap.PosePrior()
+                pp.corr_data_id = pycolmap.data_t(
+                    pycolmap.sensor_t(pycolmap.SensorType.CAMERA, img.camera_id),
+                    img.image_id)
+            pp.position = np.asarray(xyz, float)
+            pp.position_covariance = cov
+            pp.coordinate_system = pycolmap.PosePriorCoordinateSystem.CARTESIAN
+            if int(getattr(pp, "pose_prior_id", 2**32 - 1)) != 2**32 - 1:
+                db.update_pose_prior(pp)
+            else:
+                db.write_pose_prior(pp)
+            written += 1
+    finally:
+        db.close()
+    return written

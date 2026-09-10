@@ -1,0 +1,9 @@
+[1/24] baseline/oblique_pass/seed0 ... ok  reg=100.0% ATE=0.069m  scale_err=0.0035 (118.03s)
+[2/24] baseline/oblique_pass/seed1 ... ok  reg=100.0% ATE=0.011m  scale_err=0.0020 (117.12s)
+[3/24] baseline/oblique_pass/seed2 ... ok  reg=100.0% ATE=0.020m  scale_err=0.0024 (119.58s)
+[4/24] baseline/nadir_grid/seed0 ... ok  reg=100.0% ATE=0.178m  scale_err=0.0033 (93.24s)
+[5/24] baseline/nadir_grid/seed1 ... ok  reg=100.0% ATE=0.317m  scale_err=0.0002 (107.67s)
+[6/24] baseline/nadir_grid/seed2 ... ok  reg=100.0% ATE=0.679m  scale_err=0.0022 (106.41s)
+[7/24] baseline/orbit/seed0 ... ok  reg=100.0% ATE=0.041m  scale_err=0.0014 (89.63s)
+[8/24] baseline/orbit/seed1 ... ok  reg=100.0% ATE=0.055m  scale_err=0.0003 (82.48s)
+[9/24] baseline/orbit/seed2 ... 

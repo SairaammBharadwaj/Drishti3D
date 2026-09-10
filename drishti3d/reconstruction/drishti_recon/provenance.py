@@ -17,6 +17,13 @@ class Provenance(IntEnum):
     AI_ASSISTED = 2
     DYNAMIC_EXCLUDED = 3
     UNOBSERVED = 4
+    #: Inferred geometry that then *passed* an independent multi-view test:
+    #: reprojected into neighbouring views and found consistent in depth and
+    #: colour. Kept distinct from AI_ASSISTED because "a model produced it" and
+    #: "several real cameras agree with it" are different claims -- and only the
+    #: second is evidence. Still not measurable by default; it is corroborated,
+    #: not triangulated.
+    AI_GEOMETRICALLY_VERIFIED = 5
 
     @property
     def measurable(self) -> bool:
@@ -39,6 +46,7 @@ _LABELS = {
     Provenance.AI_ASSISTED: "AI-assisted / inferred",
     Provenance.DYNAMIC_EXCLUDED: "Dynamic (excluded)",
     Provenance.UNOBSERVED: "Unobserved",
+    Provenance.AI_GEOMETRICALLY_VERIFIED: "AI-inferred, multi-view verified",
 }
 
 # Green / Amber / Purple / Red per the brief's suggested legend.
@@ -48,6 +56,8 @@ _COLORS = {
     Provenance.AI_ASSISTED: (155, 89, 182),
     Provenance.DYNAMIC_EXCLUDED: (231, 76, 60),
     Provenance.UNOBSERVED: (127, 140, 141),
+    # Teal: visibly related to the observed green, visibly not the same thing.
+    Provenance.AI_GEOMETRICALLY_VERIFIED: (26, 188, 156),
 }
 
 

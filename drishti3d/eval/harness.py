@@ -103,6 +103,7 @@ def run_case(case: EvalCase, work_dir: str | Path, *,
              fps: float = 5.0, gps_sigma_h: float = 2.5, gps_sigma_v: float = 4.0,
              seed: int = 0, gravity_align: bool | None = None,
              do_mesh: bool = False, max_frames: int = 400,
+             params_override: dict | None = None,
              progress=None) -> Estimate:
     work_dir = Path(work_dir)
     proj = work_dir / "project"
@@ -143,6 +144,12 @@ def run_case(case: EvalCase, work_dir: str | Path, *,
     params = pipeline.PipelineParams(
         do_mesh=do_mesh, intrinsics=intr, gravity_align=galign,
         max_analyze_frames=max_frames)
+    # Ablation hook: the benchmark switches one component at a time by name so a
+    # variant is a recorded parameter set, not an edited source tree.
+    for key, val in (params_override or {}).items():
+        if not hasattr(params, key):
+            raise ValueError(f"unknown pipeline parameter {key!r}")
+        setattr(params, key, val)
     kw = {"params": params}
     if progress is not None:
         kw["progress"] = progress

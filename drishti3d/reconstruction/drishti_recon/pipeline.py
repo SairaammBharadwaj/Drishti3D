@@ -17,7 +17,7 @@ import cv2
 
 from . import ingestion, telemetry as tel, frame_quality, keyframes as kf
 from . import sync as syncmod, masking, sfm, fusion, mesh as meshmod, quality, exports
-from .geo import robust_sim3
+from .geo import robust_sim3, Sim3, Sim3Result
 
 Progress = Callable[[str, float, str], None]
 
@@ -59,10 +59,53 @@ class PipelineParams:
     intrinsics: dict | None = None      # {fx,fy,cx,cy} optional override
     voxel: float = 0.15
     engine: str = "opencv"              # opencv (default, always works) | colmap | auto
+    # Bundle adjustment jointly refines poses and points; without it the
+    # incremental estimate keeps whatever error each step introduced.  Every
+    # solve is accepted only if it lowers reprojection RMSE, so it is on by
+    # default and can be disabled to reproduce the pre-BA behaviour.
+    #: Feature backend: "sift" (default, unchanged) | "akaze" | "lightglue".
+    #: The pair graph and every downstream threshold are identical across
+    #: backends, so an A/B measures the matcher and nothing else.
+    #: Epipolar RANSAC band in pixels; 1.0 when unset.
+    #:
+    #: Deliberately NOT auto-selected from "was distortion corrected". Absence of
+    #: distortion coefficients does not imply a distorted lens -- synthetic
+    #: renders are exact pinholes and carry none, and loosening the band there
+    #: admits bad correspondences into the two-view initialisation and collapses
+    #: the reconstruction to zero points. Real uncorrected imagery genuinely
+    #: benefits from ~3 px, so that is an explicit opt-in per capture.
+    e_ransac_px: float | None = None
+    matcher: str = "sift"
+    matcher_options: dict | None = None
+    bundle_adjust: bool = True
+    ba_every: int = 8                   # cameras registered between interim solves
+    refine_focal: bool = False          # refine focal length in the final solve
+    refine_distortion: bool = False     # refine k1,k2,p1,p2 in the final solve
     gravity_align: bool = True          # level the cloud so the ground is horizontal
     # Densification: "none" keeps the pure classical (sparse, all-observed) cloud;
     # "depth" fuses a monocular depth prior (Depth Anything V2) to fill the single-
     # pass holes, tagging every added point AI_ASSISTED (excluded from measurement).
+    # Observation-space coverage: classifies the scene into observed / weak /
+    # occluded / unseen / verified-empty, so unestablished space can be shown and
+    # blocked rather than silently interpolated.  See :mod:`coverage`.
+    # Sensor-model corrections between camera and GNSS/IMU (see :mod:`sensors`).
+    #: Camera position relative to the GNSS antenna, body axes (x fwd, y right,
+    #: z down), metres. Requires attitude in telemetry to be applied.
+    lever_arm_body: tuple | None = None
+    #: Estimate the constant video-to-telemetry time offset from the
+    #: reconstructed motion, and re-synchronise if it is confidently non-zero.
+    estimate_time_offset: bool = True
+    time_offset_search_s: float = 2.0
+    #: Sensor readout time, used only to judge rolling-shutter severity.
+    rolling_shutter_readout_s: float = 1 / 60.0
+    #: Verify depth-prior points against independent views and promote those
+    #: that agree to AI_GEOMETRICALLY_VERIFIED. Only meaningful with densify.
+    verify_inferred: bool = True
+    #: Target 1-sigma positional accuracy, metres. When set, the capture
+    #: assessment reports whether the flight could actually deliver it.
+    required_sigma_m: float | None = None
+    build_coverage: bool = True
+    coverage_voxel: float = 1.0
     densify: str = "none"               # none | depth
     depth_stride: int = 8               # pixel grid stride for depth back-projection
 
@@ -127,8 +170,13 @@ def run(project_dir, video_path, telemetry_path, *,
         stride = max(1, int(np.ceil(vinfo.frame_count / params.max_analyze_frames)))
         sf = 1.0
         frames = []          # (frame_index, timestamp, bgr) at processing scale
+        pts_s = []           # container presentation timestamps, seconds
         idx = 0
         while True:
+            # Query the presentation timestamp of the frame about to be decoded.
+            # Read *before* `read()`: after a successful read some backends have
+            # already advanced to the next frame's position.
+            t_pts = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             ok, fr = cap.read()
             if not ok:
                 break
@@ -138,6 +186,7 @@ def run(project_dir, video_path, telemetry_path, *,
                     fr = cv2.resize(fr, (params.proc_max_width,
                                          int(round(fr.shape[0] * sf))))
                 frames.append((idx, idx / fps, fr))
+                pts_s.append(t_pts)
                 _emit(progress, "frames", len(frames) /
                       (vinfo.frame_count / stride + 1), "decoding")
             idx += 1
@@ -146,9 +195,33 @@ def run(project_dir, video_path, telemetry_path, *,
             raise RuntimeError("could not decode enough frames from video")
         proc_h, proc_w = frames[0][2].shape[:2]
 
+        # Prefer real timestamps over the nominal clock.  `frame_index / fps` is
+        # only correct for constant-frame-rate video; a single dropped frame
+        # shifts every later timestamp and silently pairs frames with the wrong
+        # GNSS sample.
+        timing_source, timing_note = _adopt_pts(frames, pts_s, fps)
+        if timing_note:
+            warnings.append(timing_note)
+
     # intrinsics (override -> telemetry -> estimate), scaled to processing size
     K = _resolve_intrinsics(params.intrinsics or treport.intrinsics,
                             vinfo.width, vinfo.height, proc_w, proc_h, sf, warnings)
+
+    # 4a) LENS DISTORTION ----------------------------------------------------
+    # Correct once, up front, so every later stage can assume a pinhole camera.
+    # Threading coefficients through triangulation, PnP, BA and uncertainty
+    # would need a distortion-aware variant of each, and a missed one would fail
+    # silently.
+    _dist = (params.intrinsics or treport.intrinsics or {}).get("distortion")
+    distortion_applied = False
+    if _dist is not None:
+        from . import sensors as sensormod
+        imgs = [f[2] for f in frames]
+        imgs, K, distortion_applied = sensormod.undistort_frames(imgs, K, _dist)
+        if distortion_applied:
+            frames = [(fi, ts, im) for (fi, ts, _), im in zip(frames, imgs)]
+            warnings.append("lens distortion corrected; intrinsics updated to "
+                            "the undistorted camera")
 
     # 4) FRAME QUALITY -------------------------------------------------------
     with stage_timer("quality"):
@@ -205,7 +278,16 @@ def run(project_dir, video_path, telemetry_path, *,
         else:
             recon = sfm.reconstruct(
                 kf_frames, K, masks=masks, positions=kf_gps,
+                matcher=params.matcher, matcher_options=params.matcher_options,
+                e_ransac_px=(params.e_ransac_px if params.e_ransac_px is not None
+                             else 1.0),
+                do_ba=params.bundle_adjust, ba_every=params.ba_every,
+                refine_focal=params.refine_focal,
+                refine_distortion=params.refine_distortion,
                 progress=lambda m, f: _emit(progress, "sfm", f, m))
+            # BA may refine the intrinsics; downstream stages and the report must
+            # use the camera model the geometry was actually solved with.
+            K = recon.K
         if recon.stats["n_points"] == 0:
             raise RuntimeError("reconstruction produced no 3D points")
 
@@ -228,6 +310,64 @@ def run(project_dir, video_path, telemetry_path, *,
             except Exception as e:
                 warnings.append(f"depth densification skipped: {e}")
                 _emit(progress, "densify", 1.0, "skipped")
+
+    # 8c) SENSOR-MODEL CORRECTIONS ------------------------------------------
+    # Done here rather than earlier because both need the reconstruction: the
+    # time offset is estimated from the reconstructed motion, and the rolling-
+    # shutter check reads the recovered poses.
+    time_offset = None
+    rs_check = None
+    if not no_gps and synced is not None and len(recon.cameras) >= 4:
+        from . import sensors as sensormod
+        kf_times = [frames[sel[c.frame_index]][1] for c in recon.cameras]
+        kf_centres = np.array([c.center for c in recon.cameras])
+        if params.estimate_time_offset:
+            tel_t = np.array([s.timestamp for s in treport.samples])
+            tel_p = enu_frame.geodetic_to_enu(
+                [s.latitude for s in treport.samples],
+                [s.longitude for s in treport.samples],
+                [s.altitude for s in treport.samples])
+            time_offset = sensormod.estimate_time_offset(
+                kf_times, kf_centres, tel_t, tel_p,
+                search_s=params.time_offset_search_s)
+            if time_offset.accepted and abs(time_offset.offset_s) > 0.02:
+                # Re-synchronise every frame on the corrected clock; a constant
+                # offset otherwise slides each frame onto the wrong GNSS sample
+                # and the aligner absorbs it as a spurious translation.
+                synced = syncmod.synchronize(
+                    [(fi, ts) for fi, ts, _ in frames], treport.samples,
+                    enu_frame, offset=time_offset.offset_s)
+                gps_enu_all = np.array([s.enu for s in synced])
+                kf_gps = gps_enu_all[sel]
+                kf_acc = [synced[i].gps_accuracy for i in sel]
+                warnings.append(
+                    f"video-to-telemetry time offset {time_offset.offset_s:+.3f}s "
+                    f"estimated (correlation {time_offset.correlation:.2f}) and applied")
+            elif time_offset.reason:
+                warnings.append(f"time offset not applied: {time_offset.reason}")
+
+        rs_check = sensormod.detect_rolling_shutter(
+            [c.R for c in recon.cameras], kf_times,
+            readout_s=params.rolling_shutter_readout_s)
+        if rs_check.message:
+            warnings.append(rs_check.message)
+
+    # 8d) LEVER ARM ----------------------------------------------------------
+    lever_applied = False
+    if params.lever_arm_body is not None and kf_gps is not None and synced is not None:
+        from . import sensors as sensormod
+        yaws = [synced[i].yaw for i in sel]
+        if any(y is not None for y in yaws):
+            kf_gps, lever_applied = sensormod.apply_lever_arm(
+                kf_gps, params.lever_arm_body,
+                yaw=[0.0 if y is None else y for y in yaws])
+            if lever_applied:
+                warnings.append(
+                    f"GNSS antenna-to-camera lever arm {tuple(params.lever_arm_body)} m "
+                    "applied using telemetry heading")
+        else:
+            warnings.append("lever arm supplied but telemetry has no heading; "
+                            "cannot place a body-frame offset in the world")
 
     # 9) GEOREGISTRATION (Sim3 to GPS ENU) -----------------------------------
     with stage_timer("georegistration"):
@@ -257,25 +397,104 @@ def run(project_dir, video_path, telemetry_path, *,
             dense_enu = dense_local
         # Level the scene: correct residual tilt so the ground is horizontal and
         # "up" is truly up (nadir GPS barely constrains the vertical axis).
+        #
+        # This rotates deliverables *after* they were fitted to GNSS, so it can
+        # move the product away from the coordinates the alignment residual was
+        # computed on.  It is therefore only applied when it can be composed into
+        # the saved transform and shown not to degrade the GNSS fit -- otherwise
+        # the report would publish a residual the exported coordinates cannot
+        # reproduce.
+        leveling = None
+        leveling_rotation = None
         if params.gravity_align and len(pts_enu) > 200:
             from .geo import level_rotation
             Rlvl = level_rotation(pts_enu)
             if Rlvl is not None:
                 c0 = pts_enu.mean(0)
-                pts_enu = (Rlvl @ (pts_enu - c0).T).T + c0
-                cams_enu = [(Rlvl @ (np.asarray(ce) - c0)) + c0 for ce in cams_enu]
-                if dense_enu is not None:
-                    dense_enu = (Rlvl @ (dense_enu - c0).T).T + c0
-                warnings.append("applied gravity/level correction so the ground "
-                                "plane is horizontal in the viewer")
+                tilt_deg = float(np.degrees(np.arccos(np.clip(
+                    (np.trace(Rlvl) - 1) / 2, -1, 1))))
+                accept, align_after = True, align
+                if align is not None:
+                    # The levelled map is itself a similarity: compose it so the
+                    # persisted transform IS the one that produced the export.
+                    composed = Sim3(align.transform.scale,
+                                    Rlvl @ align.transform.R,
+                                    Rlvl @ (align.transform.t - c0) + c0)
+                    diff = composed.apply(cam_centers) - gps_for_cams
+                    inl = align.inliers
+                    rmse = float(np.sqrt((diff[inl] ** 2).sum(1).mean()))
+                    # Levelling is a correction, not a licence to worsen the fit.
+                    # Allow a little slack (GNSS altitude is weak, so a genuine
+                    # tilt fix can nudge the residual up) but refuse a real
+                    # degradation.
+                    accept = rmse <= max(align.rmse * 1.25, align.rmse + 0.25)
+                    if accept:
+                        align_after = Sim3Result(
+                            composed, inl, rmse,
+                            float(np.sqrt((diff[inl][:, :2] ** 2).sum(1).mean())),
+                            float(np.sqrt((diff[inl][:, 2] ** 2).mean())),
+                            int(inl.sum()), align.n_total,
+                            normalized_rmse=align.normalized_rmse,
+                            scale_sigma=align.scale_sigma,
+                            degenerate=align.degenerate,
+                            degeneracy=align.degeneracy,
+                            conditioning=dict(align.conditioning))
+                    else:
+                        warnings.append(
+                            f"gravity/level correction rejected: it would raise the "
+                            f"GPS alignment residual from {align.rmse:.3f} m to "
+                            f"{rmse:.3f} m. Scene left in its GPS-fitted orientation.")
+                if accept:
+                    leveling_rotation = Rlvl
+                    pts_enu = (Rlvl @ (pts_enu - c0).T).T + c0
+                    cams_enu = [(Rlvl @ (np.asarray(ce) - c0)) + c0 for ce in cams_enu]
+                    if dense_enu is not None:
+                        dense_enu = (Rlvl @ (dense_enu - c0).T).T + c0
+                    align = align_after
+                    leveling = {"applied": True,
+                                "tilt_corrected_deg": tilt_deg,
+                                "rotation": Rlvl.tolist(),
+                                "pivot_enu": c0.tolist(),
+                                "composed_into_alignment": align_after is not None,
+                                "alignment_rmse_after_m":
+                                    align.rmse if align is not None else None}
+                    warnings.append(
+                        f"applied gravity/level correction ({tilt_deg:.2f} deg); "
+                        "composed into the saved transform and the reported GPS "
+                        "residual recomputed against it")
+                else:
+                    leveling = {"applied": False,
+                                "tilt_corrected_deg": tilt_deg,
+                                "reason": "would degrade the GPS alignment residual"}
         _emit(progress, "georegistration", 1.0,
               f"scale={align.transform.scale:.3f}" if align else "relative scale")
+
+    # Relative metric-scale uncertainty, which dominates long measurements.
+    scale_sigma_rel = 0.0
+    if align is not None and getattr(align, "scale_sigma", None):
+        try:
+            scale_sigma_rel = float(align.scale_sigma) / float(align.transform.scale)
+        except Exception:
+            scale_sigma_rel = 0.0
+
+    # The world rotation induced by georegistration (and any levelling). Cameras
+    # must be rotated by it before they can be used against the ENU cloud.
+    R_world_for_cov = ((leveling_rotation if leveling_rotation is not None
+                        else np.eye(3))
+                       @ (align.transform.R if align is not None else np.eye(3)))
+    verification_summary = None
 
     # 10) FUSION -------------------------------------------------------------
     with stage_timer("fusion"):
         _emit(progress, "fusion", 0.3, "cleaning cloud")
+        # Uncertainty was propagated in the reconstruction frame; a similarity
+        # multiplies lengths by its scale, so the metric sigma is scale * sigma.
+        _s = float(align.transform.scale) if align is not None else 1.0
+        _sig = None if recon.point_sigma is None else recon.point_sigma * _s
+        _sigmaj = (None if recon.point_sigma_major is None
+                   else recon.point_sigma_major * _s)
         cloud = fusion.fuse(pts_enu, recon.colors, recon.confidence,
-                            voxel=params.voxel)
+                            voxel=params.voxel, sigma=_sig, sigma_major=_sigmaj)
         # Merge depth-prior points as a SEPARATE, measurement-excluded layer so
         # the trust map can show observed (green) vs AI-inferred (purple) geometry.
         if dense_enu is not None and len(dense_enu):
@@ -287,8 +506,54 @@ def run(project_dir, video_path, telemetry_path, *,
             if len(dpts) > 50:
                 keep = fusion._statistical_outlier_np(dpts, k=8, std_ratio=2.0)
                 dpts, dcols = dpts[keep], dcols[keep]
+            n_before = len(cloud)
             cloud = fusion.add_inferred_layer(cloud, dpts, dcols)
+            # Test the inferred points against views that did not produce them.
+            if params.verify_inferred and len(cloud) > n_before:
+                try:
+                    from . import verify as verifymod
+                    inferred_mask = np.zeros(len(cloud), bool)
+                    inferred_mask[n_before:] = True
+                    cams_v = [_EnuCam(np.asarray(c.R, float) @ R_world_for_cov.T,
+                                      np.asarray(ce, float))
+                              for c, ce in zip(recon.cameras, cams_enu)]
+                    vres = verifymod.verify_inferred(
+                        cloud.points[inferred_mask], cloud.colors[inferred_mask],
+                        cloud.points[:n_before], cloud.colors[:n_before],
+                        cams_v, K, (proc_w, proc_h))
+                    verifymod.apply_verification(cloud, vres, inferred_mask)
+                    verification_summary = vres.summary()
+                except Exception as e:
+                    warnings.append(f"inferred-geometry verification skipped: {e}")
         _emit(progress, "fusion", 1.0, f"{len(cloud)} points")
+
+    # 10b) OBSERVATION-SPACE COVERAGE ---------------------------------------
+    cov_grid = None
+    if params.build_coverage and len(recon.cameras) >= 1 and len(cloud):
+        try:
+            from . import coverage as covmod
+            # Rebuild each camera in the ENU frame the cloud now lives in.
+            # The rotation is NOT unchanged by the similarity: with
+            # X_enu = s*R_a*X_recon + t, the camera's world->camera rotation
+            # becomes R_cam @ R_a^T. Keeping R_cam pointed every camera in the
+            # wrong direction, so nothing fell inside any frustum and the whole
+            # scene came back UNSEEN.
+            R_world = R_world_for_cov
+            cams_for_cov = [_EnuCam(np.asarray(c.R, float) @ R_world.T,
+                                    np.asarray(ce, float))
+                            for c, ce in zip(recon.cameras, cams_enu)]
+            # Dynamic masks are keyed by keyframe; the registered cameras are a
+            # subset, so index through `frame_index` rather than positionally.
+            cov_masks = None
+            if masks is not None:
+                cov_masks = [masks[c.frame_index]
+                             if c.frame_index < len(masks) else None
+                             for c in recon.cameras]
+            cov_grid = covmod.build(cloud.points, cams_for_cov, K,
+                                    (proc_w, proc_h), masks=cov_masks,
+                                    voxel=params.coverage_voxel)
+        except Exception as e:
+            warnings.append(f"coverage layer skipped: {e}")
 
     # 11) MESH (optional) ----------------------------------------------------
     mesh_path = None
@@ -306,11 +571,40 @@ def run(project_dir, video_path, telemetry_path, *,
     with stage_timer("report"):
         _emit(progress, "report", 0.3, "computing metrics")
         gt_eval = _maybe_gt_eval(video_path, telemetry_path, enu_frame, cloud)
+        cov_summary = cov_grid.summary() if cov_grid is not None else None
+        from . import capture as capmod
+        # Feed the assessment the uncertainty the capture actually delivered,
+        # so "can it meet the requirement" is answered from measurement rather
+        # than left as None.
+        _unc_summary = None
+        if getattr(cloud, "sigma_major", None) is not None:
+            _sm = np.asarray(cloud.sigma_major, float)
+            _fin = _sm[np.isfinite(_sm)]
+            if len(_fin):
+                _unc_summary = {"sigma_major_m": {
+                    "median": float(np.median(_fin)),
+                    "p90": float(np.percentile(_fin, 90))}}
+        assessment = capmod.assess(
+            recon_stats=recon.stats, coverage_summary=cov_summary,
+            uncertainty_summary=_unc_summary, frame_metrics=metrics,
+            required_sigma_m=params.required_sigma_m)
+        recapture = capmod.plan_recapture(assessment, coverage_grid=cov_grid)
         report = quality.build_report(
             video_info=vinfo, telemetry_report=treport, frame_metrics=metrics,
             keyframe_count=len(sel), recon_stats=recon.stats, align_result=align,
             cloud=cloud, timings=timings, gt_eval=gt_eval, warnings=warnings,
-            scale_source=scale_source)
+            scale_source=scale_source, coverage=cov_summary,
+            sensors={
+                "time_offset": time_offset.to_dict() if time_offset else None,
+                "rolling_shutter": rs_check.to_dict() if rs_check else None,
+                "lever_arm_body_m": (list(params.lever_arm_body)
+                                     if params.lever_arm_body else None),
+                "lever_arm_applied": lever_applied,
+                "lens_distortion_corrected": distortion_applied,
+            },
+            capture_assessment=assessment.to_dict(),
+            recapture_plan=recapture.to_dict(),
+            inferred_verification=verification_summary)
         _emit(progress, "report", 1.0, "report ready")
 
     # 13) EXPORTS + viewer payload ------------------------------------------
@@ -322,11 +616,30 @@ def run(project_dir, video_path, telemetry_path, *,
                                      report, timeline, gps_enu_all, sel, metrics)
         if mesh_path:
             artifacts["mesh_glb"] = mesh_path
+        if cov_grid is not None:
+            artifacts["coverage_npz"] = cov_grid.to_npz(art_dir / "coverage.npz")
+            (art_dir / "coverage.json").write_text(json.dumps({
+                **cov_grid.summary(),
+                "recapture_hints": __import__(
+                    "drishti_recon.coverage", fromlist=["x"]
+                ).recapture_hints(cov_grid),
+            }, indent=2))
+            artifacts["coverage"] = str(art_dir / "coverage.json")
         _emit(progress, "exports", 1.0, "artifacts written")
 
-    _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings)
+    _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings,
+                    leveling=leveling, align=align, timing_source=timing_source)
     result = PipelineResult(str(project_dir), artifacts, report, warnings)
     return result
+
+
+class _EnuCam:
+    """A camera expressed in the ENU frame (same rotation, moved centre)."""
+
+    def __init__(self, R, centre):
+        self.R = np.asarray(R, float)
+        self.center = np.asarray(centre, float).ravel()
+        self.t = -self.R @ self.center
 
 
 class _StageTimer:
@@ -339,6 +652,47 @@ class _StageTimer:
 
     def __exit__(self, *a):
         self.sink[self.name] = round(time.time() - self.t, 3)
+
+
+def _adopt_pts(frames, pts_s, fps):
+    """Replace nominal timestamps with container PTS when they are trustworthy.
+
+    Mutates ``frames`` in place.  Returns ``(source, warning_or_None)``.
+
+    A PTS track is rejected -- and the nominal clock kept -- if it is all zeros
+    (the container carries no timing), not strictly increasing (a decoder quirk
+    or a seek artefact), or spans a duration wildly inconsistent with the frame
+    count and nominal rate.  Silently trusting a broken PTS track would be worse
+    than the assumption it replaces.
+    """
+    import numpy as _np
+    t = _np.asarray(pts_s, float)
+    if len(t) < 2 or not _np.all(_np.isfinite(t)):
+        return "nominal_fps", None
+    if _np.allclose(t, 0.0):
+        return "nominal_fps", None                    # no timing in the container
+    if _np.any(_np.diff(t) <= 0):
+        return ("nominal_fps",
+                "video presentation timestamps are not strictly increasing; "
+                "falling back to frame_index/fps timing (frame-to-GPS "
+                "association may drift if the stream is variable-frame-rate)")
+    nominal_span = (frames[-1][0] - frames[0][0]) / fps if fps else 0.0
+    pts_span = float(t[-1] - t[0])
+    if nominal_span > 0 and not (0.5 <= pts_span / nominal_span <= 2.0):
+        return ("nominal_fps",
+                f"video timestamps span {pts_span:.2f}s but the frame count and "
+                f"fps imply {nominal_span:.2f}s; falling back to frame_index/fps")
+
+    drift = float(_np.max(_np.abs(
+        t - (t[0] + (_np.array([f[0] for f in frames]) - frames[0][0]) / fps))))
+    for i, (fi, _, img) in enumerate(frames):
+        frames[i] = (fi, float(t[i]), img)
+    note = None
+    if drift > 1.0 / max(fps, 1e-6):
+        # Worth surfacing: this is exactly the case the nominal clock gets wrong.
+        note = (f"using real video timestamps; they differ from frame_index/fps "
+                f"by up to {drift:.3f}s (variable frame rate or dropped frames)")
+    return "container_pts", note
 
 
 def _resolve_intrinsics(intr, ow, oh, pw, ph, sf, warnings):
@@ -388,9 +742,14 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
                      gps_enu_all, sel, metrics):
     artifacts = {}
     # binary npz for API + PLY/LAS exports
+    _extra = {}
+    if cloud.sigma is not None:
+        _extra["sigma"] = cloud.sigma
+    if cloud.sigma_major is not None:
+        _extra["sigma_major"] = cloud.sigma_major
     np.savez_compressed(art_dir / "cloud.npz", points=cloud.points,
                         colors=cloud.colors, confidence=cloud.confidence,
-                        provenance=cloud.provenance)
+                        provenance=cloud.provenance, **_extra)
     artifacts["cloud_npz"] = str(art_dir / "cloud.npz")
     artifacts["ply"] = exports.export_ply(art_dir / "point_cloud.ply", cloud)
     try:
@@ -451,7 +810,8 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
     return artifacts
 
 
-def _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings):
+def _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings,
+                    *, leveling=None, align=None, timing_source="nominal_fps"):
     manifest = {
         "version": "0.1.0",
         "created": time.time(),
@@ -462,5 +822,16 @@ def _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings):
         "warnings": warnings,
         "coordinate_frame": "local ENU (metres) about telemetry origin",
         "units": "metres",
+        "frame_timing_source": timing_source,
+        # Every spatial transform applied to the deliverables, so an exported
+        # coordinate can always be traced back to the fit that produced it.
+        "transforms": {
+            "recon_to_enu": align.transform.to_dict() if align is not None else None,
+            "gravity_leveling": leveling,
+        },
+        # GNSS altitude is ellipsoidal here (EPSG:4979); it is NOT orthometric
+        # height above a geoid.  Recorded explicitly so a consumer never assumes
+        # the wrong vertical datum.
+        "vertical_datum": "WGS84 ellipsoidal (EPSG:4979); not orthometric/geoid",
     }
     (project_dir / "artifacts" / "manifest.json").write_text(json.dumps(manifest, indent=2))
