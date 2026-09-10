@@ -626,3 +626,76 @@ across a pass, no GPS-anchored solve can beat the bias floor (~3 m horizontal
 here). Vertical is less biased, which is why the reconstruction's averaging
 beats GPS 2.4x there. The doc's absolute-vs-relative accuracy distinction (§8)
 is measured reality, not a caveat.
+
+## 2026-09-10 / D-032 — a published accuracy number was measuring the truth cloud's sparsity
+
+**Context.** Building the trust score (doc §20) required a per-point error
+target. The obvious one — nearest-neighbour distance to `scene_points_enu` —
+produced a calibration that ranked points at Spearman 0.087, i.e. no ranking
+power, with the weight sweep collapsing onto a single corner of the simplex.
+
+**Investigation.** The synthetic truth cloud is 3,750 points over a 60x60x9 m
+scene. Its own nearest-neighbour self-spacing is **0.33 m median, 2.50 m at
+p90**. A perfectly reconstructed point landing between two truth samples is
+therefore scored as ~1 m wrong. 30 % of measured "errors" fell below that
+sampling floor.
+
+The scene is six planar rectangles and is exactly known, so
+`synth.surface_distance` computes true point-to-surface distance. On identical
+points: **sampled-NN 0.782 m median, analytic 0.020 m** — a factor of 39. The
+two metrics rank the same points at only rho = 0.20, so they were not noisy
+versions of each other; they were measuring different things.
+
+**Scope.** This was not confined to the trust work. `eval/metrics.py` scored
+`cloud_acc_median` the same way, so the synthetic cloud-accuracy figures
+published in BENCHMARK.md were floored by truth sampling, not by our
+reconstruction. Corrected, per regime: oblique_pass 0.809 -> 0.084 m, orbit
+0.675 -> 0.054 m, nadir_grid 0.911 -> 0.022 m.
+
+**Decision.** `EvalCase` gains `gt_surface_distance`; metrics prefer it for
+accuracy when present and fall back to sampled-NN otherwise, recording which
+was used in `cloud_acc_source` so numbers from the two sources are never
+silently compared. Completeness keeps the sampled cloud — it asks the opposite
+question ("is there a reconstructed point near each truth point"), which a
+sample answers soundly.
+
+**Rule.** An error metric must be validated against its own resolution floor
+before any claim rests on it. The check is cheap: compare the truth
+representation's internal spacing against the errors being reported. If they
+are the same order, the metric is reporting itself.
+
+## 2026-09-10 / D-033 — the trust score's terms are correlated; weights are not importances
+
+**Context.** Doc §20 specifies C = w1*O + w2*N + w3*(1-E) + w4*P with weights
+"calibrated experimentally". Two failures had to be fixed before calibration
+meant anything.
+
+**Saturation.** The first implementation used plausible constants — 6 views,
+2 px, 10 degrees. The pipeline's actual distribution is 11 views median,
+0.09 px median, 17 deg median, so O and P were pinned at 1.0 for over half the
+points and contributed nothing at all. `fit_normalisation` now derives the
+constants from the data's own quantiles. Fitted: 50 views, 0.30 px, 59.5 deg.
+
+**Confounding.** Measured on oblique_pass with the corrected error target:
+
+| term | marginal rho | partial rho |
+|---|---|---|
+| `tri_angle` | -0.600 | -0.373 (controlling obs) |
+| `obs_count` | -0.510 | **+0.044** (controlling parallax) |
+| `reproj_err` | **-0.078** (wrong sign) | +0.126 (controlling obs), +0.226 (controlling parallax) |
+
+`obs_count` correlates with `tri_angle` at rho = 0.88 and carries essentially
+no independent information. `reproj_err` appears to have the *wrong* sign
+marginally only because points with many views accumulate more total residual
+while being more accurate; within every track-length band it is correctly
+positive.
+
+**Result.** Spearman 0.087 -> **0.625**; median error falls monotonically
+across all ten trust deciles, 0.101 m -> 0.0061 m (16.6x). Calibrated effective
+weights O/N/E/P = 0 / 0 / 0.222 / 0.778 — O's zero is the expected consequence
+of its redundancy with P, not a bug.
+
+**Rule.** Weights fitted over correlated inputs rank well but are not per-term
+importances, and the module says so. Reporting them as importances would invite
+the conclusion that observation count does not matter, which is false — it is
+simply already counted through parallax.

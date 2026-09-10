@@ -338,3 +338,42 @@ if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "sample_data/synthetic"
     m = generate(out)
     print(json.dumps(m, indent=2))
+
+
+def scene_surfaces(tex_offset: int = 0):
+    """The scene's exact geometry as planar quads, without rendering textures.
+
+    Exposed so evaluation can measure against the true surfaces instead of a
+    sampled point cloud. ``scene_points_enu`` in ``ground_truth.json`` is a
+    3,750-point sample of a 60x60 m scene: its own nearest-neighbour spacing is
+    0.33 m median and 2.5 m at p90, so nearest-neighbour distance to it floors
+    out well above real reconstruction error (measured: 30 % of points scored
+    an "error" below that sampling floor). Point-to-surface distance has no
+    such floor.
+    """
+    surfaces, meta = _build_scene(tex_offset)
+    return [s.corners.copy() for s in surfaces], meta
+
+
+def surface_distance(points, tex_offset: int = 0):
+    """Exact distance from each point to the nearest scene surface (metres).
+
+    Each surface is a planar rectangle. A point is projected into the quad's
+    plane, clamped to the quad's extent, and the distance taken to that closest
+    point -- exact for rectangles, which is all this scene contains.
+    """
+    pts = np.asarray(points, float).reshape(-1, 3)
+    quads, _ = scene_surfaces(tex_offset)
+    best = np.full(len(pts), np.inf)
+    for c in quads:
+        o = c[0]
+        u = c[1] - c[0]
+        v = c[3] - c[0]
+        lu = np.linalg.norm(u); lv = np.linalg.norm(v)
+        uh = u / lu; vh = v / lv
+        d = pts - o
+        a = np.clip(d @ uh, 0.0, lu)
+        b = np.clip(d @ vh, 0.0, lv)
+        closest = o + a[:, None] * uh + b[:, None] * vh
+        best = np.minimum(best, np.linalg.norm(pts - closest, axis=1))
+    return best

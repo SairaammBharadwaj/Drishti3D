@@ -37,6 +37,9 @@ class CaseScore:
     cloud_acc_rmse: float | None = None
     cloud_completeness: float | None = None   # frac GT pts within `thr`
     cloud_thr: float | None = None
+    #: "analytic_surface" or "sampled_nn" -- accuracy numbers are only
+    #: comparable within the same source.
+    cloud_acc_source: str | None = None
     n_cloud_pts: int = 0
     # dimensional accuracy from the pipeline's own GT eval, if present
     dim_error_pct: float | None = None
@@ -99,8 +102,21 @@ def score_case(case: EvalCase, est: Estimate, *, cloud_thr: float = 0.5) -> Case
         margin = 1.0
         lo, hi = gt_cloud.min(0) - margin, gt_cloud.max(0) + margin
         inb = np.all((aligned >= lo) & (aligned <= hi), axis=1)
-        dd = d[inb] if inb.sum() >= 10 else d
         recon = aligned[inb] if inb.sum() >= 10 else aligned
+        # Accuracy: prefer exact point-to-surface distance when the case knows
+        # its own geometry. Nearest-neighbour to a sampled cloud measures that
+        # cloud's spacing as much as our error -- on the synthetic scene the
+        # sampled metric read 0.78 m median where the analytic value is 0.02 m,
+        # and the two rank points at only rho = 0.20.
+        fn = getattr(case, "gt_surface_distance", None)
+        if fn is not None:
+            dd = np.asarray(fn(recon), float)
+            sc.cloud_acc_source = "analytic_surface"
+        else:
+            dd = d[inb] if inb.sum() >= 10 else d
+            sc.cloud_acc_source = "sampled_nn"
+        # Completeness asks the opposite question -- is there a reconstructed
+        # point near each truth point -- which a sampled cloud answers soundly.
         comp, _ = cKDTree(recon).query(gt_cloud)
         sc.cloud_acc_median = float(np.median(dd))
         sc.cloud_acc_rmse = float(np.sqrt((dd ** 2).mean()))

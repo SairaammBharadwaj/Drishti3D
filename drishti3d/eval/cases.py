@@ -43,6 +43,14 @@ class EvalCase:
     gps: np.ndarray | None = None    # (N,4) real GPS lat,lon,alt,acc (or None)
     gt_cloud_path: Path | None = None
     gt_cloud_pts: np.ndarray | None = None    # in-memory GT cloud (M,3), if any
+    #: Exact point->surface distance function, when the scene's geometry is
+    #: known analytically. Nearest-neighbour distance to a *sampled* GT cloud
+    #: cannot resolve error below that cloud's own spacing: the synthetic
+    #: scene's 3,750-point sample has 0.33 m median self-spacing, which floored
+    #: measured accuracy at 0.78 m where the analytic value is 0.02 m. When
+    #: this is set, accuracy is scored against it and the sampled cloud is used
+    #: only for completeness (which asks the opposite question and is sound).
+    gt_surface_distance: object | None = None
     reference_distances: list | None = None   # [{name,meters,a,b}] for dimensional error
     frame_stride: int = 1            # subsample very long sequences
     meta: dict = field(default_factory=dict)
@@ -276,9 +284,13 @@ def _load_synthetic(root: Path, name: str, stride: int) -> EvalCase:
     cloud = np.array(gt["scene_points_enu"], float) if "scene_points_enu" in gt else None
     # frames come from the pre-rendered video, not a folder -> passed via meta
     video = next(iter(root.glob("*.mp4")), None)
+    # The synthetic scene's geometry is fixed across seeds (only textures shift
+    # with the seed), so one analytic distance function serves every case.
+    from drishti_recon import synth as _synth
     return EvalCase(name=name, kind="synthetic", images=[],
                     intrinsics=gt.get("intrinsics"), gt_centers=centers, gps=gps,
                     gt_cloud_pts=cloud,
+                    gt_surface_distance=_synth.surface_distance,
                     reference_distances=gt.get("reference_distances"),
                     frame_stride=stride,
                     meta={"video": str(video) if video else None,
