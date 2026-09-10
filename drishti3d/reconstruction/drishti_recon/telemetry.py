@@ -201,3 +201,69 @@ def load(path: str | Path) -> TelemetryReport:
     has_rtk = any(s.rtk_status and str(s.rtk_status).upper() in
                   ("RTK", "FIXED", "4", "RTK_FIXED") for s in samples)
     return TelemetryReport(samples, n_in, len(samples), warnings, has_rtk, intr)
+
+
+def kalman_smooth(times, positions, *, sigma_m=5.0, accel_m_s2=1.0):
+    """RTS-smoothed positions from a GNSS track (Intelligence Edition §8).
+
+    Forward constant-velocity Kalman filter followed by Rauch–Tung–Striebel
+    backward smoothing, per axis. ``sigma_m`` is the per-sample measurement
+    sigma (scalar or per-sample array); ``accel_m_s2`` the process noise —
+    how hard the vehicle may genuinely accelerate. Returns (smoothed, sigma):
+    positions of the same shape and the per-sample posterior sigma, which is
+    what downstream consumers (Sim(3) weights, pose-graph priors) should use
+    instead of the raw receiver sigma.
+
+    A smoother only removes *uncorrelated* noise; slowly-varying receiver bias
+    passes straight through. Validate on data with independent truth before
+    trusting the posterior sigmas — eval/agz_dense_eval.py does exactly that.
+    """
+    import numpy as np
+    t = np.asarray(times, float)
+    z = np.asarray(positions, float)
+    n = len(t)
+    if n < 3:
+        return z.copy(), np.full(n, float(np.mean(sigma_m)))
+    sig = np.broadcast_to(np.asarray(sigma_m, float), (n,)).copy()
+    q = float(accel_m_s2) ** 2
+
+    smoothed = np.empty_like(z)
+    post_var = np.empty(n)
+
+    for ax in range(z.shape[1]):
+        # forward pass
+        x = np.array([z[0, ax], 0.0])
+        P = np.diag([sig[0] ** 2, 25.0])
+        xs_f = np.empty((n, 2)); Ps_f = np.empty((n, 2, 2))
+        xs_p = np.empty((n, 2)); Ps_p = np.empty((n, 2, 2))
+        xs_f[0], Ps_f[0] = x, P
+        xs_p[0], Ps_p[0] = x, P
+        for k in range(1, n):
+            dt = max(t[k] - t[k - 1], 1e-3)
+            F = np.array([[1.0, dt], [0.0, 1.0]])
+            Q = q * np.array([[dt ** 4 / 4, dt ** 3 / 2],
+                              [dt ** 3 / 2, dt ** 2]])
+            x = F @ x
+            P = F @ P @ F.T + Q
+            xs_p[k], Ps_p[k] = x, P
+            # update
+            r = sig[k] ** 2
+            S = P[0, 0] + r
+            K = P[:, 0] / S
+            x = x + K * (z[k, ax] - x[0])
+            P = P - np.outer(K, P[0, :])
+            xs_f[k], Ps_f[k] = x, P
+        # RTS backward pass
+        xs_s = xs_f.copy(); Ps_s = Ps_f.copy()
+        for k in range(n - 2, -1, -1):
+            dt = max(t[k + 1] - t[k], 1e-3)
+            F = np.array([[1.0, dt], [0.0, 1.0]])
+            C = Ps_f[k] @ F.T @ np.linalg.inv(Ps_p[k + 1])
+            xs_s[k] = xs_f[k] + C @ (xs_s[k + 1] - xs_p[k + 1])
+            Ps_s[k] = Ps_f[k] + C @ (Ps_s[k + 1] - Ps_p[k + 1]) @ C.T
+        smoothed[:, ax] = xs_s[:, 0]
+        if ax == 0:
+            post_var[:] = Ps_s[:, 0, 0]
+        else:
+            post_var[:] = np.maximum(post_var, Ps_s[:, 0, 0])
+    return smoothed, np.sqrt(np.maximum(post_var, 1e-9))

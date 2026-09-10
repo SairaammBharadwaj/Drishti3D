@@ -606,3 +606,23 @@ are small (≤ a few hundred nodes); `bundle.py` already contains the analytic
 SE(3) machinery; scipy's sparse trust-region solver handles this class of
 problem directly. The document's intent — a global relative-pose + GPS-prior
 fusion stage — is honored by an equivalent implementation.
+
+## 2026-09-10 / D-031 — Kalman smoothing helps jitter, not bias; sigmas must not lie
+
+**Context.** Intelligence Edition §8 calls for a Kalman filter on raw telemetry.
+Implemented as a constant-velocity RTS smoother (`telemetry.kalman_smooth`).
+
+**Measurement.** On the AGZ surveyed segment the smoother left the GPS error
+unchanged (5.39 → 5.41 m median 3D): that receiver's error is slowly-varying
+bias, which a smoother cannot see. Worse, the filter's posterior sigma came out
+at 1.74 m while the true error stayed 5.4 m — trusting it would inject
+overconfident priors into the pose graph.
+
+**Decision.** The smoother is used for jitter removal and gap handling only.
+Downstream consumers must apply a receiver bias floor to its posterior sigma
+(default: the raw receiver sigma unless independent evidence justifies less).
+This also settles expectations for absolute accuracy: with GPS bias common-mode
+across a pass, no GPS-anchored solve can beat the bias floor (~3 m horizontal
+here). Vertical is less biased, which is why the reconstruction's averaging
+beats GPS 2.4x there. The doc's absolute-vs-relative accuracy distinction (§8)
+is measured reality, not a caveat.
