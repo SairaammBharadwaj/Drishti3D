@@ -699,3 +699,75 @@ of its redundancy with P, not a bug.
 importances, and the module says so. Reporting them as importances would invite
 the conclusion that observation count does not matter, which is false — it is
 simply already counted through parallax.
+
+## 2026-09-10 / D-034 — dynamic masking uses Mask R-CNN, not YOLOv8-Seg/FastSAM
+
+**Context.** The architecture document (stage 2) names YOLOv8-Seg or FastSAM
+for dynamic-object masking.
+
+**Decision.** Implement on torchvision's Mask R-CNN instead, accepting `yolo`
+and `fastsam` as aliases that resolve to it with a recorded notice.
+
+**Why.** Both named models are Ultralytics, licensed **AGPL-3.0** — network
+copyleft that would propagate to this entire codebase on distribution. This
+project already refuses SuperPoint over a non-commercial clause
+(`features.py`), and AGPL is the stronger constraint, so the same rule applies
+rather than a weaker one. torchvision's Mask R-CNN is BSD-3, ships
+COCO-pretrained weights, and covers every dynamic class the document lists:
+person, bicycle, car, motorcycle, bus, train, truck, boat and ten animal
+classes.
+
+Instance segmentation is also the better fit than semantic segmentation:
+per-object masks carry per-object scores, so a confidence threshold is
+meaningful and one uncertain detection cannot mask an entire class of pixels.
+
+**Also fixed here.** `TorchvisionSemanticMask` reported itself available
+whenever torch imported, while constructing its network with `weights=None` —
+randomly initialised — and returning an argmax over random logits. Masking runs
+*before* matching, so those random masks deleted real image content from the
+reconstruction: a silent, destructive failure rather than a merely useless one.
+It now reports unavailable without usable weights and raises rather than
+running untrained.
+
+## 2026-09-10 / D-035 — an area cap on dynamic instances, measured not guessed
+
+**Context.** Running Mask R-CNN over the repository's real drone footage, one
+`gym_pass` frame came back **48.7 % masked**. The cause: the school's flat
+gravel roof detected as a **"train" at score 0.74**, covering 46.8 % of the
+frame. A COCO detector has never seen a building from above; large elongated
+static structures land confidently on `train` and `boat`.
+
+Because masking precedes matching, this deletes the primary structure the
+reconstruction exists to recover — and does so without any error.
+
+**Measurement.** Over 322 dynamic-class instances across all real footage in
+the repo:
+
+| | area, fraction of frame |
+|---|---|
+| genuine objects, p50 | 0.13 % |
+| genuine objects, p90 | 0.52 % |
+| p95 | 5.74 % (already contaminated) |
+| max | 46.8 % |
+
+**Every instance above 5 % of frame was a `train` (10) or `boat` (8)** — all
+hallucinated on roofs and facades. Genuine classes (car 154, person 76,
+truck 15, motorcycle 3, bicycle 1) stay small because a drone views them from
+tens of metres away.
+
+**Decision.** Reject any single instance covering more than **2 %** of the
+frame. That sits an order of magnitude above real objects and an order below
+the false positives. The cap is per-instance, not cumulative: many small
+objects may legitimately sum past it.
+
+**Effect on `gym_pass` (64 frames):** maximum masked fraction 48.7 % → 3.7 %;
+frames masking more than 10 % of the image 13 → 0; 22 oversized instances
+rejected; frames retaining a genuine mask 50 → 48. Median masked fraction
+barely moves (0.85 % → 0.53 %), so real detections survive.
+
+**Limitation, recorded not hidden.** Detection needs the object to be resolved:
+measured object size is 30 px (sqrt of mask area) median at low oblique
+altitude, dropping to 14 px on the survey-altitude road corridor, where the
+detector finds essentially nothing. Above roughly survey altitude this backend
+should be assumed ineffective, and the optical-flow residual backend — which
+keys on motion rather than appearance — is the appropriate choice.
