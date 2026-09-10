@@ -295,3 +295,66 @@ License: MASt3R checkpoint is CC-BY-NC-SA — engine is opt-in
 (`allow_noncommercial=True`), per the SuperPoint precedent.
 
 Reproduce: `python -m eval.agz_dense_eval <dir with agz_pick.npy>`.
+
+## 2026-09-10 — CORRECTION: synthetic cloud accuracy was measuring truth sparsity
+
+**The cloud-accuracy figures published in the 2026-09-04 table were wrong**, by
+roughly an order of magnitude, in the pessimistic direction. They are superseded
+by this section. See D-032 for the full investigation.
+
+`cloud_acc_median` was nearest-neighbour distance from each reconstructed point
+to `scene_points_enu` — a **3,750-point sample of a 60 x 60 x 9 m scene**. That
+cloud's own nearest-neighbour self-spacing is **0.33 m median and 2.50 m at
+p90**, so the metric could not resolve any error below its own sampling
+density. A perfectly placed point landing between two truth samples scored
+~1 m. 30 % of reported "errors" fell beneath the floor.
+
+The synthetic scene is six planar rectangles and is exactly known, so
+`synth.surface_distance` gives true point-to-surface distance. On identical
+points: **sampled-NN 0.782 m median vs analytic 0.020 m** — a factor of 39,
+and the two rank the same points at only rho = 0.20. They were not noisy
+versions of each other.
+
+### Corrected results
+
+Commit `64fd2ad7ffdb`, **clean tree**, baseline variant, 4 regimes x 3 seeds.
+Accuracy from `analytic_surface`; completeness still uses the sampled cloud,
+which answers the opposite question ("is there a reconstructed point near each
+truth point") and is sound for that.
+
+| Regime | ok/n | Reg. | ATE med / worst | Cloud acc med / worst | Complete | Dim err |
+|---|---|---|---|---|---|---|
+| `oblique_pass` | 3/3 | 100 % | 0.069 / 0.132 m | **0.084 / 0.108 m** | 36.5 % | 2.50 % |
+| `orbit` | 3/3 | 100 % | 0.056 / 0.074 m | **0.054 / 0.065 m** | 94.9 % | 2.29 % |
+| `nadir_grid` | 3/3 | 100 % | 0.343 / 1.749 m | **0.022 / 0.115 m** | 68.1 % | 1.08 % |
+| `low_parallax` | **1/3** | 3.3 % | — | — | — | 100 % |
+| **pooled** | **10/12** | — | 0.075 / 1.749 m | **0.065 / 0.115 m** | 68.1 % / 35.5 % | — |
+
+### What changed against the superseded table
+
+| | published (sampled-NN) | corrected (analytic) | factor |
+|---|---|---|---|
+| `oblique_pass` | 0.809 m | 0.084 m | 9.6x |
+| `orbit` | 0.675 m | 0.054 m | 12.5x |
+| `nadir_grid` | 0.911 m | 0.022 m | 41x |
+
+### `low_parallax` is now reported, and it fails
+
+The earlier table covered three regimes. `low_parallax` — the deliberate
+failure probe — was not among them, so "0 failed cells" described a matrix that
+excluded the regime designed to fail. Included: **2 of 3 seeds produce no 3D
+points at all**, and the third registers 3.3 % of frames. The honest pooled
+figure is **2/12 failed**, not 0/9.
+
+This is the contract working as intended ("failures are data"), and it is the
+strongest evidence in the suite for the project's central claim that capture
+geometry dominates outcome: identical code, 100 % registration on `orbit` and
+total failure on `low_parallax`.
+
+### Rule added
+
+An error metric must be validated against its own resolution floor before any
+claim rests on it. Compare the truth representation's internal spacing to the
+errors being reported; if they are the same order, the metric is reporting
+itself. `cloud_acc_source` is now recorded per cell so analytic and sampled
+numbers are never silently compared.
