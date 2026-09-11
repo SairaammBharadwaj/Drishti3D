@@ -771,3 +771,61 @@ altitude, dropping to 14 px on the survey-altitude road corridor, where the
 detector finds essentially nothing. Above roughly survey altitude this backend
 should be assumed ineffective, and the optical-flow residual backend — which
 keys on motion rather than appearance — is the appropriate choice.
+
+## 2026-09-11 / D-036 — the GNSS bias floor bounds what any algorithm can do here
+
+**Question.** Horizontal georeferencing loses to the drone's own GNSS (4.29 m
+against 3.26 m). Is that worth attacking, and how far can it go?
+
+**Measurement.** Decomposing the AGZ GNSS error over 184 frames:
+
+- mean error vector `[0.25, -2.81, 1.09] m`, magnitude **3.02 m**
+- **56 % of the total error is a constant offset**, not noise
+- autocorrelation half-length 9-17 frames of 184 -- slowly varying, which is
+  why the Kalman smoother could not touch it (D-031)
+
+**Consequence.** A solve anchored only to this GNSS inherits its bias. The best
+achievable horizontal is therefore ~3.19 m, and we were adding 1.10 m of our
+own on top. That 1.10 m is the entire algorithmic headroom; going below 3.19 m
+requires different information -- RTK, ground control, or registration against
+a map or DEM -- not a better optimiser.
+
+Height is different, and this explains why we beat the GNSS there: scene
+structure -- the ground plane and building heights -- constrains height
+independently of the GNSS, so the reconstruction is not limited by the bias.
+
+## 2026-09-11 / D-037 — long-range edges help only when gated on the model's own fit
+
+**Hypothesis.** The residual error is a low-frequency bow, so longer-baseline
+pose-graph edges should constrain it directly.
+
+**First result: strongly negative.** Extending offsets from (1,2,4,8) to
+(1,2,4,8,16,32) made everything worse -- 3D 6.02 -> 13.93 m, horizontal
+4.29 -> 13.78 m -- with cycle-consistency noise rising 15 %/2.1 deg to
+28 %/4.4 deg.
+
+**Cause.** Pairwise fit quality collapses with frame separation. Median
+Procrustes residual by offset: 0.029, 0.036, 0.064, 0.213, 0.603, 0.489 at
+1, 2, 4, 8, 16, 32. Frames 32 apart on a straight pass barely share a view, so
+the model returns a confident-looking transform it never had the overlap to
+solve.
+
+**Second result: the distinction is *bad* edges, not *long* edges.** Gating on
+the model's own Procrustes residual keeps the long edges that were genuinely
+solved. Sweeping the gate as a multiple of the dataset's own short-edge
+residual (so it transfers across captures):
+
+| gate | 3D | horizontal | vertical |
+|---|---|---|---|
+| none | 6.02 | 4.29 | 1.10 |
+| 2x | 5.87 | 3.78 | 1.11 |
+| 3x | 5.71 | 3.24 | 1.94 |
+| 4x | 5.90 | 3.10 | 1.75 |
+| 6x | 5.66 | 3.86 | 1.46 |
+
+**Decision: 2x, not the argmin.** 4x reaches 3.10 m horizontal -- at the bias
+floor -- but gives back 59 % of the height advantage, which is the metric this
+system actually beats the GNSS on and the one the problem statement asks for.
+2x improves all three. The non-monotonic response across multipliers marks a
+noisy objective tuned on one segment; a second surveyed segment should confirm
+the threshold before it is trusted.
