@@ -44,13 +44,24 @@ def _paths():
         sys.path.insert(0, p)
 
 
-def _load(device: str):
+def _load(device: str, dtype=None, enable_track: bool = False):
+    """Load VGGT.
+
+    ``enable_track=False`` drops the tracking head, which this pipeline never
+    queries -- pose, depth and pointmaps are all it needs. On an 8 GB card that
+    head is the difference between running and not.
+
+    Reduced-precision *weights* were tried and abandoned: the DPT head upcasts
+    internally, so bf16 weights collide with vendored fp32 code
+    ("Input type torch.cuda.FloatTensor and weight type CUDABFloat16Type").
+    fp32 weights under autocast is the combination upstream supports.
+    """
     global _model
     if _model is None:
         _paths()
         import torch
         from vggt.models.vggt import VGGT
-        m = VGGT()
+        m = VGGT(enable_track=enable_track)
         from safetensors.torch import load_file
         sd = load_file(str(_CKPT / "model.safetensors"))
         missing, unexpected = m.load_state_dict(sd, strict=False)
@@ -82,6 +93,8 @@ def reconstruct_dir(image_dir, *, allow_noncommercial: bool = False,
                            + " Pass allow_noncommercial=True to enable.")
     if not is_available():
         raise RuntimeError(f"VGGT code or weights missing under {_CODE} / {_CKPT}")
+    _check_capacity(len(os.listdir(image_dir)) if max_frames is None else max_frames,
+                    device)
     _paths()
     import torch
     from vggt.utils.load_fn import load_and_preprocess_images
@@ -96,11 +109,11 @@ def reconstruct_dir(image_dir, *, allow_noncommercial: bool = False,
     if len(files) < 2:
         raise RuntimeError(f"need >= 2 frames, found {len(files)}")
 
-    model = _load(device)
-    images = load_and_preprocess_images(files).to(device)
     if dtype is None:
         cap = torch.cuda.get_device_capability()[0] if device == "cuda" else 0
         dtype = torch.bfloat16 if cap >= 8 else torch.float16
+    model = _load(device, dtype=dtype)
+    images = load_and_preprocess_images(files).to(device)
 
     with torch.no_grad():
         with torch.amp.autocast(device, dtype=dtype):
@@ -139,3 +152,37 @@ def relative_edges(cam2w, *, offsets=(1, 2, 4, 8)):
     """Pose-graph edges from VGGT's globally-consistent poses."""
     from .dense3d import relative_edges as _re
     return _re(cam2w, offsets=offsets)
+
+
+#: Measured on an RTX 5060 laptop (8 GB): fp32 weights alone are 4.76 GB
+#: resident, 4 frames peak at 7.41 GB, 8 frames OOM. VGGT attends over the
+#: whole set in one pass, so memory grows with sequence length -- unlike
+#: MASt3R, whose cost is bounded by the *pair* and which handles 62 frames on
+#: the same card. Roughly 0.6 GB per frame above the 4.8 GB base.
+_VGGT_BASE_GB = 4.8
+_VGGT_PER_FRAME_GB = 0.65
+
+
+def frame_budget(total_gb: float) -> int:
+    """How many frames fit in a given amount of VRAM."""
+    return max(1, int((total_gb - _VGGT_BASE_GB) / _VGGT_PER_FRAME_GB))
+
+
+def _check_capacity(n_frames: int, device: str):
+    """Refuse up front rather than OOM deep inside the forward pass."""
+    if device != "cuda":
+        return
+    import torch
+    if not torch.cuda.is_available():
+        return
+    total = torch.cuda.get_device_properties(0).total_memory / 1e9
+    fits = frame_budget(total)
+    if n_frames > fits:
+        raise RuntimeError(
+            f"VGGT-1B needs about {_VGGT_BASE_GB:.1f} GB for weights plus "
+            f"~{_VGGT_PER_FRAME_GB:.2f} GB per frame, and attends over the "
+            f"whole set in one pass. This GPU has {total:.1f} GB, which fits "
+            f"~{fits} frames, not {n_frames}. Either pass max_frames<={fits}, "
+            "use a larger GPU, or use drishti_recon.dense3d (MASt3R), whose "
+            "memory is bounded by the image pair rather than the sequence and "
+            "which runs 62 frames on 8 GB.")

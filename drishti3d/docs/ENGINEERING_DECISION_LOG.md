@@ -882,3 +882,43 @@ Default reverted to off. The *mechanism* stands -- ungated long edges are
 catastrophic, and per-edge residual is the right signal for telling a solved
 pair from an unsolved one. What has no support is any particular threshold,
 which was fitted to one stretch of flight.
+
+## 2026-09-11 / D-040 — VGGT-1B does not fit this hardware; MASt3R's pairwise design does
+
+**Context.** The integration brief lists VGGT as the primary dense backbone,
+MASt3R as the alternative. VGGT is attractive because it predicts pose, depth
+and pointmaps for a whole set in one forward pass -- no separate global
+alignment stage to go wrong, which is exactly where MASt3R failed here (its own
+global alignment left robust Sim(3) accepting 12 of 62 cameras).
+
+**Measurement, RTX 5060 laptop, 8 GB:**
+
+| frames | outcome |
+|---|---|
+| weights only | 4.76 GB resident |
+| 4 | works, peak 7.41 GB, 304,584 points, ~1 s |
+| 8 | out of memory |
+| 12, 24, 40, 62 | out of memory |
+
+Roughly 0.65 GB per frame above a 4.8 GB base. A 62-frame pass needs ~45 GB.
+
+**Two fixes attempted and rejected, with reasons:**
+
+- *bf16 weights.* Halves the resident footprint, but VGGT's DPT head upcasts
+  internally, so bf16 weights collide with vendored fp32 code ("Input type
+  torch.cuda.FloatTensor and weight type CUDABFloat16Type"). Autocast is the
+  alternative, not the complement: it keeps LayerNorm on its fp32 list and then
+  rejects bf16 weights from the other side.
+- *disabling the tracking head* (`enable_track=False`, which this pipeline
+  never queries). Kept -- it is free -- but insufficient on its own.
+
+**Decision.** MASt3R stays the dense backbone on this hardware. The property
+that decides it is architectural, not qualitative: MASt3R's cost is bounded by
+the image *pair*, so a 62-frame sequence costs the same per step as a 4-frame
+one and runs comfortably in 8 GB. VGGT's whole-set attention is what makes it
+attractive *and* what makes it not fit.
+
+`vggt_engine.frame_budget()` computes the limit for a given card, and
+`reconstruct_dir` refuses up front with that number rather than OOM-ing deep
+inside the forward pass. On 16 GB the budget is ~17 frames; ~62 frames needs
+roughly 45 GB.

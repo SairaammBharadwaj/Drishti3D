@@ -98,3 +98,52 @@ way for now:
 If Embree raycasting becomes necessary for coverage at scale, the brief's
 recommendation stands: isolate it in a container with pinned LLVM/TBB rather
 than mixing it into this environment.
+
+---
+
+## Update — 2026-09-11
+
+### 2. Feed-forward → SuGaR handshake: **now closed**
+
+`reconstruction/drishti_recon/gaussians.py` builds the bridge. Every 3DGS
+attribute is derived from what a feed-forward model actually returns:
+
+| attribute | derivation |
+|---|---|
+| position | the pointmap directly |
+| SH DC term | colour through the degree-0 SH basis constant |
+| SH rest | zero — one colour per point carries no view-dependent information |
+| scale | mean distance to k nearest neighbours, so a Gaussian closes the gap to its neighbours |
+| rotation | quaternion aligning +z to the PCA surface normal, flattened along it |
+| opacity | model confidence, floored so a low-confidence point is not born invisible |
+
+Two traps are handled explicitly and tested. **Everything is stored
+pre-activation** — 3DGS applies `exp` to scale and `sigmoid` to opacity on
+load, so post-activation values produce a file that loads cleanly, holds
+plausible numbers and renders as fog. And **opacity has a floor**: a Gaussian
+at opacity 0 receives no gradient, so a low-confidence point initialised there
+could never recover.
+
+`write_ply` emits the 62-property binary layout 3DGS and SuGaR both read
+(xyz, normals, f_dc×3, f_rest×45, opacity, scale×3, rot×4), verified by
+round-trip. 15 tests.
+
+### 4. C++ collisions: one more data point
+
+VGGT was added as an alternative backbone and **does not fit an 8 GB card**
+(D-040): 4.76 GB of weights, ~0.65 GB per frame, OOM above 4 frames. MASt3R
+stays, because its cost is bounded by the image pair rather than the sequence.
+This is the same theme as the GTSAM rejection — the constraint on this machine
+is consistently memory and ABI, not algorithmic capability.
+
+### Validation: the most important update
+
+The AGZ height result **did not survive a second segment** (D-038). Our
+accuracy is stable at 6.02 / 6.37 m 3D; the GNSS moved from 5.52 m to 1.91 m.
+Absolute georeferencing does not beat consumer GNSS. The benchmark contract now
+says so explicitly for real data: no claim from a single capture segment.
+
+UseGeo could not be fetched — its Synology share reports
+`sharing_status: "none"` and requires credentials or has lapsed, so dense LiDAR
+surface truth is still missing. That remains the highest-value open item,
+because it is the only thing that can support a surface-accuracy claim.
