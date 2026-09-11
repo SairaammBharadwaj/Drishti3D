@@ -153,9 +153,28 @@ def parse_json(path: Path, warnings: list[str]):
 
 
 _SRT_TIME = re.compile(r"(\d{2}):(\d{2}):(\d{2})[,.](\d{3})")
-_SRT_LAT = re.compile(r"latitude\s*[:=]?\s*(-?\d+\.\d+)", re.I)
-_SRT_LON = re.compile(r"long?itude\s*[:=]?\s*(-?\d+\.\d+)", re.I)
-_SRT_ALT = re.compile(r"(?:abs_?alt|altitude)\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+_SRT_LAT = re.compile(r"\blatitude\s*[:=]?\s*(-?\d+\.\d+)", re.I)
+_SRT_LON = re.compile(r"\blong?itude\s*[:=]?\s*(-?\d+\.\d+)", re.I)
+# DJI writes BOTH rel_alt (above take-off) and abs_alt (above MSL) on one line.
+# They are metres apart and mean different things, so match each explicitly
+# rather than letting one alternation pick whichever appears first.
+_SRT_ABS_ALT = re.compile(r"\babs_?alt(?:itude)?\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+_SRT_REL_ALT = re.compile(r"\brel_?alt(?:itude)?\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+# Gimbal attitude -- the camera's actual pointing, without which the frame
+# chain in frames.py cannot be built. DJI uses gb_* and Autel gimbal_*.
+_SRT_GB_YAW = re.compile(r"\b(?:gb|gimbal)_?yaw\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+_SRT_GB_PITCH = re.compile(r"\b(?:gb|gimbal)_?pitch\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+_SRT_GB_ROLL = re.compile(r"\b(?:gb|gimbal)_?roll\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+# Airframe attitude, when present (needed for the lever arm).
+_SRT_FL_YAW = re.compile(r"\b(?:fl|flight|drone)_?yaw\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+_SRT_FL_PITCH = re.compile(r"\b(?:fl|flight|drone)_?pitch\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+_SRT_FL_ROLL = re.compile(r"\b(?:fl|flight|drone)_?roll\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+_SRT_FOCAL = re.compile(r"\bfocal_?len\w*\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+
+
+def _srt_num(rx, block):
+    m = rx.search(block)
+    return float(m.group(1)) if m else None
 
 
 def parse_srt(path: Path, warnings: list[str]):
@@ -166,7 +185,7 @@ def parse_srt(path: Path, warnings: list[str]):
         tm = _SRT_TIME.search(b)
         la = _SRT_LAT.search(b)
         lo = _SRT_LON.search(b)
-        al = _SRT_ALT.search(b)
+
         if not (la and lo):
             continue
         ts = 0.0
@@ -174,11 +193,51 @@ def parse_srt(path: Path, warnings: list[str]):
             h, m, s, ms = map(int, tm.groups())
             ts = h * 3600 + m * 60 + s + ms / 1000.0
         lat, lon = float(la.group(1)), float(lo.group(1))
-        alt = float(al.group(1)) if al else 0.0
+        abs_alt = _srt_num(_SRT_ABS_ALT, b)
+        rel_alt = _srt_num(_SRT_REL_ALT, b)
+        # Prefer absolute (MSL) altitude; fall back to relative and say so,
+        # because a relative altitude silently treated as MSL puts the whole
+        # reconstruction hundreds of metres out vertically.
+        alt = abs_alt if abs_alt is not None else (rel_alt or 0.0)
+        if abs_alt is None and rel_alt is not None:
+            alt_kind = "relative_to_takeoff"
+        elif abs_alt is not None:
+            alt_kind = "msl"
+        else:
+            alt_kind = "missing"
+
+        gb = [_srt_num(r, b) for r in
+              (_SRT_GB_ROLL, _SRT_GB_PITCH, _SRT_GB_YAW)]
+        fl = [_srt_num(r, b) for r in
+              (_SRT_FL_ROLL, _SRT_FL_PITCH, _SRT_FL_YAW)]
+        focal = _srt_num(_SRT_FOCAL, b)
+
+        extra = {"altitude_kind": alt_kind}
+        if rel_alt is not None:
+            extra["rel_alt"] = rel_alt
+        if abs_alt is not None:
+            extra["abs_alt"] = abs_alt
+        if any(v is not None for v in gb):
+            extra["gimbal_rpy_deg"] = gb
+        if focal is not None:
+            extra["focal_len_mm"] = focal
+
         if _valid_row(lat, lon, alt):
-            samples.append(TelemetrySample(ts, lat, lon, alt))
+            samples.append(TelemetrySample(
+                ts, lat, lon, alt,
+                roll=fl[0], pitch=fl[1], yaw=fl[2], extra=extra))
     if not samples:
         warnings.append("SRT parsed but no GPS subtitles found")
+    else:
+        kinds = {s_.extra.get("altitude_kind") for s_ in samples}
+        if "relative_to_takeoff" in kinds:
+            warnings.append(
+                "SRT altitude is relative to take-off, not MSL; absolute "
+                "vertical position will be offset by the launch elevation")
+        if not any("gimbal_rpy_deg" in s_.extra for s_ in samples):
+            warnings.append(
+                "SRT has no gimbal attitude; camera pointing cannot be "
+                "derived from telemetry alone")
     return samples, None
 
 
