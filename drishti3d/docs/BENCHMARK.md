@@ -358,3 +358,51 @@ claim rests on it. Compare the truth representation's internal spacing to the
 errors being reported; if they are the same order, the metric is reporting
 itself. `cloud_acc_source` is now recorded per cell so analytic and sampled
 numbers are never silently compared.
+
+## 2026-09-11 — CORRECTION: the height result does not survive a second segment
+
+**The 2026-09-10 claim that the system measures height 2.4x more accurately
+than the drone's GNSS is withdrawn.** It held on one segment and fails on
+another. See D-038.
+
+Validated on a second, non-overlapping segment of the same AGZ flight
+(imgid 64531-70021, 62 frames, identical camera and processing):
+
+| metric | segment 1 | segment 2 |
+|---|---|---|
+| ours — 3D / horiz / vert | 6.02 / 4.29 / 1.10 m | 6.37 / 5.94 / 2.63 m |
+| GNSS — 3D / horiz / vert | 5.52 / 3.26 / 2.68 m | **1.91 / 1.33 / 1.36 m** |
+| verdict, 3D | lose 1.1x | lose 3.3x |
+| verdict, horizontal | lose 1.3x | lose 4.5x |
+| verdict, vertical | **win 2.4x** | **lose 1.9x** |
+
+**Our accuracy is the stable quantity** — 6.02 and 6.37 m 3D across the two.
+The GNSS is what moved: 5.52 m on one segment, 1.91 m on the other. Segment 1
+had unusually poor GNSS, and every "beats the GNSS" statement rested on it.
+
+Segment 2 is not the harder case. It is **less** straight (7.2x elongation
+against 14.8x) and has a smaller altitude range — conditions that favour
+reconstruction, not hinder it.
+
+### Position now supported
+
+Absolute georeferencing is **~6 m 3D and does not beat consumer GNSS**. For
+non-RTK photogrammetry anchored to a sensor whose error is 56-61 % constant
+bias (D-036), that is expected rather than anomalous — but it is not what was
+published.
+
+What the measurements do still support, unchanged:
+
+- **relative geometry**: metric scale to ~1 % (1.12 m median step against a
+  surveyed 1.13 m), and a trajectory smoother than the GNSS it was anchored to
+  (jerk/step 0.17 against 0.42)
+- **100 % frame registration** on real single-pass video, both segments
+- **measurement refusal** (FAR 2.0 %), **coverage classification** (97.8 %) and
+  calibrated uncertainty — none of which depend on absolute position
+- synthetic accuracy against analytic surfaces: 0.022–0.084 m by regime
+
+### Rule extended
+
+The contract already required median and worst case together, and more than
+three seeds for regimes with spread. It now says so for real data explicitly:
+**no real-data claim from a single capture segment.** One segment is one seed.

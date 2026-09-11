@@ -158,7 +158,7 @@ def pairwise_edges_dir(image_dir, *,
                        device: str = "cuda",
                        batch_size: int = 4,
                        conf_quantile: float = 0.5,
-                       residual_gate: float | None = 2.0,
+                       residual_gate: float | None = None,
                        gate_reference_offset: int = 8):
     """Per-pair relative poses straight from the dense model — no global step.
 
@@ -206,11 +206,17 @@ def pairwise_edges_dir(image_dir, *,
     At 2.0 all three move the right way: 3D 6.02 -> 5.87 m, horizontal
     4.29 -> 3.78 m, height 1.10 -> 1.11 m.
 
-    **Caveat.** These thresholds were swept on a single 200 m segment and the
-    response is non-monotonic across multipliers (3.78, 3.24, 3.10, 3.86 at
-    2x/3x/4x/6x), which is the signature of a noisy objective. 2.0 is chosen as
-    the conservative end of that range rather than its argmin. A second
-    surveyed segment should confirm it before the number is trusted.
+    **Default is None: the gate did not survive validation.** Swept on one
+    200 m segment it looked like a clear win (horizontal 4.29 -> 3.78 m at 2x).
+    On a second, non-overlapping segment of the same flight every setting was
+    worse, monotonically: horizontal 5.94 m ungated against 6.99 / 7.80 / 9.27
+    at 2x / 3x / 4x. The apparent gain was fitted to one stretch of flight.
+
+    The mechanism is still real -- ungated long edges are catastrophic (D-037),
+    and residual is the right signal for separating solved pairs from
+    unsolved ones. What has no support is any particular threshold. Left off
+    by default; set explicitly only with held-out evidence for the capture in
+    hand.
     """
     if not allow_noncommercial:
         raise RuntimeError(

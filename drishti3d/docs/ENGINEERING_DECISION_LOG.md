@@ -829,3 +829,56 @@ system actually beats the GNSS on and the one the problem statement asks for.
 2x improves all three. The non-monotonic response across multipliers marks a
 noisy objective tuned on one segment; a second surveyed segment should confirm
 the threshold before it is trusted.
+
+## 2026-09-11 / D-038 — the height advantage was one segment's bad GNSS, not a capability
+
+**What was claimed.** On the AGZ surveyed segment the system measured height
+2.4x more accurately than the drone's own GNSS (1.10 m against 2.68 m). That
+was reported as the project's headline result.
+
+**Validation on a second, non-overlapping segment of the same flight**
+(imgid 64531-70021, 62 frames, same camera, same processing) overturns it:
+
+| | segment 1 | segment 2 |
+|---|---|---|
+| **our** 3D / horiz / vert | 6.02 / 4.29 / 1.10 | 6.37 / 5.94 / 2.63 |
+| **GNSS** 3D / horiz / vert | 5.52 / 3.26 / 2.68 | 1.91 / 1.33 / 1.36 |
+| verdict, 3D | lose 1.1x | lose 3.3x |
+| verdict, horizontal | lose 1.3x | lose 4.5x |
+| verdict, **vertical** | **win 2.4x** | **lose 1.9x** |
+
+**Reading.** Our absolute accuracy is stable -- 6.02 and 6.37 m 3D. What moved
+was the GNSS: 5.52 m on one segment, 1.91 m on the other. Segment 1 simply had
+unusually poor GNSS, and every "beats the GNSS" statement rested on that.
+
+Segment 2 is not a harder case: it is *less* straight (7.2x elongation against
+14.8x), which should favour reconstruction, and its altitude range is smaller.
+
+**Honest position.** Absolute georeferencing is ~6 m 3D and **does not beat
+consumer GNSS**. That is not a disaster -- it is the expected behaviour of
+non-RTK photogrammetry anchored to a biased sensor (D-036) -- but it is not
+what was claimed. What the measurements still support:
+
+- *relative* geometry is sound: metric scale to ~1 % (1.12 m step against a
+  surveyed 1.13 m), trajectory smoother than the GNSS it was anchored to
+- 100 % frame registration on real single-pass video
+- measurement refusal, coverage classification and calibrated uncertainty,
+  none of which depend on absolute position
+
+**Process failure, recorded.** This repository's own benchmark contract says
+median *and* worst case are reported together, and that three seeds is not
+enough for a regime with spread. A single segment was reported as a capability
+anyway. The rule now extends explicitly to real data: **no real-data claim from
+one capture segment.**
+
+## 2026-09-11 / D-039 — the residual gate did not survive held-out validation
+
+Swept on segment 1, gating long-range edges on the model's own Procrustes
+residual looked like a clear win (horizontal 4.29 -> 3.78 m at 2x, D-037). On
+segment 2 every setting was worse, monotonically: 5.94 m ungated against
+6.99 / 7.80 / 9.27 at 2x / 3x / 4x.
+
+Default reverted to off. The *mechanism* stands -- ungated long edges are
+catastrophic, and per-edge residual is the right signal for telling a solved
+pair from an unsolved one. What has no support is any particular threshold,
+which was fitted to one stretch of flight.
