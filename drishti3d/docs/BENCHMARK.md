@@ -406,3 +406,59 @@ What the measurements do still support, unchanged:
 The contract already required median and worst case together, and more than
 three seeds for regimes with spread. It now says so for real data explicitly:
 **no real-data claim from a single capture segment.** One segment is one seed.
+
+## 2026-09-11 — a third GPS capture, and what actually decides accuracy
+
+The AGZ result (~6 m absolute, 10–15 % relative) is not a property of the
+system. It is a property of **that capture**. A third single-pass dataset with
+GPS makes the difference plain.
+
+**Monterey road strip** — DJI Mavic 2 Pro, 44 images, 167 m, 14.5x straight,
+~100 m altitude, nadir-ish over a road corridor, EXIF GPS, no surveyed truth.
+
+| | Monterey | AGZ segment 1 |
+|---|---|---|
+| registered | 44/44 | 62/62 |
+| mean track length | **4.48** | 2.85 |
+| median reprojection | **0.885 px** | 1.018 px |
+| robust Sim(3) inliers | **44/44** | 13/62 |
+| Sim(3) residual to GNSS | **0.58 m** median, 1.03 m p90 | — |
+
+### Relative (dimensional) accuracy — the quantity a measurement needs
+
+Camera-to-camera separations, compared against reference. This is the direct
+analogue of measuring a building: it does not depend on absolute position.
+
+| baseline | Monterey (vs GNSS) | AGZ seg 1 (vs surveyed truth) |
+|---|---|---|
+| 5–15 m | **1.38 %** (0.14 m) | 14.63 % |
+| 15–40 m | **1.15 %** (0.28 m) | 13.94 % |
+| 40–80 m | **1.09 %** (0.67 m) | 9.53 % |
+| 80–200 m | **0.33 %** (0.39 m) | 4.27 % |
+
+**Roughly 1 % over 5–200 m on a proper survey capture — a factor of ten better
+than AGZ.** The Sim(3) fits 7 parameters over 44 cameras, so per-pair agreement
+at 1 % is not explained by the fit; it is genuine agreement.
+
+### Reading
+
+AGZ is a low-altitude MAV threading between buildings — short baselines against
+close facades, track length 2.85. Monterey is what the problem statement
+actually describes: a survey drone at altitude over textured ground, track 4.48.
+
+This is the project's central thesis — **capture geometry dominates outcome** —
+now demonstrated on real georeferenced data rather than synthetic regimes. The
+same claim previously rested on `orbit` reaching 94.9 % completeness where
+`low_parallax` produced no points at all.
+
+### Caveats, stated
+
+- Monterey has **GNSS only, no surveyed truth**. Its 1 % is agreement with a
+  sensor that has its own error, not independently verified accuracy. AGZ's
+  figures are against real survey.
+- The dense (MASt3R) path beat COLMAP on relative accuracy on AGZ (14.63 %
+  against 18.96 % at 5–15 m); Monterey was run with COLMAP.
+- Per-edge translation noise from the pairwise dense model is ~15 %
+  (cycle-consistency, D-037), which is the same order as its relative error —
+  bundle adjustment over the dense output is untried and is the obvious next
+  lever.
