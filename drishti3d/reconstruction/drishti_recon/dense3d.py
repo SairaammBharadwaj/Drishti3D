@@ -328,3 +328,125 @@ def _to_uint8_rgb(c):
     elif hi > 1.5:                      # already 0..255
         c = c / 255.0
     return np.clip(c * 255.0, 0, 255).astype(np.uint8)
+
+
+def refine_with_bundle_adjustment(image_dir, work_dir, cam2w, image_names, *,
+                                  focal_px=None, num_threads=6,
+                                  max_image_size=1600, refine_focal=True):
+    """Triangulate and bundle-adjust a dense-model trajectory.
+
+    The feed-forward path has no bundle adjustment, and its per-edge
+    translation *magnitude* noise -- 10.5 % on Monterey, 15.1 % on AGZ by
+    cycle consistency -- is the same order as its relative measurement error.
+    That is not a coincidence: BA is exactly the step that resolves it, by
+    forcing every camera and point to agree on one reprojection.
+
+    The evidence for doing this is a direct comparison. On Monterey, COLMAP
+    (which bundle-adjusts) reached 1.38 % relative error at 5-15 m where the
+    dense path reached 3.51 %. On AGZ, where correspondences are poor, the
+    ordering reversed -- the learned prior beat BA-on-bad-matches, 14.63 %
+    against 18.96 %. So this refinement is expected to help most exactly where
+    the dense path is currently weakest relative to COLMAP.
+
+    Takes the dense poses as fixed initialisation, detects and matches
+    features, triangulates against those poses, then bundle-adjusts. Returns a
+    dict with refined ``cam2w``, ``points``, ``colors`` and BA diagnostics.
+    """
+    import pycolmap
+    from pathlib import Path
+
+    work_dir = Path(work_dir); work_dir.mkdir(parents=True, exist_ok=True)
+    db_path = work_dir / "ba.db"
+
+    ext = pycolmap.FeatureExtractionOptions()
+    ext.num_threads = num_threads
+    ext.max_image_size = max_image_size
+    match = pycolmap.FeatureMatchingOptions()
+    match.num_threads = num_threads
+    # Reuse the cache only if it actually holds matched images. A run killed
+    # part-way leaves an empty database behind, and an existence check alone
+    # then skips extraction and reports "0 poses matched" -- which looks like a
+    # naming bug rather than an empty cache.
+    reusable = False
+    if db_path.exists():
+        _db = pycolmap.Database.open(str(db_path))
+        try:
+            reusable = _db.num_images() > 0 and _db.num_verified_image_pairs() > 0
+        finally:
+            _db.close()
+        if not reusable:
+            db_path.unlink()
+    if not reusable:
+        pycolmap.extract_features(db_path, image_dir,
+                                  camera_mode=pycolmap.CameraMode.SINGLE,
+                                  extraction_options=ext)
+        pycolmap.match_exhaustive(db_path, matching_options=match)
+
+    db = pycolmap.Database.open(str(db_path))
+    try:
+        db_images = {im.name: im for im in db.read_all_images()}
+        cams = {c.camera_id: c for c in db.read_all_cameras()}
+    finally:
+        db.close()
+
+    rec = pycolmap.Reconstruction()
+    for cid, cam in cams.items():
+        if focal_px is not None:
+            p = list(cam.params)
+            p[0] = float(focal_px)
+            cam.params = p
+        # add_camera_with_trivial_rig: pycolmap 4.x routes pose through a
+        # rig/frame, and Image.cam_from_world is derived and read-only. A
+        # single-camera capture needs the trivial rig so the frame pose IS the
+        # camera pose.
+        rec.add_camera_with_trivial_rig(cam)
+
+    name_to_pose = {n: c for n, c in zip(image_names, cam2w)}
+    added = 0
+    for name, dbim in db_images.items():
+        T = name_to_pose.get(name)
+        if T is None:
+            continue
+        R = np.asarray(T, float)[:3, :3].T          # world->camera
+        t = -R @ np.asarray(T, float)[:3, 3]
+        im = pycolmap.Image(name=name, camera_id=dbim.camera_id,
+                            image_id=dbim.image_id)
+        rec.add_image_with_trivial_frame(im)
+        frame = rec.image(dbim.image_id).frame
+        frame.rig_from_world = pycolmap.Rigid3d(pycolmap.Rotation3d(R), t)
+        # Having a pose and being *registered* are separate in pycolmap 4.x:
+        # triangulation counts registered frames, so setting the pose alone
+        # leaves NumRegImages() at zero and the call fails asking for two.
+        rec.register_frame(frame.frame_id)
+        added += 1
+    if added < 3:
+        raise RuntimeError(
+            f"only {added} of {len(name_to_pose)} dense poses matched the "
+            f"{len(db_images)} database images. Names must agree between the "
+            "dense run and COLMAP; both read the same directory, so a mismatch "
+            "usually means a stale database from an interrupted run.")
+
+    out = work_dir / "refined"; out.mkdir(exist_ok=True)
+    pycolmap.triangulate_points(rec, str(db_path), str(image_dir), str(out))
+    rec2 = pycolmap.Reconstruction(str(out))
+
+    ba = pycolmap.BundleAdjustmentOptions()
+    ba.refine_focal_length = bool(refine_focal)
+    ba.refine_principal_point = False
+    pycolmap.bundle_adjustment(rec2, ba)
+
+    ims = sorted(rec2.images.values(), key=lambda i: i.name)
+    new_cam2w = np.tile(np.eye(4), (len(ims), 1, 1))
+    for k, im in enumerate(ims):
+        inv = im.cam_from_world().inverse()
+        new_cam2w[k, :3, :3] = inv.rotation.matrix()
+        new_cam2w[k, :3, 3] = inv.translation
+    pts = np.array([p.xyz for p in rec2.points3D.values()])
+    cols = np.array([p.color for p in rec2.points3D.values()], np.uint8)
+    errs = np.array([p.error for p in rec2.points3D.values()])
+    trk = np.array([p.track.length() for p in rec2.points3D.values()])
+    return dict(cam2w=new_cam2w, image_names=[i.name for i in ims],
+                points=pts, colors=cols, reconstruction=rec2,
+                n_images=len(ims), n_points=len(pts),
+                reproj_median=float(np.median(errs)) if len(errs) else None,
+                mean_track_length=float(trk.mean()) if len(trk) else 0.0)

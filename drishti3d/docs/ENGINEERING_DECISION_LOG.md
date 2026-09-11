@@ -922,3 +922,45 @@ attractive *and* what makes it not fit.
 `reconstruct_dir` refuses up front with that number rather than OOM-ing deep
 inside the forward pass. On 16 GB the budget is ~17 frames; ~62 frames needs
 roughly 45 GB.
+
+## 2026-09-11 / D-041 — bundle adjustment over dense poses does not work; engine choice is capture-dependent
+
+**Hypothesis.** The dense path has no bundle adjustment, and its per-edge
+translation noise (10.5 % Monterey, 15.1 % AGZ by cycle consistency) is the
+same order as its relative measurement error. BA is the step that resolves
+exactly that, so triangulating against the dense poses and bundle-adjusting
+should close the gap to COLMAP.
+
+**Result: negative.** On Monterey, relative error at 5-15 m went 3.51 % ->
+4.50 %, and at 15-40 m 2.17 % -> 5.21 %.
+
+**Cause, from the diagnostics.** Triangulating against the dense poses yielded
+**4,881 points at mean track length 2.15**, where COLMAP's own incremental
+pipeline on the same images produced **57,761 points at track 4.48**. Ceres
+reported `NO_CONVERGENCE`. With that few short tracks, BA is under-constrained
+for 44 cameras and drifts rather than converging.
+
+This is circular and was not obvious in advance: BA needs poses good enough to
+triangulate a usable point set, and the poses are what we wanted BA to fix.
+A ~10 % translation error is enough that rays do not intersect within the
+triangulation threshold, so most matches are discarded before BA ever sees them.
+
+**What the evidence supports instead — engine choice follows capture quality:**
+
+| capture | track len | dense (MASt3R) | COLMAP |
+|---|---|---|---|
+| Monterey (survey drone, textured) | 4.48 | 3.51 % | **1.38 %** |
+| AGZ seg 1 (low MAV, facades) | 2.85 | **14.63 %** | 18.96 % |
+
+Where correspondences are good, COLMAP's incremental SfM with its own BA wins.
+Where they are poor, the learned prior beats BA-on-bad-matches. That is
+coherent, but it rests on **two captures** — and the last rule fitted to a
+single segment did not survive (D-038, D-039). It is recorded as an
+observation, not implemented as an automatic switch.
+
+**Kept anyway.** `refine_with_bundle_adjustment` stays in the codebase: it is
+the correct mechanism, it is tested, and it becomes useful the moment the dense
+poses improve enough to triangulate properly. Two real pycolmap-4.x details are
+captured in it — `Image.cam_from_world` is derived and read-only (pose goes
+through the trivial rig's frame), and having a pose is separate from being
+*registered*, so `register_frame` is required or triangulation sees zero images.
