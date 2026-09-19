@@ -71,16 +71,25 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
         _p("colmap: features", 0.1)
         mode = pycolmap.CameraMode.SINGLE if single_camera else pycolmap.CameraMode.AUTO
         sift = _with_threads(lambda: pycolmap.SiftExtractionOptions())
+        modern = hasattr(pycolmap, "FeatureExtractionOptions")
         try:
-            pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode,
-                                      sift_options=sift) if sift else \
-                pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode)
+            if modern:
+                ext = pycolmap.FeatureExtractionOptions()
+                ext.num_threads = nthreads
+                ext.max_image_size = max(f.shape[1] for f in frames)
+                pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode,
+                                          extraction_options=ext, device=pycolmap.Device.cpu)
+            else:
+                pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode,
+                                          sift_options=sift) if sift else \
+                    pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode)
         except TypeError:
             pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode)
         _p("colmap: matching", 0.35)
         # sequential matching is far lighter than exhaustive on CPU
         try:
-            mopt = _with_threads(lambda: pycolmap.SequentialMatchingOptions())
+            mopt = _with_threads(lambda: pycolmap.FeatureMatchingOptions() if modern
+                                  else pycolmap.SequentialMatchingOptions())
             pycolmap.match_sequential(str(db), matching_options=mopt) if mopt else \
                 pycolmap.match_sequential(str(db))
         except Exception:

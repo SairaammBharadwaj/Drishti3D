@@ -58,3 +58,17 @@ def test_reject_bad_video_extension(client):
 
 def test_missing_project_404(client):
     assert client.get("/api/projects/" + "0" * 32).status_code == 404
+
+
+@pytest.mark.parametrize("extension,media_type", [("mp4", "video/mp4"), ("webm", "video/webm")])
+def test_original_video_playback(client, extension, media_type):
+    pid = client.post('/api/projects', json={'name': 'Presentation'}).json()['id']
+    url = f'/api/projects/{pid}/video'
+    assert client.get(url).status_code == 404
+    source = b'original-capture-bytes'
+    assert client.post(url, files={'file': (f'capture.{extension}', source, media_type)}).status_code == 200
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.content == source
+    assert response.headers['content-type'] == media_type
+    assert client.get('/api/projects/' + '0' * 32 + '/video').status_code == 404
