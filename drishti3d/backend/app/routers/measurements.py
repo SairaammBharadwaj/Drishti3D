@@ -18,21 +18,29 @@ router = APIRouter(prefix="/api/projects", tags=["measurements"])
 _cache: dict[str, PointCloud] = {}
 
 
-def _load_cloud(project_id: str) -> PointCloud:
+def load_cloud(project_id: str) -> PointCloud:
     if project_id in _cache:
         return _cache[project_id]
     npz = storage.artifacts_dir(project_id) / "cloud.npz"
     if not npz.exists():
         raise HTTPException(404, "reconstruction not available; process first")
     d = np.load(npz)
+    # Carry the propagated per-point uncertainty across. Dropping it made every
+    # endpoint report sigma = inf, which the measurement layer correctly reads
+    # as "not observable" -- so the whole uncertainty pipeline was computed,
+    # written to disk, and then discarded one step before it was used.
     cloud = PointCloud(d["points"], d["colors"], d["confidence"],
-                       d["provenance"], None)
+                       d["provenance"], None,
+                       d["sigma"] if "sigma" in d.files else None,
+                       d["sigma_major"] if "sigma_major" in d.files else None)
     _cache[project_id] = cloud
     return cloud
 
 
 def invalidate(project_id: str):
     _cache.pop(project_id, None)
+    from . import questions as _q
+    _q.invalidate(project_id)
 
 
 @router.post("/{project_id}/measurements", response_model=MeasurementOut)
@@ -40,7 +48,7 @@ def create_measurement(project_id: str, body: MeasurementCreate,
                        db: Session = Depends(get_db)):
     if not db.get(Project, project_id):
         raise HTTPException(404, "project not found")
-    cloud = _load_cloud(project_id)
+    cloud = load_cloud(project_id)
     pts = body.points
     kind = body.kind
     ai = body.allow_inferred

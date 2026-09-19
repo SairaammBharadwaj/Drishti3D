@@ -27,3 +27,10 @@ Thumbs.db
 # Large third-party checkouts and model weights — fetched by docs/ENVIRONMENT.md steps
 drishti3d/third_party/
 drishti3d/models/
+
+# Dataset payloads: the catalog, manifests and READMEs are tracked; the bytes
+# are not. Regenerate the layout with drishti3d/scripts/build_agz_mission.py
+# and re-inventory with drishti3d/scripts/inventory_datasets.py.
+datasets/public/
+datasets/field/
+datasets/truth/

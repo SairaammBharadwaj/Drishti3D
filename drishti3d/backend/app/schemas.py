@@ -81,6 +81,53 @@ class MeasurementOut(BaseModel):
         from_attributes = True
 
 
+class QuestionCreate(BaseModel):
+    kind: str                              # point|distance|height|area
+    points: list[list[float]]              # ENU selection [[e,n,u], ...]
+    tolerance_m: Optional[float] = None    # absolute, same unit as the result
+    interval_level: int = 95
+    threshold_m: Optional[float] = None
+    threshold_direction: str = "at_least"  # at_least|at_most
+    allow_inferred: bool = False
+    label: str = ""
+    notes: str = ""
+
+
+class QuestionUpdate(BaseModel):
+    """Only the requirement may change; the selection defines the question."""
+
+    tolerance_m: Optional[float] = None
+    interval_level: Optional[int] = None
+    threshold_m: Optional[float] = None
+    threshold_direction: Optional[str] = None
+    label: Optional[str] = None
+
+
+class QuestionOut(BaseModel):
+    id: str
+    project_id: str
+    kind: str
+    label: str
+    points_enu: list
+    tolerance_m: Optional[float]
+    interval_level: int
+    threshold_m: Optional[float]
+    threshold_direction: str
+    allow_inferred: bool
+    notes: str
+    created_at: datetime
+    updated_at: datetime
+    result: Optional[dict] = None
+    guidance: list = []
+
+
+class QuestionEvidenceOut(BaseModel):
+    question_id: str
+    support_basis: str
+    endpoints: list
+    note: str = ""
+
+
 class ExportRequest(BaseModel):
     formats: list[str] = ["ply", "geojson", "report_html"]
 

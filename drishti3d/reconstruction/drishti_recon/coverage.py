@@ -90,6 +90,9 @@ class CoverageGrid:
     status: np.ndarray            # (nx,ny,nz) uint8 of Coverage
     view_count: np.ndarray        # (nx,ny,nz) uint16 unobstructed views
     best_incidence_deg: np.ndarray  # (nx,ny,nz) float32, 0 = face-on
+    #: Rays that passed through the cell and terminated on a finite, supported
+    #: depth. This, not ``view_count``, is what licenses the ``EMPTY`` class.
+    free_count: np.ndarray | None = None
     meta: dict = field(default_factory=dict)
 
     # ---- queries ---------------------------------------------------------- #
@@ -153,7 +156,10 @@ class CoverageGrid:
         np.savez_compressed(
             path, origin=self.origin, voxel=np.array([self.voxel]),
             shape=np.array(self.shape), status=self.status,
-            view_count=self.view_count, best_incidence_deg=self.best_incidence_deg)
+            view_count=self.view_count,
+            best_incidence_deg=self.best_incidence_deg,
+            free_count=(self.free_count if self.free_count is not None
+                        else np.zeros_like(self.view_count)))
         return str(path)
 
 
@@ -298,6 +304,7 @@ def build(cloud_points, cameras, K, image_size, *,
     K = np.asarray(K, float)
 
     vc_flat = np.zeros(centres.shape[0], np.int32)
+    free_flat = np.zeros(centres.shape[0], np.int32)
     dyn_flat = np.zeros(centres.shape[0], np.int32)
     inc_flat = np.full(centres.shape[0], 180.0, np.float32)
     seen_flat = np.zeros(centres.shape[0], bool)
@@ -337,11 +344,26 @@ def build(cloud_points, cameras, K, image_size, *,
             dyn_flat += masked_here.astype(np.int32)
             inside = inside & ~masked_here
 
-        # z-buffer visibility: nothing reconstructed sits nearer along this ray
+        # z-buffer visibility: nothing reconstructed sits nearer along this ray.
+        #
+        # `buf` is initialised to +inf, so a pixel through which nothing was
+        # reconstructed reports `nearest = inf`. Accepting that as "nothing is
+        # in the way" is wrong twice over: it is how a hole in a sparse cloud
+        # used to become verified free space, and free space is the one class
+        # here that is a *positive* claim about the world. A ray that returned
+        # no depth establishes nothing -- it is unknown, not clear.
         nearest = np.full(len(cc), np.inf, np.float32)
         nearest[inside] = buf[vi[inside], ui[inside]]
-        visible = inside & (z <= nearest + occlusion_tol)
+        returned = inside & np.isfinite(nearest)
+        visible = returned & (z <= nearest + occlusion_tol)
         vc_flat += visible.astype(np.int32)
+
+        # Free space is established only strictly in front of a finite,
+        # supported depth return, with the same slack subtracted rather than
+        # added: the surface's own depth is uncertain, so the volume within
+        # `occlusion_tol` of it is not something this ray verified either.
+        free = returned & (z < nearest - occlusion_tol)
+        free_flat += free.astype(np.int32)
 
         # True incidence: the angle between the view ray and the cell's surface
         # normal. 0 deg is face-on. Cells without an estimable normal keep NaN
@@ -361,6 +383,7 @@ def build(cloud_points, cameras, K, image_size, *,
                 inc_flat[sel] = np.minimum(inc_flat[sel], ang.astype(np.float32))
 
     view_count = vc_flat.reshape(nx, ny, nz).astype(np.uint16)
+    free_count = free_flat.reshape(nx, ny, nz).astype(np.uint16)
     dyn_count = dyn_flat.reshape(nx, ny, nz).astype(np.uint16)
     best_inc = inc_flat.reshape(nx, ny, nz)
     in_frustum = seen_flat.reshape(nx, ny, nz)
@@ -368,8 +391,12 @@ def build(cloud_points, cameras, K, image_size, *,
     # ---- classify --------------------------------------------------------- #
     st = np.full((nx, ny, nz), int(Coverage.UNSEEN), np.uint8)
     st[in_frustum] = int(Coverage.OCCLUDED)       # in view, but nothing verified
-    swept = in_frustum & (view_count > 0)
-    st[swept] = int(Coverage.EMPTY)               # ray reached here: free space
+    # A cell is verified free only where some ray passed through it and went on
+    # to terminate on reconstructed surface. Cells merely inside a frustum, or
+    # crossed only by rays that returned no depth, stay OCCLUDED -- the honest
+    # reading of "we looked and established nothing".
+    swept = in_frustum & (free_count > 0)
+    st[swept] = int(Coverage.EMPTY)               # ray passed through to a surface
     surf_weak = has_surface & (view_count >= 1)
     st[surf_weak] = int(Coverage.WEAK)
     # Cells with no estimable normal keep the 180 sentinel; treat them as
@@ -387,7 +414,9 @@ def build(cloud_points, cameras, K, image_size, *,
     grid = CoverageGrid(origin=lo, voxel=float(voxel), shape=(nx, ny, nz),
                         status=st, view_count=view_count,
                         best_incidence_deg=best_inc,
+                        free_count=free_count,
                         meta={"n_cameras": len(cameras),
+                              "free_space_requires_finite_depth": True,
                               "n_points": int(len(pts)),
                               "occlusion_tol_m": float(occlusion_tol),
                               "weak_incidence_deg": float(weak_incidence_deg),
