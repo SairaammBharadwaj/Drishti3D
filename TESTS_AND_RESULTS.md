@@ -21,9 +21,10 @@ Command: `cd drishti3d && .venv/bin/python -m pytest tests/ -q`
 |---|---|---|
 | Before 2026-09-19 | 223 passed | 111 s |
 | After the measurement gate | 264 passed | 140 s |
-| After observation lineage | **277 passed, 0 failed** | 112 s |
+| After observation lineage | 277 passed | 112 s |
+| After same-pass refinement | **301 passed, 0 failed** | 191 s |
 
-54 tests were added. No test was removed, skipped or weakened.
+78 tests were added. No test was removed, skipped or weakened.
 
 ### New test files
 
@@ -93,7 +94,27 @@ Lineage survives fusion's reindexing.
 | `test_one_endpoint_without_lineage_downgrades_the_whole_measurement` | Mixed bases report as `frustum_upper_bound` | PASS |
 | `test_supporting_frames_carry_the_measured_pixel` | Only the measuring frames are listed, each with the pixel it was measured at | PASS |
 
-#### `tests/test_questions_api.py` — 9 tests, all PASS
+#### `tests/test_refinement.py` — 21 tests, all PASS
+
+| Test | Asserts | Result |
+|---|---|---|
+| `test_the_unused_frames_of_the_pass_are_the_candidate_pool` | Frames in `keyframes.json` are excluded; the rest are candidates | PASS |
+| `test_every_rejection_names_a_reason_and_explains_it` | Every rejected candidate carries a stable code and operator text | PASS |
+| `test_frames_outside_the_registered_span_cannot_be_posed` | Frames before the first or after the last registered camera are refused rather than extrapolated | PASS |
+| `test_blurred_frames_are_rejected_before_anything_is_decoded` | Quality rejection happens on the index, not after a decode | PASS |
+| `test_a_view_parallel_to_an_existing_one_adds_nothing` | A 0.02 rad arc leaves no usable candidate; the gate is angular, not a frame count | PASS |
+| `test_ranking_follows_parallax_not_frame_order` | Ordering is by score, and the best clears the 2° floor | PASS |
+| `test_triangulation_recovers_a_known_point` | Three rays recover a known point to 1 mm with a finite sigma | PASS |
+| `test_an_inflated_ray_pulls_less_on_the_solution` | A 20 px-wrong observation with inflated sigma moves the answer less than a trusted one — the inflation is real, not cosmetic | PASS |
+| `test_a_runaway_solve_is_refused_not_returned` | A solve landing 200 m from the seed returns `None` | PASS |
+| `test_near_parallel_rays_report_a_large_positional_sigma` | Weak conditioning shows in the sigma, not only in the guard (>10× wider) | PASS |
+| `test_value_fn_does_not_snap_the_refined_endpoint_back` | Moving an endpoint 0.4 m moves the answer 0.4 m | PASS |
+| `test_value_fn_carries_the_scale_term` | A 2% scale on a 40 m span widens sigma as `hypot(s0, 0.8)` | PASS |
+| `test_improvement_is_not_judged_on_interval_width_alone` | A cleared blocking reason with an unchanged interval is an improvement | PASS |
+| `test_a_wider_interval_with_nothing_cleared_is_not_an_improvement` | Refinement can make things worse, and it shows | PASS |
+| 7 further cases | Other question kinds, missing video, empty candidate pools, the run record | PASS |
+
+#### `tests/test_questions_api.py` — 12 tests, all PASS
 
 End-to-end through FastAPI against a synthetic project whose artifacts are
 written the way the pipeline writes them (cloud with per-point sigma, trajectory
@@ -174,9 +195,10 @@ than absorbed:
 `NOT TESTED`. There are no reference dimensions for this site. Distance, height
 and area error against ground truth is entirely unmeasured.
 
-### Same-pass refinement (plan F4)
+### Same-pass refinement versus a uniform budget (plan F4 gate)
 
-`NOT TESTED` — not implemented.
+`NOT TESTED`. The targeted arm is measured above. The uniform-refinement
+comparison arm, at equal added compute, has not been built or run.
 
 ### Measurement passport and offline verifier (plan F3)
 
@@ -255,6 +277,103 @@ camera geometry reports against what the measurements actually provided.
 **Result: PASS**, and it is the measured justification for
 [DEC-006](DECISIONS.md) and [DEC-009](DECISIONS.md). The frustum basis is a
 usable ranking signal and an unusable acceptance signal.
+
+### Same-pass refinement: measured outcomes
+
+**Environment:** mission `agz_dense_pass`, in-repo (OpenCV) engine, 184 decoded
+frames of which 80 were used by the reconstruction, leaving a 104-frame
+candidate pool. 30 weak measurements (endpoints with 2+ observations and under
+15° of measured parallax), 4-frame budget, 10 candidates decoded at most.
+
+| Outcome | Result |
+|---|---:|
+| Recovered at least one frame | **10 / 30** |
+| Cleared a blocking reason | **10 / 30** |
+| Recovered nothing | 20 / 30 |
+| Median wall clock per measurement | 13.7 s |
+
+| Reasons cleared | Count |
+|---|---:|
+| `insufficient_views` | 9 |
+| `outside_established_coverage` | 1 |
+
+For the 10 that recovered evidence:
+
+| | Before | After |
+|---|---:|---:|
+| Supporting views (median) | 2 | **4** |
+| Measured parallax (median) | 8.1° | **15.5°** |
+| Frames added (median / max) | — | 2 / 4 |
+| Absolute change in reported value (median) | — | 0.032 m |
+
+**Why the other 20 failed**, tallied across every candidate processed:
+
+| Rejection during processing | Count |
+|---|---:|
+| `endpoint_not_located_in_image` | 243 |
+| `pose_recovery_failed` | 22 |
+
+Pose recovery succeeds 92% of the time. Locating the endpoint in the recovered
+frame is the bottleneck: descriptor matching across a changed viewpoint fails,
+which is the honest ceiling of the method rather than a tuning problem.
+
+**Result: PASS** for the mechanism, **NOT TESTED** for the plan's F4 gate. That
+gate asks for targeted versus uniform refinement at *equal added compute*; this
+is an outcome survey of the targeted arm alone. The hypothesis is supported and
+untested. The survey reproduced exactly on a second run.
+
+#### Worked example
+
+A 3.01 m span whose near endpoint had 2 supporting views and 5.99° of parallax.
+
+| | Before | After |
+|---|---|---|
+| Value | 3.0095 m | 2.9055 m |
+| Sigma | 0.0994 m | 0.0990 m |
+| Interval half-width | 0.1949 m | 0.1941 m |
+| Supporting views | 2 | 5 |
+| Measured parallax | 5.99° | 11.46° |
+| Status | `estimated_only` | `estimated_only` |
+| Dominant limitation | `insufficient_views` | `interval_not_calibrated` |
+
+Frames 89, 90 and 91 were recovered, with 571–761 PnP inliers at 1.26–1.30 px
+reprojection RMSE; the endpoint moved 0.152 m.
+
+The interval barely moved — it is dominated by the *other* endpoint and by the
+1.15% metric scale term — while the value moved 0.104 m, inside the interval.
+Judging this run on interval width would have called it a failure; it cleared
+the reason that was blocking the measurement.
+
+Its refined endpoint sigma is 0.216 m, *larger* than the reconstruction's
+propagated 0.037 m, because that comes from full bundle adjustment and this from
+a standalone ray intersection. It is reported alongside and deliberately not
+substituted into the interval.
+
+### PnP pose recovery against the existing model
+
+| Check | Observed |
+|---|---|
+| Self-PnP: recover a known camera from its own stored observations | centre to 2 mm, 544/546 inliers |
+| PnP on recovered frames (3 candidates) | 75–1378 inliers, 1.0–2.3 px RMSE |
+| Recovered centre vs the interpolated tentative pose | agree to 0.09–0.38 m |
+
+**Result: PASS.** The agreement between an independently recovered pose and the
+interpolated guess is a check that neither is wildly wrong.
+
+### COLMAP reconstructions carry no per-point uncertainty
+
+| Engine | `cloud.npz` contents |
+|---|---|
+| In-repo (OpenCV) | points, colors, confidence, provenance, **sigma, sigma_major** (19,080 finite, median 0.037 m) |
+| COLMAP | points, colors, confidence, provenance |
+
+`colmap_adapter` never populates `ReconResult.point_sigma`, so every endpoint on
+a COLMAP reconstruction snaps to an infinite sigma and returns `not_observable`
+with `uncertainty_undefined`.
+
+**Result: FAIL** — the faster, more accurate engine cannot currently be measured
+on. Recorded as [DEC-011](DECISIONS.md); P1 in `NEXT_STEPS.md`. Every
+measurement and refinement result above therefore used the in-repo engine.
 
 ### Which blocker remains
 

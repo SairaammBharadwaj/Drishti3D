@@ -181,3 +181,36 @@ def test_delete_removes_the_question_and_its_results(client, project_with_cloud)
     assert r.status_code == 200
     listed = client.get(f"/api/projects/{project_with_cloud}/questions").json()
     assert all(x["id"] != q["id"] for x in listed)
+
+
+# --------------------------------------------------------------------------- #
+# Same-pass refinement (plan F4)
+# --------------------------------------------------------------------------- #
+def test_refining_without_the_original_video_is_refused(client,
+                                                        project_with_cloud):
+    """Recovering unused frames needs the clip they are in.
+
+    A 409 naming the missing input is the right answer; quietly returning the
+    unchanged measurement as a completed refinement is not.
+    """
+    q = _ask(client, project_with_cloud)
+    r = client.post(
+        f"/api/projects/{project_with_cloud}/questions/{q['id']}/refine",
+        json={"budget_frames": 2})
+    assert r.status_code == 409
+    assert "video" in r.json()["detail"]
+
+
+def test_refine_requires_a_reconstruction(client):
+    r = client.post("/api/projects", json={"name": "bare", "description": ""})
+    pid = r.json()["id"]
+    r = client.post(f"/api/projects/{pid}/questions/nope/refine", json={})
+    assert r.status_code == 404
+
+
+def test_refinement_history_starts_empty(client, project_with_cloud):
+    q = _ask(client, project_with_cloud)
+    r = client.get(
+        f"/api/projects/{project_with_cloud}/questions/{q['id']}/refinements")
+    assert r.status_code == 200
+    assert r.json() == []

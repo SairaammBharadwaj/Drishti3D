@@ -270,6 +270,60 @@ falls back is reported as frustum-derived in full.
 
 ---
 
+## 3a. Same-pass evidence recovery
+
+```text
+POST /api/projects/{id}/questions/{qid}/refine   {"budget_frames": 6}
+ ↓  routers/questions.py :: refine_question
+ ├─ resolve the current measurement (re-measure if the geometry changed)
+ ├─ locate the original video in uploads/          -> 409 if absent
+ ├─ endpoint sigmas from the cloud the measurement was taken on
+ └─ refinement.RefinementEngine(evidence, artifacts, video)
+     ↓
+     RefinementEngine.refine(question, points, value_fn, budget)
+     ├─ pick the endpoint with the LEAST measured parallax
+     ├─ candidates(endpoint)                       every decoded frame
+     │    ├─ in keyframes.json?        -> already_in_reconstruction
+     │    ├─ frame_metrics accepted?   -> frame_quality_rejected
+     │    ├─ bracketed by registered cameras? -> no_bracketing_registered_cameras
+     │    │     slerp(R) + lerp(C) = TENTATIVE pose, used only to decide
+     │    │     what is worth decoding
+     │    ├─ endpoint projects inside? -> endpoint_not_in_frame
+     │    ├─ parallax gain >= 2 deg?   -> adds_no_parallax
+     │    └─ score = gain * exp(-(gain-25)+/25) / (1 + range/50)
+     ├─ for each candidate, best first, until the budget is spent:
+     │    ├─ _pnp_anchors: registered frames nearest IN TIME
+     │    ├─ _register: match -> 2D-3D via stored observations -> PnP RANSAC
+     │    │     -> pose_recovery_failed, or (R, C) at ~1.3 px RMSE
+     │    ├─ _locate: project through (R, C) to bound a window, then match an
+     │    │     independently detected keypoint in it against the endpoint's
+     │    │     descriptors from a frame that measured it
+     │    │     -> endpoint_not_located_in_image, or a real pixel
+     │    └─ add the ray, with sigma x POSE_UNCERTAINTY_INFLATION
+     ├─ _triangulate: weighted closest-point over all rays, in metres
+     └─ value_fn(moved points) -> re-evaluate the verdict
+ ↓
+ persist a new Measurement (the original is kept) + a RefinementRun row
+ ↓
+ before / after / added_frames / rejected / reasons_cleared
+```
+
+Three properties of this flow are load-bearing:
+
+**The tentative pose is never measured against.** Interpolation decides what to
+decode. Everything that becomes evidence comes from the PnP pose.
+
+**The projected pixel is never accepted.** It bounds a search window. Accepting
+it would make the new ray pass exactly through the estimate it came from —
+adding no information while narrowing the interval.
+
+**`value_fn` does not re-snap.** `measure.measure_distance` snaps to the nearest
+cloud point, which would pull a refined endpoint straight back to where it
+started and report a successful refinement that did nothing.
+`refinement.measurement_value_fn` computes from the given positions directly.
+
+---
+
 ## 4. Background reconstruction job
 
 ```text

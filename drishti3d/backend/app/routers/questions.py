@@ -26,14 +26,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Project, Measurement, MeasurementQuestion
+from ..models import (Project, Measurement, MeasurementQuestion,
+                      RefinementRun)
 from ..schemas import (QuestionCreate, QuestionUpdate, QuestionOut,
-                       QuestionEvidenceOut)
+                       QuestionEvidenceOut, RefineRequest, RefinementOut)
 from .. import storage
 from .measurements import load_cloud
 
 from drishti_recon import measure as measmod
 from drishti_recon import questions as qmod
+from drishti_recon import refinement as refmod
 from drishti_recon.evidence import ReconstructionEvidence
 
 router = APIRouter(prefix="/api/projects", tags=["questions"])
@@ -346,6 +348,155 @@ def question_evidence(project_id: str, question_id: str,
             "coverage grid, not the image observations that produced the "
             "points. Parallax shown is therefore an upper bound."),
     }
+
+
+@router.post("/{project_id}/questions/{question_id}/refine",
+             response_model=RefinementOut)
+def refine_question(project_id: str, question_id: str,
+                    body: RefineRequest | None = None,
+                    db: Session = Depends(get_db)):
+    """Spend a bounded budget recovering evidence for this one measurement.
+
+    Frames of the same pass that the reconstruction never processed are ranked
+    by the parallax they would add at the measurement's weakest endpoint, a
+    bounded batch is registered against the existing model, and the endpoint is
+    re-triangulated from the enlarged ray set.
+
+    A run that recovers nothing is still recorded and still returned, with the
+    reason. The feature's claim is that targeted refinement beats a uniform
+    budget; a path that only reported its successes could not be used to test
+    that.
+    """
+    body = body or RefineRequest()
+    row = db.get(MeasurementQuestion, question_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "question not found")
+    rec = _evidence_for(project_id)
+    if rec is None:
+        raise HTTPException(404, "reconstruction artifacts not available")
+
+    prior = _latest(db, row.id)
+    if prior is None or prior.artifact_version != _artifact_version(project_id):
+        prior = _answer(project_id, row, db)
+
+    proj = db.get(Project, project_id)
+    video = None
+    if proj is not None and proj.video_filename:
+        p = storage.project_dir(project_id) / "uploads" / proj.video_filename
+        if p.is_file():
+            video = str(p)
+    if video is None:
+        raise HTTPException(
+            409, "the original video is required to recover unused frames from "
+                 "the same pass, and it is not on disk for this project")
+
+    cloud = load_cloud(project_id)
+    pts = [np.asarray(p, float) for p in (prior.points_enu or row.points_enu)]
+    # Endpoint sigmas come from the cloud the measurement was taken on. They are
+    # looked up once, here, so the refined endpoint keeps its own uncertainty
+    # instead of inheriting whatever point it now sits nearest to.
+    sigmas = []
+    for p in pts:
+        _sp, _prov, sg = measmod._snap(cloud, p, row.allow_inferred)
+        sigmas.append(float(sg))
+    scale_sigma_rel = (float(rec.scale_sigma_rel)
+                       if np.isfinite(rec.scale_sigma_rel) else 0.0)
+
+    question = qmod.MeasurementQuestion(
+        kind=row.kind, tolerance_m=row.tolerance_m, level=row.interval_level,
+        threshold_m=row.threshold_m,
+        threshold_direction=row.threshold_direction, label=row.label or "")
+    engine = refmod.RefinementEngine(rec, storage.artifacts_dir(project_id),
+                                     video_path=video)
+    try:
+        run = engine.refine(
+            question, pts,
+            value_fn=refmod.measurement_value_fn(
+                row.kind, sigmas, scale_sigma_rel=scale_sigma_rel),
+            budget_frames=int(body.budget_frames),
+            max_decode=int(body.max_decode))
+    finally:
+        if engine._source is not None:
+            engine._source.close()
+
+    detail = run.to_dict()
+    result = prior
+    if run.added_frames:
+        # A refinement produces a new result rather than overwriting the old
+        # one: the point of showing a before and after is that both survive.
+        after = detail["after"]
+        result = Measurement(
+            project_id=project_id, question_id=row.id, kind=prior.kind,
+            value=after["value"], unit=prior.unit,
+            points_enu=[list(map(float, p)) for p in pts],
+            confidence_note=prior.confidence_note,
+            used_inferred=prior.used_inferred,
+            warnings=list(prior.warnings or []),
+            sigma=after["sigma"],
+            interval_half_width=after["interval_half_width"],
+            interval_level=row.interval_level,
+            interval_basis="uncalibrated_sensitivity",
+            status=after["status"], status_reasons=after["reasons"],
+            dominant_limitation=after["dominant_limitation"],
+            threshold_result=prior.threshold_result,
+            evidence={**(prior.evidence or {}),
+                      "n_supporting_views": after["n_supporting_views"],
+                      "max_ray_separation_deg": after["max_ray_separation_deg"],
+                      "view_support_basis": after["view_support_basis"]},
+            artifact_version=prior.artifact_version,
+            calibration_profile=None, refined_from_id=prior.id)
+        db.add(result)
+        db.flush()
+
+    rr = RefinementRun(
+        project_id=project_id, question_id=row.id,
+        parent_measurement_id=prior.id, result_measurement_id=result.id,
+        budget_frames=int(body.budget_frames),
+        n_considered=detail["n_considered"], n_added=detail["n_added"],
+        termination_reason=detail["termination_reason"],
+        wall_seconds=detail["wall_seconds"], improved=bool(run.improved),
+        detail=detail, artifact_version=prior.artifact_version)
+    db.add(rr)
+    db.commit()
+    db.refresh(rr)
+
+    return {
+        "id": rr.id, "question_id": row.id,
+        "parent_measurement_id": prior.id,
+        "result_measurement_id": result.id,
+        "improved": bool(run.improved),
+        "n_considered": rr.n_considered, "n_added": rr.n_added,
+        "termination_reason": rr.termination_reason,
+        "wall_seconds": rr.wall_seconds,
+        "before": detail["before"], "after": detail["after"],
+        "added_frames": detail["added_frames"],
+        "rejected": detail["rejected"], "notes": detail["notes"],
+        "created_at": rr.created_at,
+    }
+
+
+@router.get("/{project_id}/questions/{question_id}/refinements",
+            response_model=list[RefinementOut])
+def list_refinements(project_id: str, question_id: str,
+                     db: Session = Depends(get_db)):
+    rows = (db.query(RefinementRun)
+            .filter(RefinementRun.question_id == question_id,
+                    RefinementRun.project_id == project_id)
+            .order_by(RefinementRun.created_at.desc()).all())
+    return [{
+        "id": r.id, "question_id": r.question_id,
+        "parent_measurement_id": r.parent_measurement_id,
+        "result_measurement_id": r.result_measurement_id,
+        "improved": bool(r.improved), "n_considered": r.n_considered,
+        "n_added": r.n_added, "termination_reason": r.termination_reason,
+        "wall_seconds": r.wall_seconds,
+        "before": (r.detail or {}).get("before", {}),
+        "after": (r.detail or {}).get("after", {}),
+        "added_frames": (r.detail or {}).get("added_frames", []),
+        "rejected": (r.detail or {}).get("rejected", []),
+        "notes": (r.detail or {}).get("notes", []),
+        "created_at": r.created_at,
+    } for r in rows]
 
 
 @router.delete("/{project_id}/questions/{question_id}")

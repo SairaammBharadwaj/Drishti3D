@@ -323,6 +323,13 @@ class ReconstructionEvidence:
             within &= self.within_coverage(p)
 
         observed = endpoints_observed
+        if observed is None and provenances is None and basis == \
+                "triangulated_observations":
+            # A point with observation lineage was triangulated from real image
+            # measurements, which is what "on observed geometry" means. Leaving
+            # this to the pessimistic default would refuse every measurement a
+            # caller makes without separately looking up provenance.
+            observed = True
         if observed is None and provenances is not None:
             observed = all(int(pr) in (int(Provenance.OBSERVED_HIGH_CONFIDENCE),
                                        int(Provenance.OBSERVED_LOW_CONFIDENCE))

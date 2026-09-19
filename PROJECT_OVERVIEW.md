@@ -41,6 +41,7 @@ dimensions and coverage information before leaving a site.
 | Camera trajectory | `trajectory.json/.csv/.geojson` | ENU poses, GNSS track, intrinsics |
 | Coverage field | `coverage.npz`, `coverage.json` | Per-voxel observed / weak / occluded / unseen / verified-empty |
 | Observation lineage | `observations.npz` | Which frames and pixels produced each cloud point |
+| Refinement runs | SQLite `refinement_runs` | Before/after, frames recovered, every rejection with its reason |
 | Measurements | REST API, SQLite | Value, interval, acceptance status, reason codes |
 | Quality report | `quality_report.html/.json` | Per-stage diagnostics and warnings |
 
@@ -133,6 +134,21 @@ membership, and the metric scale source with its relative uncertainty.
 falls back to camera frustums, is stamped `frustum_upper_bound`, and blocks
 acceptance — on the AGZ mission the frustum figures overstate view count by 3.0×
 and parallax by 3.7× against what the measurements actually provided.
+
+### Same-pass evidence recovery
+**What:** "Improve this measurement" — frames of the pass that the
+reconstruction never processed are ranked by the parallax they would add at the
+measurement's weakest endpoint, a bounded batch is posed by PnP against the
+existing model, the endpoint is located in each by pose-guided descriptor match
+and re-triangulated, and the measurement is re-decided. Runs are recorded
+whether or not they helped.
+**Where:** `refinement.py` (`RefinementEngine`, `RefinementRun`),
+`POST /api/projects/{id}/questions/{qid}/refine`, `models.RefinementRun`.
+**Measured on the AGZ mission** (30 weak measurements, 4-frame budget, median
+12.8 s each): 10 of 30 recovered at least one frame, and all 10 cleared a
+blocking reason; supporting views went from a median of 2 to 4 and parallax
+from 8.1° to 15.5°. The other 20 recovered nothing, almost always because the
+endpoint could not be matched into the recovered frame.
 
 ### Dataset tooling
 **What:** inventory of every dataset in the checkout with content digests, LFS
@@ -297,6 +313,10 @@ each figure came from.
 `drishti3d/reconstruction/drishti_recon/coverage.py`
 The unknown-space map and the free-space rule.
 
+`drishti3d/reconstruction/drishti_recon/refinement.py`
+Same-pass evidence recovery: candidate ranking, PnP re-registration,
+pose-guided endpoint location, re-triangulation and the run record.
+
 `drishti3d/backend/app/main.py`
 FastAPI application; runs `init_db()` on startup.
 
@@ -412,6 +432,8 @@ cd drishti3d
   the frames and pixels that produced it.
 - Measurement evidence for any selected point, labelled with the basis it was
   derived from.
+- Same-pass evidence recovery for a single measurement, with every candidate
+  frame's fate reported.
 - Reproducible dataset inventory, mission construction and scoring, with
   reference data access-separated from the worker.
 
@@ -422,8 +444,15 @@ cd drishti3d
   `estimated_only`. This is deliberate, not a defect ([DEC-003](DECISIONS.md)),
   and since observation lineage landed it is the *only* remaining blocker on
   real data.
-- **No same-pass refinement** (plan F4). `Improve this measurement` does not
-  exist, though the candidate ranking it needs does.
+- **Same-pass refinement works but is unproven.** It recovers evidence on a
+  third of attempts and clears the blocking reason when it does, but the paired
+  experiment the plan's F4 gate asks for — targeted versus uniform refinement at
+  equal added compute — has not been run. The hypothesis is supported, not
+  tested.
+- **COLMAP reconstructions carry no per-point uncertainty**, so every
+  measurement on one returns `not_observable`. The faster, more accurate engine
+  is not yet usable for measurement ([DEC-011](DECISIONS.md)); measurement work
+  runs on the in-repo engine.
 - **No measurement passport or verifier** (plan F3).
 - **No Tolerance Lens UI.** The backend gate exists; the frontend does not
   render it yet.

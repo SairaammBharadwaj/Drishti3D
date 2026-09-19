@@ -714,3 +714,208 @@ the meaning of acceptance.
 `fusion.py`, `pipeline.py` (`_remap_observations`, `_write_artifacts`),
 `evidence.py`, `backend/app/routers/questions.py`,
 `drishti3d/tests/test_lineage.py`, `drishti3d/tests/test_evidence.py`
+
+---
+
+## DEC-010 — Same-pass refinement recovers frames by PnP against the existing model, and is judged on what it unblocks
+
+**Date:** 2026-09-20
+
+**Status:** Accepted
+
+### Context
+
+Plan feature F4. Keyframe selection discards most of a single pass — 104 of 184
+decoded frames on the AGZ development mission. Those frames were flown and
+never processed. The claim to test is that spending a bounded budget on the
+frames that would help *one* measurement beats spreading the same budget
+uniformly.
+
+Building it raised four questions.
+
+### Options Considered
+
+#### How a recovered frame gets a pose
+
+*Re-run global SfM with the extra frames* — correct, and far outside any
+interactive budget; it also changes the geometry every stored measurement was
+taken against.
+
+*Interpolate between the registered cameras that bracket it in time* — free,
+but it is a guess about where a camera was, and nothing measured against it
+would be evidence.
+
+*PnP against the existing model* — matches into temporally neighbouring
+registered frames land on pixels whose 3D points the model already knows, which
+turns 2D-2D matches into the 2D-3D correspondences PnP needs.
+
+**Decided:** all three, in their proper roles. Interpolation gives *tentative*
+visibility, used only to decide what is worth decoding. PnP gives the real pose.
+Global re-solving is out of scope and named as such. Measured on AGZ, PnP
+recovers 571–1378 inliers at 1.2–1.3 px reprojection RMSE, and the recovered
+centres agree with the interpolated ones to 0.09–0.38 m — an independent check
+that the tentative poses were reasonable and the recovered ones are real.
+
+#### How the endpoint is located in a recovered frame
+
+*Project it through the recovered pose and accept that pixel* — circular. The
+new ray would pass exactly through the estimate it came from, adding no
+information while narrowing the interval. That is worse than not refining.
+
+*Match the recovered frame against a frame that measured the endpoint* — the
+frames that measured an endpoint can sit anywhere in the pass. On AGZ the
+nearest were 25 frames away, about 32 m of flight, and matching across that
+returned 74 matches out of 4000 keypoints, almost all wrong.
+
+**Decided:** pose-guided search. The projection bounds a
+:data:`LOCATE_SEARCH_PX` window; what is accepted is a keypoint the detector
+found *independently* inside it whose descriptor matches the endpoint's
+appearance in a frame that measured it, passing a ratio test. The prediction is
+a prior on where to look, never the measurement.
+
+#### Which candidate to spend the budget on
+
+*Maximum parallax gain* — the obvious answer, and wrong. The frames that add
+the most parallax are the same frames whose view of the surface has changed the
+most. On AGZ the top-ranked candidate added 70° of parallax and produced a
+best-to-second descriptor ratio of 0.85: correctly refused as ambiguous, and a
+wasted decode. Every one of the top candidates failed the same way.
+
+**Decided:** rank by parallax gain discounted past
+:data:`MATCHABLE_GAIN_DEG` = 25°, where descriptor matching starts to fail.
+The ranking peaks at usable geometry rather than at maximum geometry.
+
+#### What counts as an improvement
+
+*A narrower interval* — the natural definition, and it would have called the
+feature a failure. A run that recovered three frames moved the value by 0.104 m
+and the interval by 0.001 m, because the interval was dominated by the *other*
+endpoint and by the 1.15% metric scale term. It nonetheless cleared
+`insufficient_views`, which was the reason blocking that measurement.
+
+**Decided:** report `reasons_cleared`, `interval_narrowed` and `value_change_m`
+separately, and define `improved` as either a cleared blocking reason or a
+narrower interval. The plan says it directly: "a narrower interval alone is not
+proof of improvement."
+
+### Decision
+
+All four as above, in `reconstruction/drishti_recon/refinement.py`, exposed as
+`POST /api/projects/{id}/questions/{qid}/refine` and persisted as
+`RefinementRun` rows whether or not they achieved anything.
+
+### Why
+
+Every choice resolves the same tension: refinement must add *independent*
+evidence or it adds nothing. A pose that came from interpolation, a pixel that
+came from a projection, or an interval that narrowed because a recovered camera
+was treated as exact would each produce a more confident answer built on no new
+observation. Recovered cameras therefore carry
+:data:`POSE_UNCERTAINTY_INFLATION` times the baseline pixel sigma, so adding
+views narrows the interval by less than the geometry alone would suggest.
+
+### Consequences
+
+- **Measured outcome, 30 weak measurements on the AGZ mission, 4-frame budget,
+  median 12.8 s each:** 10 of 30 recovered at least one frame and every one of
+  those cleared a blocking reason (9 × `insufficient_views`, 1 ×
+  `outside_established_coverage`). For those, supporting views went from a
+  median of 2 to 4 and measured parallax from 8.1° to 15.5°. Median absolute
+  change in the reported value was 0.032 m.
+- **Two thirds recovered nothing**, overwhelmingly because the endpoint could
+  not be matched into the recovered frame. That is the honest ceiling of
+  descriptor matching across a changed viewpoint, not a tuning problem, and it
+  is reported per frame with a reason rather than as a silent no-op.
+- The refined endpoint's own triangulation sigma (~0.22 m on the worked
+  example) is *larger* than the reconstruction's propagated sigma (~0.04 m),
+  because the reconstruction's comes from full bundle adjustment and this comes
+  from a standalone ray intersection. It is reported as `endpoint_sigma`
+  alongside, and deliberately not substituted into the measurement's interval.
+- **The paired experiment the plan's F4 gate actually asks for — targeted
+  versus uniform refinement at equal added compute — has not been run.** What
+  exists is an outcome survey. Until that experiment runs, the hypothesis is
+  supported but not tested. Tracked in `NEXT_STEPS.md`.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/refinement.py`,
+`backend/app/routers/questions.py`, `backend/app/models.py` (`RefinementRun`),
+`drishti3d/tests/test_refinement.py`
+
+---
+
+## DEC-011 — The COLMAP path ships no per-point uncertainty, so its measurements cannot be reported
+
+**Date:** 2026-09-20
+
+**Status:** Accepted — as a documented defect, not a resolution
+
+### Context
+
+[DEC-008](#dec-008--colmap-is-the-reconstruction-engine-to-develop-against)
+made COLMAP the engine to develop against: 3.5× faster, half the shape error.
+Building refinement on top of it exposed that `cloud.npz` from a COLMAP run
+contains only `points`, `colors`, `confidence` and `provenance` — no `sigma`,
+no `sigma_major`.
+
+`colmap_adapter.reconstruct_frames` never populates `ReconResult.point_cov`,
+`point_sigma` or `point_sigma_major`; only the in-repo engine's
+`uncertainty.point_covariances` pass does. Every endpoint on a COLMAP
+reconstruction therefore snaps to a point whose sigma is infinite, and
+`questions.evaluate` correctly returns `not_observable` with
+`uncertainty_undefined`.
+
+So the better engine currently produces reconstructions on which **no
+measurement can be reported at all**, and the worse one produces measurable
+ones. That is the opposite of what DEC-008's benchmark implies.
+
+### Options Considered
+
+#### Fall back to a default sigma on the COLMAP path
+
+Advantages: measurements start working immediately.
+
+Disadvantages: a made-up sigma is a made-up interval, and it would flow
+straight into acceptance once calibration exists. This is precisely the failure
+DEC-003 exists to prevent, arriving through the back door.
+
+#### Revert DEC-008 and default to the in-repo engine
+
+Advantages: the complete path works today.
+
+Disadvantages: throws away a measured 3.5× speedup and half the shape error to
+work around a missing feature rather than building it.
+
+#### Record it, keep both engines, and run the uncertainty pass on COLMAP output
+
+`uncertainty.point_covariances` takes observations, poses and intrinsics — all
+of which the COLMAP adapter now has, since observation lineage landed
+(DEC-009). It is a wiring job, not new mathematics.
+
+### Decision
+
+The third. DEC-008 stands for reconstruction quality; this decision records
+that the engine choice is not yet safe for measurement, and the wiring is P1 in
+`NEXT_STEPS.md`. Until it lands, measurement work runs on the in-repo engine
+and the limitation is stated wherever engine results are compared.
+
+### Why
+
+The measured case for COLMAP is about geometry and is unaffected. The gap is a
+missing uncertainty pass, and the inputs it needs now exist. Substituting a
+placeholder sigma would make the product look finished while removing the one
+property that makes its numbers worth anything.
+
+### Consequences
+
+- Any measurement or refinement demonstration must use an in-repo-engine
+  reconstruction until this is wired.
+- `TESTS_AND_RESULTS.md` records which engine produced each measurement result.
+- Once wired, DEC-008's recommendation and the measurement path finally agree,
+  and the COLMAP path's longer mean track length (3.91 vs 2.78) should give it
+  *better* per-point uncertainty than the engine now being used.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/colmap_adapter.py`,
+`uncertainty.py` (`point_covariances`), `pipeline.py` fusion stage

@@ -108,9 +108,45 @@ class Measurement(Base):
     #: stale rather than quietly reinterpreted against new geometry.
     artifact_version = Column(String, nullable=True)
     calibration_profile = Column(JSON, nullable=True)
+    #: Set when this result came out of a refinement rather than a first
+    #: measurement, so a card can show what changed and against what.
+    refined_from_id = Column(String, nullable=True)
 
     project = relationship("Project", back_populates="measurements")
     question = relationship("MeasurementQuestion", back_populates="results")
+
+
+class RefinementRun(Base):
+    """One same-pass evidence-recovery attempt, kept whether or not it helped.
+
+    Plan section 5.9 asks for this record by name. Keeping runs that achieved
+    nothing is the point: the feature's claim is that targeted refinement beats
+    a uniform budget, and a table that only holds successes cannot test it.
+    """
+
+    __tablename__ = "refinement_runs"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    project_id = Column(String, ForeignKey("projects.id"))
+    question_id = Column(String, ForeignKey("measurement_questions.id"))
+    #: The measurement this run started from, and the one it produced. When no
+    #: frame was recovered the two are the same row.
+    parent_measurement_id = Column(String, nullable=True)
+    result_measurement_id = Column(String, nullable=True)
+    budget_frames = Column(Integer, default=6)
+    n_considered = Column(Integer, default=0)
+    n_added = Column(Integer, default=0)
+    termination_reason = Column(String, default="")
+    wall_seconds = Column(Float, default=0.0)
+    improved = Column(Boolean, default=False)
+    #: The full run record: before/after snapshots, added frames with their PnP
+    #: inliers and located pixels, and every rejection with its reason.
+    detail = Column(JSON, default=dict)
+    artifact_version = Column(String, nullable=True)
+    created_at = Column(DateTime, default=_now)
+
+    project = relationship("Project")
+    question = relationship("MeasurementQuestion")
 
 
 class MeasurementQuestion(Base):

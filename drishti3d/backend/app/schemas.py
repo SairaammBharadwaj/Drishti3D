@@ -128,6 +128,31 @@ class QuestionEvidenceOut(BaseModel):
     note: str = ""
 
 
+class RefineRequest(BaseModel):
+    """How much compute the operator is willing to spend on one measurement."""
+
+    budget_frames: int = 6      # frames actually registered and folded in
+    max_decode: int = 24        # candidates decoded before giving up
+
+
+class RefinementOut(BaseModel):
+    id: str
+    question_id: str
+    parent_measurement_id: Optional[str]
+    result_measurement_id: Optional[str]
+    improved: bool
+    n_considered: int
+    n_added: int
+    termination_reason: str
+    wall_seconds: float
+    before: dict
+    after: dict
+    added_frames: list
+    rejected: list
+    notes: list
+    created_at: datetime
+
+
 class ExportRequest(BaseModel):
     formats: list[str] = ["ply", "geojson", "report_html"]
 

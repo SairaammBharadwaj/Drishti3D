@@ -576,3 +576,224 @@ Evidence Replay (F3) and same-pass refinement (F4) are unblocked. The
 measurement passport moves from "needs lineage first" to buildable.
 
 P0 in [NEXT_STEPS.md](NEXT_STEPS.md) is now empty.
+
+---
+
+# 2026-09-20 — Same-pass evidence recovery: "Improve this measurement"
+
+## Objective
+
+Build plan feature F4, the principal engineering contribution. Keyframe
+selection discards 104 of 184 decoded frames on the AGZ development mission.
+Those frames were flown, they see the scene, and nothing ever processed them.
+The claim to test is that spending a bounded budget on the frames that would
+help *one* measurement recovers evidence a uniform budget missed.
+
+## Work Completed
+
+### `reconstruction/drishti_recon/refinement.py`
+
+`RefinementEngine` indexes every decoded frame of the pass, marks which ones the
+reconstruction used, and for a given endpoint:
+
+1. Gives each unused frame a **tentative** pose by slerp/lerp between the
+   registered cameras bracketing it in time, and back-projects the endpoint.
+2. Rejects candidates that cannot help, each with a stable reason code: already
+   used, below the quality floor, outside the registered span, endpoint not in
+   frame, or no parallax gain.
+3. Ranks survivors by parallax gain, discounted past `MATCHABLE_GAIN_DEG = 25°`
+   and by range.
+4. For each, in order: decodes and undistorts to the solver's geometry, matches
+   against temporally neighbouring registered frames, turns matches into 2D-3D
+   correspondences through stored observations, and recovers a real pose by PnP
+   RANSAC.
+5. Locates the endpoint by **pose-guided** descriptor match — the projection
+   bounds a window, and what is accepted is an independently detected keypoint
+   inside it.
+6. Re-triangulates from the enlarged ray set with weights in metres, and
+   re-decides the measurement.
+
+`RefinementRun` records before, after, every frame added with its PnP inliers
+and located pixel, every rejection with its reason, the budget, the wall clock
+and the termination reason — whether or not anything was recovered.
+
+`measurement_value_fn` recomputes a measurement from given positions **without
+re-snapping to the cloud**.
+
+### Backend
+
+`POST /api/projects/{id}/questions/{qid}/refine` and
+`GET …/refinements`. A refinement that recovers frames inserts a *new*
+`Measurement` (the original is kept, linked by `refined_from_id`) and a
+`RefinementRun` row. Refining without the original video returns 409 naming the
+missing input.
+
+### Tests
+
+24 added: 21 in `tests/test_refinement.py`, 3 API cases. 277 → 301.
+
+## Files Changed
+
+`drishti3d/reconstruction/drishti_recon/refinement.py` (new) — the whole feature.
+
+`drishti3d/reconstruction/drishti_recon/evidence.py` — a point that resolves to
+observation lineage now counts as observed geometry when no provenance is
+supplied. Without this every refinement's before/after read `not_observable`.
+
+`drishti3d/backend/app/models.py` — `RefinementRun` table;
+`Measurement.refined_from_id`.
+
+`drishti3d/backend/app/routers/questions.py`, `schemas.py` — the two endpoints.
+
+`drishti3d/tests/test_refinement.py` (new), `test_questions_api.py`.
+
+## Important Implementation Details
+
+**The tentative pose is never measured against.** Interpolation decides what is
+worth decoding. Everything that becomes evidence comes from the PnP pose.
+
+**The projected pixel is never accepted.** Accepting it would make the new ray
+pass exactly through the estimate it came from — no new information, a narrower
+interval, and a refinement that reports success for doing nothing.
+
+**A recovered camera counts for less.** `POSE_UNCERTAINTY_INFLATION = 2.0`
+multiplies its pixel sigma, so adding views narrows the interval by less than
+the geometry alone suggests. Treating a PnP pose as exact would make the
+interval artificially certain, which is worse than not refining.
+
+**Triangulation weights are in metres, not pixels.** A pixel error `s` at focal
+length `f` and range `r` displaces the point by about `r·s/f`. Weighting by
+pixels alone made a distant observation count as heavily as a near one and left
+the covariance in units that were not metres — it reported a 7.24 m endpoint
+sigma before this was fixed.
+
+**Improvement is not interval width.** `reasons_cleared`, `interval_narrowed`
+and `value_change_m` are reported separately.
+
+## Commands Executed
+
+```bash
+cd drishti3d
+.venv/bin/python scripts/run_mission.py --mission agz_dense_pass \
+    --max-frames 184 --engine opencv --tag ocv_lineage_full
+.venv/bin/python -m pytest tests/ -q          # 301 passed, 191 s
+# 30-measurement outcome survey (script in the session scratchpad)
+```
+
+## Problems Encountered
+
+**Problem** — Every PnP solve failed: 46 correspondences, zero inliers, on all
+three OpenCV solvers.
+
+**Cause** — Two independent faults. First, `FrameSource` derived the resize
+factor from the principal point (`width / 2·cx`), assuming the optical centre is
+the image centre. On the AGZ calibration that is off by 1%, putting every
+feature ~10 px from where the stored observations say it should be. Second, and
+larger: anchor frames were chosen as the frames that *measured the endpoint*,
+which on this mission sit 25 frames — about 32 m of flight — from the
+candidate. SIFT across that baseline returned 74 matches from 4000 keypoints,
+almost all wrong.
+
+**Solution** — Take the resize factor from the frame itself. Split the anchor
+roles: `_pnp_anchors` are the registered frames nearest *in time* (posing needs
+shared texture), `_endpoint_anchors` are the frames that measured the endpoint
+(locating needs 3D identity). PnP then recovers 571–1378 inliers at 1.2–1.3 px,
+and the recovered centres agree with the interpolated ones to 0.09–0.38 m.
+
+---
+
+**Problem** — With PnP fixed, endpoint location still failed on every candidate.
+Descriptor distances of 389–571 with best-to-second ratios of 0.86–0.98.
+
+**Cause** — SIFT emits a separate keypoint for each dominant gradient
+orientation at a location, so one pixel commonly carries two or three mutually
+unrelated descriptors. Taking the nearest keypoint and its single descriptor
+picked one arbitrarily. The decisive measurement: the *same* physical point's
+two observations compared at **599** when orientations were mismatched — worse
+than the 5th percentile of random descriptors — while the correct pairing
+compared at **122.9** and was rank 0 among all 4000 in the frame.
+
+**Solution** — `_endpoint_descriptors` returns every descriptor within the
+match radius and a match against any of them counts. The first frame was
+recovered on the next run.
+
+---
+
+**Problem** — The first successful run reported an endpoint sigma of 7.24 m.
+
+**Cause** — `_triangulate` weighted rays by inverse *pixel* variance and
+inverted the resulting normal matrix as if it were a covariance in metres. It
+is not; the units are wrong and range does not enter at all.
+
+**Solution** — Convert each observation's pixel sigma to the cross-ray
+positional sigma it implies, `range · sigma_px / focal`, and weight by that.
+The same example now reports 0.216 m.
+
+---
+
+**Problem** — Every measurement on a COLMAP reconstruction returned
+`not_observable` with `uncertainty_undefined`.
+
+**Cause** — `colmap_adapter` never populates `point_sigma` / `point_sigma_major`;
+only the in-repo engine runs the `uncertainty.point_covariances` pass. So
+`cloud.npz` from a COLMAP run carries no uncertainty at all.
+
+**Solution** — Not fixed here. Recorded as [DEC-011](DECISIONS.md) and raised
+to P0, since it means the engine DEC-008 recommends cannot be measured on. All
+measurement and refinement results in this entry used the in-repo engine. A
+placeholder sigma was explicitly rejected: it would flow into acceptance once
+calibration exists, which is what DEC-003 exists to prevent.
+
+## Approaches That Did Not Work
+
+**Ranking candidates by maximum parallax gain.** The obvious objective, and it
+recovered nothing. The frames that add the most parallax are the same frames
+whose view of the surface has changed the most; the top-ranked candidate added
+70° and produced a descriptor ratio of 0.85, correctly refused as ambiguous.
+Every top candidate failed identically. Ranking now peaks at 25°.
+
+**Accepting the projected pixel as the endpoint's location.** It would have made
+every candidate "succeed" — and circularly: the new ray passes through the
+estimate that produced it, so triangulation returns the same point with a
+falsely reduced sigma.
+
+**Using `measure.measure_distance` as the refinement's value function.** It
+snaps to the nearest cloud point, so a refined endpoint snaps back to the
+unrefined point it started from and the run reports a successful refinement that
+changed nothing. `measurement_value_fn` exists for this reason and a test pins
+it.
+
+**Judging refinement by whether the interval narrowed.** It would have called
+the worked example a failure: the interval moved 0.001 m while the value moved
+0.104 m and a blocking reason was cleared.
+
+## Verification
+
+- 301 tests pass, up from 277.
+- **Outcome survey**, 30 weak measurements on the AGZ mission, 4-frame budget,
+  median 13.7 s each: 10 of 30 recovered at least one frame and all 10 cleared a
+  blocking reason (9 × `insufficient_views`, 1 ×
+  `outside_established_coverage`). Supporting views 2 → 4 median, parallax
+  8.1° → 15.5° median, median absolute value change 0.032 m. Reproduced exactly
+  on a second run.
+- **Why the rest failed**, across every candidate processed: 243 ×
+  `endpoint_not_located_in_image`, 22 × `pose_recovery_failed`. Pose recovery
+  works 92% of the time; endpoint location is the bottleneck.
+- **Self-PnP check:** recovering a known camera from its own stored observations
+  returns its centre to 2 mm with 544/546 inliers, confirming the frame, pose
+  and intrinsic conventions all agree.
+
+## Result
+
+"Improve this measurement" works end to end and is measured. On the AGZ mission
+it recovers evidence for a third of weak measurements and clears the blocking
+reason every time it does.
+
+What it does **not** yet have is the comparison the plan's F4 gate asks for:
+targeted versus uniform refinement at equal added compute. Only the targeted arm
+exists, so the central innovation hypothesis is supported and untested. That
+experiment is now the highest-value work left, at P1.
+
+Two findings were raised to P0/P1 in [NEXT_STEPS.md](NEXT_STEPS.md): the COLMAP
+path ships no per-point uncertainty and cannot be measured on, and endpoint
+location in recovered frames is the binding constraint on refinement.

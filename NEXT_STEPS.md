@@ -7,17 +7,61 @@ Last updated: 2026-09-19.
 
 **The one-line summary of where the project stands:** reconstruction works on
 real single-pass aerial video and is measured against a real reference; every
-measurement can name the frames and pixels that produced it; but nothing can be
-*accepted* yet, because there is no validated interval calibration — and that
-one needs field data, not code.
+measurement can name the frames and pixels that produced it, and can spend a
+bounded budget recovering more from the same pass. Nothing can be *accepted*
+yet, because there is no validated interval calibration — that needs field
+data, not code. Two gaps are code, though: the COLMAP path ships no per-point
+uncertainty, and the refinement hypothesis has not been tested against a
+uniform-budget control.
 
 ---
 
 ## P0 — Critical
 
-Nothing. Observation lineage, the previous P0, landed on 2026-09-19 — see
-[DEC-009](DECISIONS.md) and the
-[WORKLOG entry](WORKLOG.md). The top of the backlog is now P1.
+### Wire per-point uncertainty into the COLMAP path
+
+**Status:** TODO
+**Priority:** P0
+
+**Why it matters**
+
+The faster, more accurate engine ([DEC-008](DECISIONS.md)) produces
+reconstructions on which **no measurement can be reported at all**.
+`cloud.npz` from a COLMAP run has no `sigma` or `sigma_major`, so every endpoint
+snaps to an infinite sigma and `questions.evaluate` returns `not_observable`
+with `uncertainty_undefined`. Every measurement and refinement result recorded
+so far had to use the in-repo engine instead. See
+[DEC-011](DECISIONS.md#dec-011--the-colmap-path-ships-no-per-point-uncertainty-so-its-measurements-cannot-be-reported).
+
+**Current state**
+
+`colmap_adapter.reconstruct_frames` leaves `ReconResult.point_cov`,
+`point_sigma` and `point_sigma_major` as `None`. Only the in-repo engine runs
+the `uncertainty.point_covariances` pass.
+
+**Recommended implementation**
+
+`uncertainty.point_covariances(points, cam_idx, pt_idx, uv, rvecs, tvecs, K)`
+needs observations, poses and intrinsics — all of which the COLMAP adapter now
+has, since observation lineage landed. Feed `obs_point`, `obs_frame` and
+`obs_uv` straight in. This is wiring, not new mathematics.
+
+Do **not** substitute a default sigma as a stopgap: a made-up interval flows
+directly into acceptance once calibration exists, which is exactly what
+[DEC-003](DECISIONS.md) exists to prevent.
+
+Afterwards, check whether COLMAP's longer mean track length (3.91 vs 2.78
+observations per point) gives it better per-point uncertainty than the engine
+currently in use, and re-run the measurement and refinement surveys on it.
+
+**Relevant files**
+
+`reconstruction/drishti_recon/colmap_adapter.py`, `uncertainty.py`,
+`pipeline.py` fusion stage
+
+**Dependencies/blockers**
+
+None.
 
 ---
 
@@ -106,46 +150,136 @@ redundant, blurry, or wrongly rejected is **not established**.
 
 ---
 
-### Same-pass evidence recovery — "Improve this measurement"
+### Test the refinement hypothesis against a uniform-budget control
 
 **Status:** TODO
 **Priority:** P1
 
 **Why it matters**
 
-Plan feature F4, and the principal engineering contribution of the product.
+Same-pass refinement is built and measured, but the plan's F4 gate is a
+*comparison*: "on frozen questions and equal added compute budgets, targeted
+refinement improves correct accepted-answer yield or reaches the same quality
+faster than uniform refinement." Only the targeted arm exists. Until the control
+runs, the central innovation hypothesis is supported and untested — and the plan
+is explicit that a negative result is acceptable and must be visible.
 
 **Current state**
 
-Nothing implemented, but both halves it depends on now exist.
-`evidence.supporting_frames` does the candidate ranking, diversity-ranked by
-added angular spread. `observations.npz` says which frames already measured a
-point, which is exactly the set a scheduler must *exclude* when looking for new
-evidence.
+`refinement.RefinementEngine` and the outcome survey in `TESTS_AND_RESULTS.md`:
+10 of 30 weak measurements recovered evidence, all 10 clearing a blocking
+reason, median 13.7 s each.
 
 **Recommended implementation**
 
-Follow plan section 5.7. Build `refinement.py` with: candidate retrieval from a
-full-clip frame index, rejection of cuts/blur/dynamic/incompatible frames,
-ranking by useful baseline and expected variance reduction, a bounded batch of
-4–8 frames, local re-match and refit with a connected boundary to the global
-model, and recomputation of the measurement and its verdict. Persist a
-`RefinementRun` record with parent and result versions, added and excluded
-frames, budget, actual runtime, before/after result and termination reason.
-
-The experiment that matters is the paired comparison in plan F4: targeted
-refinement versus uniform refinement at equal added compute. **A negative result
-is a valid outcome and must be published**, not buried.
+1. A frozen question set: fix the endpoints and tolerances once, in a file, and
+   do not touch them again.
+2. The uniform arm: spend the same added compute by re-running the
+   reconstruction with N more keyframes selected uniformly, then re-measure the
+   same questions.
+3. Equalise on *measured* wall clock, not frame count.
+4. Report accepted-answer yield, cleared blocking reasons, and error against
+   whatever truth exists, for both arms.
+5. Publish the result either way. If targeted refinement does not win, keep it
+   as an experimental feature and say so in `PROJECT_OVERVIEW.md`.
 
 **Relevant files**
 
-New `reconstruction/drishti_recon/refinement.py`; `keyframes.py`,
-`features.py`, `bundle.py`, `evidence.py`, `backend/app/routers/questions.py`
+`reconstruction/drishti_recon/refinement.py`, `keyframes.py`, `eval/`
 
 **Dependencies/blockers**
 
-None remaining — observation lineage landed 2026-09-19. This is the largest
-open piece of engineering in the plan.
+None. This is the highest-value experiment left in the plan.
+
+---
+
+### Improve endpoint location in recovered frames
+
+**Status:** TODO
+**Priority:** P1
+
+**Why it matters**
+
+It is the binding constraint on refinement. Across the survey, pose recovery
+succeeded 92% of the time (22 failures) while endpoint location failed 243
+times. Two thirds of refinement attempts recover nothing for this one reason.
+
+**Current state**
+
+`_locate` projects the endpoint through the recovered pose to bound a 40 px
+window, then matches an independently detected keypoint in it against the
+endpoint's descriptors from a frame that measured it, with a 0.7 ratio test.
+Descriptor matching across a changed viewpoint is where it fails — which is
+also why ranking peaks at `MATCHABLE_GAIN_DEG = 25°` rather than at maximum
+parallax.
+
+**Recommended implementation**
+
+Worth trying, in order of expected value per effort:
+
+1. **Affine-normalised patch matching** in the window instead of raw SIFT
+   descriptors. The recovered pose and the local surface normal give the
+   warp, which is exactly the viewpoint change defeating the descriptor.
+2. **Chain through an intermediate frame**: match the recovered frame to a
+   temporal neighbour that already measured the endpoint, rather than jumping
+   straight to a frame 25 frames away.
+3. **LightGlue/DISK** for the guided match — `features.create("lightglue")`
+   already exists and is markedly more viewpoint-robust than SIFT.
+
+Measure each against the same 30-measurement survey; the recovery rate is the
+metric.
+
+**Relevant files**
+
+`reconstruction/drishti_recon/refinement.py` (`_locate`,
+`_endpoint_descriptors`), `features.py`
+
+---
+
+### Same-pass evidence recovery — now built, kept here for the UI half
+
+**Status:** IN PROGRESS
+**Priority:** P1
+
+**Why it matters**
+
+Plan feature F4, and the principal engineering contribution of the product.
+
+**Why it matters**
+
+The backend recovers evidence and records every run, but an operator cannot
+press "Improve this measurement".
+
+**Current state**
+
+`refinement.py` and `POST …/questions/{qid}/refine` are built, tested and
+measured ([DEC-010](DECISIONS.md)). `GET …/questions/{qid}/refinements` returns
+the history. Not implemented: the dynamic masking and scene-cut rejection plan
+section 5.7 step 2 also calls for, and the reserved corroboration set of step 7
+— refinement currently draws from all unused frames without holding any back.
+
+**Recommended implementation**
+
+1. An "Improve this measurement" control on the measurement card, with a budget
+   selector, calling `refine` and rendering `before` / `after` side by side.
+2. Show `reasons_cleared`, `value_change_m` and `interval_narrowed` as three
+   separate facts — the run record already keeps them apart precisely so the
+   UI cannot collapse them into one misleading arrow.
+3. List the recovered frames with their PnP inlier counts and located pixels,
+   and the rejection tally beneath, so a run that recovered nothing explains
+   itself.
+4. Then add the reserved corroboration set (step 7): keep frames outside the
+   fit, rotate the reserve when a reserved frame is used, and never report a
+   fitting frame as withheld evidence.
+
+**Relevant files**
+
+`frontend/src/views/Workspace.tsx`, `frontend/src/api.ts`,
+`reconstruction/drishti_recon/refinement.py`
+
+**Dependencies/blockers**
+
+Shares the Tolerance Lens UI work below.
 
 ---
 
