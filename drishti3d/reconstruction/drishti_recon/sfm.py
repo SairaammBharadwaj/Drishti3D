@@ -58,7 +58,28 @@ class ReconResult:
     point_sigma: np.ndarray | None = None      # (N,) isotropic-equivalent 1-sigma
     point_sigma_major: np.ndarray | None = None
     point_observable: np.ndarray | None = None
+    #: Observation lineage: which image measurements produced each point.
+    #:
+    #: ``obs_point`` indexes into ``points``; ``obs_frame`` is the *keyframe*
+    #: index (what ``Camera.frame_index`` carries, not the original video frame
+    #: number); ``obs_uv`` is the pixel at the resolution the reconstruction was
+    #: solved at, after undistortion.
+    #:
+    #: This is the difference between "cameras that could have seen this point"
+    #: and "measurements that produced it". Only the second is evidence, and
+    #: only it can establish that the parallax a measurement relies on was
+    #: actually observed rather than merely available.
+    obs_point: np.ndarray | None = None        # (M,) int, index into points
+    obs_frame: np.ndarray | None = None        # (M,) int, keyframe index
+    obs_uv: np.ndarray | None = None           # (M,2) float32, processing pixels
     stats: dict = field(default_factory=dict)
+
+    def observations_of(self, point_index: int):
+        """``(frame_index, u, v)`` rows for one point, or an empty array."""
+        if self.obs_point is None:
+            return np.zeros((0, 3))
+        m = self.obs_point == int(point_index)
+        return np.column_stack([self.obs_frame[m], self.obs_uv[m]])
 
 
 class _UnionFind:
@@ -1122,8 +1143,20 @@ def reconstruct(frames: list[np.ndarray], K: np.ndarray, *,
     progress("fusion", 0.0)
     pts, cols, conf, oc, rep, ang = [], [], [], [], [], []
     pcov, psig, psig_major, pobs = [], [], [], []
+    # Observation lineage, accumulated in lockstep with the point arrays so
+    # ``obs_point`` indexes ``points`` directly. Only observations in registered
+    # cameras are recorded: a track may carry a measurement from a frame that
+    # never registered, and that measurement contributed nothing to the point.
+    obs_point, obs_frame, obs_uv = [], [], []
     for root, (X, reproj, tri, cnt) in point_of_track.items():
         obs = tracks[root]
+        pi = len(pts)
+        for fr, a in obs.items():
+            if fr not in cams:
+                continue
+            obs_point.append(pi)
+            obs_frame.append(int(fr))
+            obs_uv.append(kpts[fr][a].pt)
         # colour from first registered observation
         f = next(fr for fr in obs if fr in cams)
         u, v = kpts[f][obs[f]].pt
@@ -1160,6 +1193,10 @@ def reconstruct(frames: list[np.ndarray], K: np.ndarray, *,
         point_sigma=np.array(psig) if psig else np.zeros(0),
         point_sigma_major=np.array(psig_major) if psig_major else np.zeros(0),
         point_observable=np.array(pobs, bool) if pobs else np.zeros(0, bool),
+        obs_point=np.array(obs_point, np.int32) if obs_point else np.zeros(0, np.int32),
+        obs_frame=np.array(obs_frame, np.int32) if obs_frame else np.zeros(0, np.int32),
+        obs_uv=(np.array(obs_uv, np.float32) if obs_uv
+                else np.zeros((0, 2), np.float32)),
     )
     result.stats = {
         "n_keyframes": n,
@@ -1180,6 +1217,7 @@ def reconstruct(frames: list[np.ndarray], K: np.ndarray, *,
             "sigma_px_estimated": float(_sig_px) if cov_of_root else None,
             "n_with_covariance": len(cov_of_root),
             "n_observable": int(np.sum(pobs)) if pobs else 0,
+            "n_observations": len(obs_point),
             "median_sigma_recon_frame": (float(np.median(np.asarray(psig)[np.isfinite(psig)]))
                                          if psig and np.any(np.isfinite(psig)) else None),
         },

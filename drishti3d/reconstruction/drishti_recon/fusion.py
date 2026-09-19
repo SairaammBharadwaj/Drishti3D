@@ -33,6 +33,12 @@ class PointCloud:
     #: anisotropic error would understate the risk of the number a user acts on.
     sigma: np.ndarray | None = None          # (N,)
     sigma_major: np.ndarray | None = None    # (N,)
+    #: For each surviving point, the index it had in the array passed to
+    #: :func:`fuse`.  Cleaning reindexes the cloud -- voxel downsampling keeps
+    #: one representative per cell and outlier removal deletes rows -- so
+    #: anything keyed to the pre-fusion ordering, observation lineage above all,
+    #: is unrecoverable without this map.
+    source_index: np.ndarray | None = None   # (N,) int32
 
     def __len__(self):
         return int(self.points.shape[0])
@@ -70,6 +76,23 @@ def fuse(points, colors, confidence, *, voxel: float = 0.2,
     ``sigma`` / ``sigma_major`` are optional per-point uncertainties carried
     through the same downsampling and outlier indexing as colour and confidence,
     so a shipped point keeps the uncertainty that belongs to it.
+
+    The returned cloud also carries ``source_index``, mapping each surviving
+    point back to its row in ``points``.  Two things reindex the cloud here and
+    both would otherwise break any lineage keyed to the input ordering:
+
+    * **Voxel downsampling** keeps one point per cell.  On the numpy path the
+      survivor is a real input point and the map is exact.  On the Open3D path
+      the survivor is a cell centroid, so the map is to the *nearest* input
+      point -- the same nearest-point mapping already used to carry confidence
+      and sigma across, so lineage cannot disagree with them.
+    * **Statistical outlier removal** deletes rows outright.
+
+    A point that was merged away loses its observations rather than donating
+    them to the survivor.  That understates support for the survivor, which is
+    the safe direction: claiming a point was seen from views that actually
+    measured a different point is exactly the overstatement this whole path
+    exists to prevent.
     """
     points = np.asarray(points, float)
     colors = np.asarray(colors, np.uint8)
@@ -78,7 +101,10 @@ def fuse(points, colors, confidence, *, voxel: float = 0.2,
     sigma_major = None if sigma_major is None else np.asarray(sigma_major, float)
     if len(points) == 0:
         return PointCloud(points, colors, confidence,
-                          np.zeros(0, int), None, sigma, sigma_major)
+                          np.zeros(0, int), None, sigma, sigma_major,
+                          np.zeros(0, np.int32))
+
+    src = np.arange(len(points), dtype=np.int32)
 
     normals = None
     if _HAVE_O3D:
@@ -94,6 +120,7 @@ def fuse(points, colors, confidence, *, voxel: float = 0.2,
         ds_pts = np.asarray(pc.points)
         _, nn = tree.query(ds_pts)
         conf2 = confidence[nn]
+        src2 = src[nn]
         sig2 = None if sigma is None else sigma[nn]
         sigm2 = None if sigma_major is None else sigma_major[nn]
         cols2 = (np.asarray(pc.colors) * 255).astype(np.uint8)
@@ -102,10 +129,11 @@ def fuse(points, colors, confidence, *, voxel: float = 0.2,
             ds_pts = np.asarray(pc2.points)
             cols2 = (np.asarray(pc2.colors) * 255).astype(np.uint8)
             conf2 = conf2[keep]
+            src2 = src2[keep]
             sig2 = None if sig2 is None else sig2[keep]
             sigm2 = None if sigm2 is None else sigm2[keep]
         points, colors, confidence = ds_pts, cols2, conf2
-        sigma, sigma_major = sig2, sigm2
+        sigma, sigma_major, src = sig2, sigm2, src2
         if compute_normals and len(points) > 10:
             pc3 = o3d.geometry.PointCloud()
             pc3.points = o3d.utility.Vector3dVector(points)
@@ -118,17 +146,19 @@ def fuse(points, colors, confidence, *, voxel: float = 0.2,
             _, idx = np.unique(keys, axis=0, return_index=True)
             idx.sort()
             points, colors, confidence = points[idx], colors[idx], confidence[idx]
+            src = src[idx]
             sigma = None if sigma is None else sigma[idx]
             sigma_major = None if sigma_major is None else sigma_major[idx]
         if remove_outliers:
             keep = _statistical_outlier_np(points)
             points, colors, confidence = points[keep], colors[keep], confidence[keep]
+            src = src[keep]
             sigma = None if sigma is None else sigma[keep]
             sigma_major = None if sigma_major is None else sigma_major[keep]
 
     provenance = np.array([int(classify(c)) for c in confidence], int)
     return PointCloud(points, colors, confidence, provenance, normals,
-                      sigma, sigma_major)
+                      sigma, sigma_major, np.asarray(src, np.int32))
 
 
 def add_inferred_layer(cloud: PointCloud, inferred_pts, inferred_cols=None) -> PointCloud:
@@ -154,5 +184,10 @@ def add_inferred_layer(cloud: PointCloud, inferred_pts, inferred_cols=None) -> P
         if arr is None:
             return None
         return np.concatenate([arr, np.full(len(inferred_pts), np.inf)])
+    # Inferred points have no source row in the triangulated cloud, so their
+    # index is -1: "there is nothing behind this", which a lineage lookup must
+    # be able to distinguish from row zero.
+    src = None if cloud.source_index is None else np.concatenate(
+        [cloud.source_index, np.full(len(inferred_pts), -1, np.int32)])
     return PointCloud(pts, cols, conf, prov, None,
-                      _ext(cloud.sigma), _ext(cloud.sigma_major))
+                      _ext(cloud.sigma), _ext(cloud.sigma_major), src)

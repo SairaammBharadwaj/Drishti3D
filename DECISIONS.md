@@ -603,3 +603,114 @@ difference at all.
 `drishti3d/reconstruction/drishti_recon/colmap_adapter.py`, `sfm.py`,
 `pipeline.py`, `drishti3d/scripts/run_mission.py`,
 `drishti3d/docs/benchmarks/2026-09-19_agz_single_pass_engines/RESULTS.md`
+
+---
+
+## DEC-009 — Observation lineage is carried as a separate artifact, and a merged-away point donates nothing
+
+**Date:** 2026-09-19
+
+**Status:** Accepted
+
+### Context
+
+[DEC-006](#dec-006--view-support-is-stamped-with-its-basis-and-a-frustum-derived-basis-cannot-license-acceptance)
+predicted that flipping the view-support stamp would lift its block "with no
+rule change" once lineage existed. Building it raised four questions the
+prediction did not settle.
+
+Measured on the AGZ mission, the gap being closed is not academic. Over 400
+sampled points, frustum geometry reports a median of 11 supporting views where
+the measurements provide 3 (3.0×), and a median parallax of 81.1° where the
+measurements provide 20.5° (3.7×).
+
+### Options Considered
+
+#### Where lineage lives
+
+Inside `cloud.npz`, or beside it.
+
+Lineage is one row per *observation*, not per point — 69,173 rows against
+17,897 points on the AGZ mission. Packing ragged per-point lists into the
+per-point archive would either pad to the maximum track length or store object
+arrays, and every consumer that wants only geometry would pay to load it.
+
+**Decided:** a separate `observations.npz` with flat parallel arrays
+(`point_index`, `keyframe_index`, `frame_index`, `uv`).
+
+#### What a voxel-merged point inherits
+
+Voxel downsampling keeps one representative per cell and drops the rest.
+
+*Union the merged points' observations into the survivor* — maximises apparent
+support, but the survivor is a different position, and the discarded points'
+measurements were of different surface. That is precisely the overstatement the
+whole path exists to prevent, arriving by a new route.
+
+*The survivor keeps only its own observations* — understates support for a
+point that stands in for several, and drops the discarded points' measurements
+entirely.
+
+**Decided:** the survivor keeps only its own. Understating is the safe
+direction; overstating is not recoverable by any later check.
+
+#### Which frame number a measurement is keyed by
+
+The solver numbers frames by *keyframe index*; the exported cameras and the
+mission's `frame_index.csv` use the *decoded frame index*. Keyframe selection
+decimates, so on the AGZ mission keyframe 1 is decoded frame 2.
+
+Storing one and deriving the other at read time is how the two get confused. It
+was confused during implementation: the camera lookup was keyed by decoded index
+while observations were looked up by keyframe index, which resolved to no camera
+at all and reported **zero** parallax on points measured from a wide baseline —
+a failure that looks exactly like a correctly detected degenerate capture.
+
+**Decided:** store both, in every observation row. `_camera_of_frame` is keyed
+by the decoded index and observations are resolved through `frame_index`.
+`test_frame_numbering_is_not_guessed_between` pins it.
+
+#### How far a selection may sit from a point and still inherit its lineage
+
+An operator clicks in 3D space, not on a cloud point.
+
+**Decided:** snap within `LINEAGE_SNAP_FACTOR = 2.0` times the cloud's median
+nearest-neighbour spacing, and fall back to the frustum basis beyond that.
+Roughly "the selection is on this point". A cloud too small to have a spacing at
+all requires an exact hit rather than admitting everything or nothing.
+
+### Decision
+
+All four as above. `ReconResult` gained `obs_point` / `obs_frame` / `obs_uv`,
+produced by both engines; `PointCloud` gained `source_index`;
+`pipeline._remap_observations` inverts that map onto the fused cloud;
+`evidence.py` prefers lineage and stamps `triangulated_observations`.
+
+### Why
+
+The decisions share one rule: where the honest answer is unknown, take the
+option that understates support. Merged points donate nothing, a distant
+selection inherits nothing, an ambiguous frame number is never guessed. Each
+costs some measurements that would have been accepted; the alternative costs
+the meaning of acceptance.
+
+### Consequences
+
+- `VIEW_GEOMETRY_UNVERIFIED` no longer fires on either engine's output. On the
+  AGZ mission the only remaining blocker is `INTERVAL_NOT_CALIBRATED`, so
+  acceptance now depends solely on the calibration work in DEC-003.
+- Evidence Replay (plan F3) and same-pass refinement (F4) are unblocked: every
+  measurement can name its frames and the pixel each was measured at.
+- `observations.npz` adds roughly 1.1 MB per mission at AGZ's density.
+- A measurement whose *worst* endpoint lacks lineage is reported as
+  frustum-derived in full. Mixing the two bases within one measurement would
+  produce a figure belonging to neither.
+- Lineage covers triangulated geometry only. Depth-prior points carry
+  `source_index = -1` and are unaffected, as they were never triangulated.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/sfm.py`, `colmap_adapter.py`,
+`fusion.py`, `pipeline.py` (`_remap_observations`, `_write_artifacts`),
+`evidence.py`, `backend/app/routers/questions.py`,
+`drishti3d/tests/test_lineage.py`, `drishti3d/tests/test_evidence.py`

@@ -121,3 +121,128 @@ def test_supporting_frames_are_ranked_for_diversity_not_proximity(tmp_path):
     assert len(set(picked)) == 4
     # A diversity ranking must not return four consecutive neighbours.
     assert max(picked) - min(picked) > 3
+
+
+# --------------------------------------------------------------------------- #
+# Observation lineage: support from the measurements that made the point
+# --------------------------------------------------------------------------- #
+def _with_lineage(tmp_path, cams, points, obs, alignment=None):
+    art = tmp_path
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "trajectory.json").write_text(json.dumps({
+        "frame": {"lat0": 47.0, "lon0": 8.0, "alt0": 400.0},
+        "K": [[900.0, 0, 640.0], [0, 900.0, 360.0], [0, 0, 1.0]],
+        "image_size": [1280, 720], "cameras_enu": cams}))
+    (art / "manifest.json").write_text(json.dumps({
+        "version": "0.1.0", "created": 1.0, "video_sha256": "c" * 64,
+        "alignment": alignment}))
+    # Pad with a sparse shell so the cloud has a meaningful point spacing; the
+    # first rows stay the points under test, which is what obs indexes.
+    pts = np.asarray(points, float)
+    shell = np.random.default_rng(3).uniform(-1.0, 1.0, (60, 3)) * 0.4 + 3.0
+    np.savez_compressed(art / "cloud.npz", points=np.vstack([pts, shell]))
+    np.savez_compressed(
+        art / "observations.npz",
+        point_index=np.asarray(obs["point_index"], np.int32),
+        keyframe_index=np.asarray(obs["keyframe_index"], np.int32),
+        frame_index=np.asarray(obs["frame_index"], np.int32),
+        uv=np.asarray(obs["uv"], np.float32),
+        image_width=np.array([1280], np.int32),
+        image_height=np.array([720], np.int32))
+    return ReconstructionEvidence.load(art)
+
+
+def test_lineage_parallax_is_measured_not_available(tmp_path):
+    """The whole point of lineage: two of nine cameras measured this point.
+
+    A frustum test counts all nine and reports the arc's full spread. The
+    measurements came from two adjacent cameras, so the parallax that actually
+    constrained the depth is a fraction of that. Accepting a measurement on the
+    larger figure would accept depth the capture never established.
+    """
+    cams = _arc(n=9, radius=10.0)
+    pt = [0.0, 0.0, 0.0]
+    rec = _with_lineage(tmp_path / "lin", cams, [pt], {
+        "point_index": [0, 0],
+        "keyframe_index": [0, 3],          # solver numbering, deliberately unused
+        "frame_index": [cams[3]["frame_index"], cams[4]["frame_index"]],
+        "uv": [[640.0, 360.0], [641.0, 359.0]]})
+    assert rec.has_lineage
+    measured = rec.measured_ray_separation_deg(pt)
+    available = rec.max_ray_separation_deg(pt)
+    assert len(rec.visible_cameras(pt)) == 9
+    assert 0.0 < measured < available
+    assert available > 40.0
+
+
+def test_lineage_lifts_the_frustum_stamp(tmp_path):
+    cams = _arc(n=9, radius=10.0)
+    pt = [0.0, 0.0, 0.0]
+    rec = _with_lineage(tmp_path / "lin2", cams, [pt], {
+        "point_index": [0, 0, 0],
+        "keyframe_index": [0, 1, 2],
+        "frame_index": [cams[0]["frame_index"], cams[4]["frame_index"],
+                        cams[8]["frame_index"]],
+        "uv": [[10.0, 10.0], [640.0, 360.0], [1270.0, 700.0]]})
+    ev = rec.for_points([pt], provenances=[0])
+    assert ev.view_support_basis == "triangulated_observations"
+    assert ev.n_supporting_views == 3
+    assert ev.max_ray_separation_deg > 40.0
+
+
+def test_frame_numbering_is_not_guessed_between(tmp_path):
+    """Observations are matched to cameras by decoded frame index, not keyframe.
+
+    The two numberings differ whenever keyframe selection decimates, and keying
+    on the wrong one silently finds no camera at all -- which reads as zero
+    parallax on a point that was measured from a wide baseline.
+    """
+    cams = _arc(n=9, radius=10.0)          # frame_index = 0, 3, 6, ... 24
+    pt = [0.0, 0.0, 0.0]
+    rec = _with_lineage(tmp_path / "lin3", cams, [pt], {
+        "point_index": [0, 0],
+        "keyframe_index": [0, 8],          # would resolve to cams[0] and cams[2]
+        "frame_index": [cams[0]["frame_index"], cams[8]["frame_index"]],
+        "uv": [[10.0, 10.0], [1270.0, 700.0]]})
+    # Resolved via frame_index, the two measurements are the arc's extremes.
+    assert rec.measured_ray_separation_deg(pt) == pytest.approx(
+        rec.max_ray_separation_deg(pt), rel=1e-6)
+
+
+def test_a_selection_far_from_any_point_inherits_no_lineage(tmp_path):
+    """Borrowing a distant point's measurements would misattribute evidence."""
+    cams = _arc(n=9, radius=10.0)
+    cloud = [[0.0, 0.0, 0.0], [0.1, 0.0, 0.0], [0.2, 0.0, 0.0]]
+    rec = _with_lineage(tmp_path / "lin4", cams, cloud, {
+        "point_index": [0, 0], "keyframe_index": [0, 1],
+        "frame_index": [cams[0]["frame_index"], cams[8]["frame_index"]],
+        "uv": [[10.0, 10.0], [1270.0, 700.0]]})
+    assert rec.lineage_point([0.0, 0.0, 0.0]) == 0
+    assert rec.lineage_point([50.0, 0.0, 0.0]) == -1
+    assert len(rec.observations_of([50.0, 0.0, 0.0])["frame_index"]) == 0
+
+
+def test_one_endpoint_without_lineage_downgrades_the_whole_measurement(tmp_path):
+    """A width is frustum-derived if either end is; averaging would hide that."""
+    cams = _arc(n=9, radius=10.0)
+    rec = _with_lineage(tmp_path / "lin5", cams, [[0.0, 0.0, 0.0]], {
+        "point_index": [0, 0], "keyframe_index": [0, 1],
+        "frame_index": [cams[0]["frame_index"], cams[8]["frame_index"]],
+        "uv": [[10.0, 10.0], [1270.0, 700.0]]})
+    ev = rec.for_points([[0.0, 0.0, 0.0], [40.0, 0.0, 0.0]],
+                        provenances=[0, 0])
+    assert ev.view_support_basis == "frustum_upper_bound"
+
+
+def test_supporting_frames_carry_the_measured_pixel(tmp_path):
+    cams = _arc(n=9, radius=10.0)
+    pt = [0.0, 0.0, 0.0]
+    rec = _with_lineage(tmp_path / "lin6", cams, [pt], {
+        "point_index": [0, 0], "keyframe_index": [0, 1],
+        "frame_index": [cams[0]["frame_index"], cams[8]["frame_index"]],
+        "uv": [[11.0, 12.0], [1270.0, 700.0]]})
+    frames = rec.supporting_frames(pt)
+    assert len(frames) == 2, "only the frames that measured it"
+    assert all(f["measured"] for f in frames)
+    pixels = {f["frame_index"]: f["pixel"] for f in frames}
+    assert pixels[cams[0]["frame_index"]] == (11.0, 12.0)

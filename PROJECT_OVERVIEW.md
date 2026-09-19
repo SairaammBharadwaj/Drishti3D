@@ -40,6 +40,7 @@ dimensions and coverage information before leaving a site.
 | Supported-surface mesh | `mesh.glb` | Visualisation; not measurement evidence |
 | Camera trajectory | `trajectory.json/.csv/.geojson` | ENU poses, GNSS track, intrinsics |
 | Coverage field | `coverage.npz`, `coverage.json` | Per-voxel observed / weak / occluded / unseen / verified-empty |
+| Observation lineage | `observations.npz` | Which frames and pixels produced each cloud point |
 | Measurements | REST API, SQLite | Value, interval, acceptance status, reason codes |
 | Quality report | `quality_report.html/.json` | Per-stage diagnostics and warnings |
 
@@ -111,15 +112,27 @@ Changing the tolerance re-decides the verdict without re-running geometry.
 **Where:** `questions.py` (the rules), `backend/app/routers/questions.py` (the
 API), `backend/app/models.py` (`MeasurementQuestion`, `Measurement`).
 
-### Candidate-view evidence
-**What:** for any selected point, which cameras could see it, how much parallax
-they provide, whether it lies in established coverage, and a diversity-ranked
-list of supporting frames.
+### Observation lineage
+**What:** every cloud point records the image measurements that produced it —
+which frames, and the pixel in each. Both SfM engines emit it, it survives
+fusion's voxel downsampling and outlier removal, and it is persisted as
+`observations.npz`.
+**Where:** `sfm.py` / `colmap_adapter.py` (`ReconResult.obs_point/obs_frame/obs_uv`),
+`fusion.py` (`PointCloud.source_index`), `pipeline.py`
+(`_remap_observations`).
+**Measured on the AGZ mission:** 69,173 observations across 17,897 points,
+median 3 per point.
+
+### Measurement evidence
+**What:** for a selected point — the frames that actually measured it and the
+pixel each was measured at, the parallax those measurements provided, coverage
+membership, and the metric scale source with its relative uncertainty.
 **Where:** `evidence.py` (`ReconstructionEvidence`).
-**Known limit:** support is derived from camera frustums plus the coverage
-grid, **not** from the image observations that produced the point — the cloud
-carries no observation lineage yet. Every such record is stamped
-`view_support_basis="frustum_upper_bound"`, and that stamp blocks acceptance.
+**Two bases, and the record says which:** with lineage, support is stamped
+`triangulated_observations` and can license acceptance. Without it, support
+falls back to camera frustums, is stamped `frustum_upper_bound`, and blocks
+acceptance — on the AGZ mission the frustum figures overstate view count by 3.0×
+and parallax by 3.7× against what the measurements actually provided.
 
 ### Dataset tooling
 **What:** inventory of every dataset in the checkout with content digests, LFS
@@ -277,8 +290,9 @@ The acceptance gate: `Status`, `Reason`, `CalibrationProfile`,
 understand what the product will and will not claim.
 
 `drishti3d/reconstruction/drishti_recon/evidence.py`
-`ReconstructionEvidence` — candidate views, parallax, coverage membership and
-supporting frames for a selected point.
+`ReconstructionEvidence` — measuring frames and their pixels, parallax,
+coverage membership and supporting frames for a selected point, with the basis
+each figure came from.
 
 `drishti3d/reconstruction/drishti_recon/coverage.py`
 The unknown-space map and the free-space rule.
@@ -394,7 +408,10 @@ cd drishti3d
 - Measurement questions with tolerance, acceptance status, reason codes and
   actionable guidance, re-decidable at a new tolerance without re-running
   geometry.
-- Candidate-view evidence for any selected point.
+- Observation lineage end to end, on both engines, so a measurement can name
+  the frames and pixels that produced it.
+- Measurement evidence for any selected point, labelled with the basis it was
+  derived from.
 - Reproducible dataset inventory, mission construction and scoring, with
   reference data access-separated from the worker.
 
@@ -402,13 +419,11 @@ cd drishti3d
 
 - **Nothing can be accepted.** No calibration profile has been fitted or
   validated for any capture regime, so every verdict is at best
-  `estimated_only`. This is deliberate, not a defect ([DEC-003](DECISIONS.md)).
-- **No observation lineage.** The point cloud does not record which image
-  observations produced each point, so evidence is candidate views rather than
-  actual support, and Evidence Replay (plan F3) cannot show the pixels that
-  made a measurement.
+  `estimated_only`. This is deliberate, not a defect ([DEC-003](DECISIONS.md)),
+  and since observation lineage landed it is the *only* remaining blocker on
+  real data.
 - **No same-pass refinement** (plan F4). `Improve this measurement` does not
-  exist.
+  exist, though the candidate ranking it needs does.
 - **No measurement passport or verifier** (plan F3).
 - **No Tolerance Lens UI.** The backend gate exists; the frontend does not
   render it yet.

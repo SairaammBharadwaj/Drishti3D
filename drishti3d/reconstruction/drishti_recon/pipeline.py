@@ -633,9 +633,11 @@ def run(project_dir, video_path, telemetry_path, *,
                         "R": (np.asarray(c.R, float)
                               @ R_world_for_cov.T).tolist()}
                        for c, ce in zip(recon.cameras, cams_enu)]
+        observations = _remap_observations(recon, cloud, sel)
         artifacts = _write_artifacts(art_dir, cloud, cameras_enu, enu_frame,
                                      report, timeline, gps_enu_all, sel, metrics,
-                                     K=recon.K, image_size=(proc_w, proc_h))
+                                     K=recon.K, image_size=(proc_w, proc_h),
+                                     observations=observations)
         if mesh_path:
             artifacts["mesh_glb"] = mesh_path
         if cov_grid is not None:
@@ -787,8 +789,56 @@ def _maybe_gt_eval(video_path, telemetry_path, enu_frame, cloud):
         return None
 
 
+def _remap_observations(recon, cloud, sel):
+    """Re-express the reconstruction's observation lineage onto the fused cloud.
+
+    The lineage `sfm`/`colmap_adapter` produce indexes the *pre-fusion* point
+    array, and fusion reindexes the cloud. ``cloud.source_index`` is the map
+    back, so this inverts it and drops observations whose point did not survive
+    downsampling or outlier removal -- a discarded point's measurements are not
+    evidence for whatever point happened to take its place.
+
+    Returns ``None`` when the engine produced no lineage, which is what keeps
+    every consumer able to tell "no observations were recorded" apart from "this
+    point has no observations".
+    """
+    if getattr(recon, "obs_point", None) is None or len(recon.obs_point) == 0:
+        return None
+    if cloud.source_index is None:
+        return None
+
+    n_src = int(cloud.source_index.max()) + 1 if len(cloud.source_index) else 0
+    n_src = max(n_src, int(recon.obs_point.max()) + 1)
+    # Inverse of source_index: pre-fusion row -> fused row, or -1 if dropped.
+    inverse = np.full(n_src, -1, np.int32)
+    valid_rows = cloud.source_index >= 0          # inferred points carry -1
+    inverse[cloud.source_index[valid_rows]] = np.flatnonzero(valid_rows).astype(
+        np.int32)
+
+    fused = inverse[recon.obs_point]
+    keep = fused >= 0
+    if not keep.any():
+        return None
+
+    kf = recon.obs_frame[keep]
+    # Two frame numberings exist and confusing them silently mislabels every
+    # piece of evidence: `obs_frame` is the keyframe index the solver used,
+    # while `sel` maps that to the decoded frame index the operator and the
+    # mission's frame_index.csv speak in. Both are stored.
+    sel_arr = np.asarray(sel, np.int32)
+    decoded = np.where(kf < len(sel_arr), sel_arr[np.clip(kf, 0, len(sel_arr) - 1)],
+                       -1).astype(np.int32)
+    return {
+        "point_index": fused[keep].astype(np.int32),
+        "keyframe_index": kf.astype(np.int32),
+        "frame_index": decoded,
+        "uv": np.asarray(recon.obs_uv, np.float32)[keep],
+    }
+
+
 def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
-                     gps_enu_all, sel, metrics, *, K=None, image_size=None):
+                     gps_enu_all, sel, metrics, *, K=None, image_size=None,
+                     observations=None):
     artifacts = {}
     # binary npz for API + PLY/LAS exports
     _extra = {}
@@ -800,6 +850,22 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
                         colors=cloud.colors, confidence=cloud.confidence,
                         provenance=cloud.provenance, **_extra)
     artifacts["cloud_npz"] = str(art_dir / "cloud.npz")
+
+    # Observation lineage: which image measurements produced each cloud point.
+    # Written as its own artifact rather than into cloud.npz because it is one
+    # row per observation, not per point, and a consumer that only wants
+    # geometry should not have to load it.
+    if observations is not None:
+        np.savez_compressed(art_dir / "observations.npz",
+                            point_index=observations["point_index"],
+                            keyframe_index=observations["keyframe_index"],
+                            frame_index=observations["frame_index"],
+                            uv=observations["uv"],
+                            image_width=np.array([image_size[0] if image_size
+                                                  else -1], np.int32),
+                            image_height=np.array([image_size[1] if image_size
+                                                   else -1], np.int32))
+        artifacts["observations_npz"] = str(art_dir / "observations.npz")
     artifacts["ply"] = exports.export_ply(art_dir / "point_cloud.ply", cloud)
     try:
         artifacts["las"] = exports.export_las(art_dir / "point_cloud.las", cloud, enu_frame)

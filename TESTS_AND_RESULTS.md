@@ -19,10 +19,11 @@ Command: `cd drishti3d && .venv/bin/python -m pytest tests/ -q`
 
 | Run | Result | Duration |
 |---|---|---|
-| Before this session's changes | 223 passed | 111 s |
-| After this session's changes | **264 passed, 0 failed** | 140 s |
+| Before 2026-09-19 | 223 passed | 111 s |
+| After the measurement gate | 264 passed | 140 s |
+| After observation lineage | **277 passed, 0 failed** | 112 s |
 
-41 tests were added. No test was removed, skipped or weakened.
+54 tests were added. No test was removed, skipped or weakened.
 
 ### New test files
 
@@ -66,6 +67,31 @@ Covers the acceptance rules. Highlights:
 | `test_the_weakest_endpoint_sets_the_support` | One endpoint behind every camera → 0 supporting views for the whole measurement | PASS |
 | `test_inferred_geometry_is_flagged` | `AI_ASSISTED` provenance → `touches_inferred`, `endpoints_observed=False` | PASS |
 | `test_supporting_frames_are_ranked_for_diversity_not_proximity` | 4 frames chosen from 11 span more than 3 indices | PASS |
+
+#### `tests/test_lineage.py` — 7 tests, all PASS
+
+Lineage survives fusion's reindexing.
+
+| Test | Asserts | Result |
+|---|---|---|
+| `test_fuse_reports_where_every_surviving_point_came_from` | `source_index` is complete and injective — two fused points cannot claim the same source row | PASS |
+| `test_source_index_actually_points_at_the_right_geometry` | Every survivor is within one voxel diagonal of the row it claims | PASS |
+| `test_observations_are_remapped_onto_the_fused_indices` | 40 observations remap correctly; the one belonging to a point fusion discarded is dropped, not reassigned | PASS |
+| `test_both_frame_numberings_are_recorded` | Keyframes 1 and 3 with `sel = [0,2,4,6,…]` emit decoded frames 2 and 6, and both numbers are stored | PASS |
+| `test_no_lineage_in_means_no_lineage_out` | An engine that recorded nothing yields `None`, distinguishable from "this point has no observations" | PASS |
+| `test_inferred_points_carry_no_source_row` | AI-proposed points get `source_index = -1`; row 0 is not "nothing" | PASS |
+| `test_remap_ignores_inferred_rows_when_inverting` | The `-1` sentinel is never read as an index | PASS |
+
+#### `tests/test_evidence.py` — 6 further lineage tests, all PASS
+
+| Test | Asserts | Result |
+|---|---|---|
+| `test_lineage_parallax_is_measured_not_available` | Nine cameras see the point, two measured it; measured parallax is strictly less than the arc's full spread | PASS |
+| `test_lineage_lifts_the_frustum_stamp` | With lineage on every endpoint the basis becomes `triangulated_observations` | PASS |
+| `test_frame_numbering_is_not_guessed_between` | Observations resolve through the decoded frame index; keying on the keyframe index would find no camera and report zero parallax | PASS |
+| `test_a_selection_far_from_any_point_inherits_no_lineage` | 50 m from the cloud → no lineage, rather than borrowing a distant point's evidence | PASS |
+| `test_one_endpoint_without_lineage_downgrades_the_whole_measurement` | Mixed bases report as `frustum_upper_bound` | PASS |
+| `test_supporting_frames_carry_the_measured_pixel` | Only the measuring frames are listed, each with the pixel it was measured at | PASS |
 
 #### `tests/test_questions_api.py` — 9 tests, all PASS
 
@@ -169,6 +195,9 @@ strongest verdict reachable is `estimated_only`, and
 `test_uncalibrated_deployment_never_reports_meets_requirement` asserts it end to
 end. See [DEC-003](DECISIONS.md#dec-003--acceptance-requires-a-validated-calibration-profile).
 
+Since observation lineage landed this is the **only** remaining blocker on real
+reconstructions — measured above.
+
 The machinery exists and is unit-tested (`uncertainty.calibrate`,
 `conformal_factors`, `coverage_report`, `CalibrationProfile.from_calibration`);
 only the data does not.
@@ -194,6 +223,52 @@ durations from the AGZ log, decoded it with OpenCV and compared against
 The same pre-read lag was then confirmed on two unrelated constant-rate videos
 (`gymnasium_single_pass.mp4`, `sample_data/synthetic/synthetic_flight.mp4`), so
 it is a property of this OpenCV build and not of the generated file.
+
+### Observation lineage on the real reconstruction
+
+Both engines, mission `agz_dense_pass`.
+
+| | COLMAP (184 frames) | OpenCV (60 frames) |
+|---|---:|---:|
+| Observations recorded | 69,173 | 7,750 |
+| Cloud points | 17,897 | 3,184 |
+| Median observations per point | 3 | 2 |
+| Points with no lineage | 32 (0.2%) | 0 |
+| Pixel range | within 1280×720 | within 1280×720 |
+| Keyframe → decoded frame map | correct (kf 1 → frame 2) | correct |
+
+**Result: PASS.** Both engines emit lineage; it survives fusion; the two frame
+numberings resolve correctly.
+
+### How much the frustum basis was overstating
+
+400 points sampled uniformly from the COLMAP reconstruction, comparing what
+camera geometry reports against what the measurements actually provided.
+
+| | Measured (lineage) | Frustum (upper bound) | Overstatement |
+|---|---:|---:|---:|
+| Supporting views, median | 3 | 11 | **3.0×** |
+| Parallax, median | 20.5° | 81.1° | **3.7×** |
+| Points meeting the 3-view floor | 359 / 400 | 399 / 400 | — |
+| Points clearing the 2° degeneracy gate on frustum evidence but failing on measurements | — | — | 1 / 400 |
+
+**Result: PASS**, and it is the measured justification for
+[DEC-006](DECISIONS.md) and [DEC-009](DECISIONS.md). The frustum basis is a
+usable ranking signal and an unusable acceptance signal.
+
+### Which blocker remains
+
+A well-supported 3.0 m span on the COLMAP reconstruction (4 measuring views,
+15.7° measured parallax, within coverage, GNSS scale at 1.15% relative):
+
+| Tolerance | Status | Reasons |
+|---|---|---|
+| ±0.20 m | `estimated_only` | `interval_not_calibrated` |
+| ±2.00 m | `estimated_only` | `interval_not_calibrated` |
+| ±2.00 m, with a hypothetical validated profile | `meets_requirement` | none |
+
+**Result: PASS.** `VIEW_GEOMETRY_UNVERIFIED` no longer fires. Calibration
+(DEC-003) is now the sole blocker on real data, exactly as intended.
 
 ### Evidence assembly on the real reconstruction
 

@@ -292,12 +292,13 @@ def update_question(project_id: str, question_id: str, body: QuestionUpdate,
             response_model=QuestionEvidenceOut)
 def question_evidence(project_id: str, question_id: str,
                       db: Session = Depends(get_db)):
-    """Frames that could show this measurement, best parallax first.
+    """The frames behind this measurement, most diverse in direction first.
 
-    These are *candidate* views established from camera geometry, not the
-    observations that produced the geometry -- the point cloud does not carry
-    that lineage yet. The response says so in ``support_basis`` rather than
-    letting the caller assume otherwise.
+    ``support_basis`` says what the listing is. With observation lineage it is
+    ``triangulated_observations`` -- the frames that actually measured each
+    endpoint, each row carrying the pixel it was measured at. Without it the
+    rows are candidate frames established from camera geometry, and the
+    parallax figures are upper bounds.
     """
     row = db.get(MeasurementQuestion, question_id)
     if not row or row.project_id != project_id:
@@ -311,22 +312,39 @@ def question_evidence(project_id: str, question_id: str,
     pts = (result.points_enu if result and result.points_enu
            else row.points_enu)
     endpoints = []
+    any_fallback = False
     for i, p in enumerate(pts):
+        obs = rec.observations_of(p)
+        measured = len(obs["frame_index"])
+        if not measured:
+            any_fallback = True
         endpoints.append({
             "index": i,
             "point_enu": list(map(float, p)),
+            "basis": ("triangulated_observations" if measured
+                      else "frustum_upper_bound"),
+            "n_measuring_views": int(len(set(obs["frame_index"].tolist()))),
             "n_candidate_views": int(len(rec.visible_cameras(p))),
+            "measured_ray_separation_deg": (rec.measured_ray_separation_deg(p)
+                                            if measured else None),
             "max_ray_separation_deg": rec.max_ray_separation_deg(p),
             "within_established_coverage": rec.within_coverage(p),
             "frames": rec.supporting_frames(p),
         })
+    has_lineage = rec.has_lineage and not any_fallback
     return {
         "question_id": question_id,
-        "support_basis": "frustum_upper_bound",
+        "support_basis": ("triangulated_observations" if has_lineage
+                          else "frustum_upper_bound"),
         "endpoints": endpoints,
-        "note": ("Frames are candidates established from camera geometry and "
-                 "the coverage grid, not the image observations that produced "
-                 "the points. Parallax shown is therefore an upper bound."),
+        "note": (
+            "Frames are the image observations that produced each endpoint; "
+            "`pixel` is where the measurement was made, in the resolution the "
+            "reconstruction was solved at."
+            if has_lineage else
+            "Frames are candidates established from camera geometry and the "
+            "coverage grid, not the image observations that produced the "
+            "points. Parallax shown is therefore an upper bound."),
     }
 
 

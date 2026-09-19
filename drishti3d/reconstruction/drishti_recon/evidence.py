@@ -5,24 +5,28 @@ artifacts and a point in ENU metres, it answers: which cameras could see this,
 how much parallax do they provide, is it on established surface, and where did
 the metric scale come from.
 
-The honest limit, stated here because it governs every verdict downstream
-------------------------------------------------------------------------
-The point cloud does not carry observation lineage.  ``cloud.npz`` stores
-positions, colours, confidence and provenance, but not "this point came from
-image observations in frames 12, 19 and 27 at these pixels".  Fusion's voxel
-downsample and outlier removal reindex the cloud, and nothing carries track
-identity across that.
+Two bases for view support, and the difference matters
+------------------------------------------------------
+When ``observations.npz`` is present, support comes from **observation
+lineage**: the image measurements that actually produced each point, carried
+from the solver's tracks through fusion's reindexing.  Support is then counted
+over the frames that measured the point, and the parallax reported is the
+parallax those measurements provided.  Evidence built this way is stamped
+``view_support_basis="triangulated_observations"`` and can license acceptance.
 
-So view support here is computed from camera *geometry*: a camera counts if the
-point falls in front of it and inside its image, and if the coverage grid says
-the sight line is not blocked.  That is a real test and it is useful, but it
-counts cameras that may never have contributed an observation, so the parallax
-it reports is an **upper bound**.  Every :class:`~.questions.Evidence` produced
-here is therefore stamped ``view_support_basis="frustum_upper_bound"``, which
-:func:`~.questions.evaluate` treats as blocking acceptance.  Persisting track
-identity through fusion (work package WP1) is what lifts that block; until it
-lands, no measurement can be accepted on view support, which is the correct
-behaviour rather than a temporary inconvenience.
+Without it, support falls back to camera *geometry*: a camera counts if the
+point falls in front of it and inside its image and the coverage grid says the
+sight line is clear.  That is a real test and useful for ranking candidate
+frames, but it counts cameras that may never have contributed an observation,
+so its parallax is an **upper bound**.  Such evidence is stamped
+``frustum_upper_bound``, which :func:`~.questions.evaluate` treats as blocking
+acceptance -- overstating parallax is exactly the error that would let a
+one-direction measurement pass the degeneracy check.
+
+An endpoint is matched to lineage by snapping to the nearest cloud point within
+:data:`LINEAGE_SNAP_FACTOR` times the local point spacing.  A selection that
+lands further than that from any reconstructed point has no lineage to inherit,
+and falls back rather than borrowing a distant point's evidence.
 """
 from __future__ import annotations
 
@@ -36,9 +40,17 @@ from .questions import Evidence
 from .provenance import Provenance
 
 
+#: How far an operator's selection may sit from a reconstructed point and still
+#: inherit its observation lineage, as a multiple of the median nearest-neighbour
+#: spacing of the cloud. Two spacings is roughly "the selection is on this
+#: point"; beyond that the nearest point is a different piece of surface and its
+#: measurements are not evidence for what was selected.
+LINEAGE_SNAP_FACTOR = 2.0
+
+
 @dataclass
 class ReconstructionEvidence:
-    """Camera geometry and coverage for one reconstruction, loaded once."""
+    """Camera geometry, coverage and observation lineage for one reconstruction."""
 
     centres: np.ndarray               # (M,3) ENU camera centres
     rotations: np.ndarray | None      # (M,3,3) world->camera in ENU, or None
@@ -48,6 +60,19 @@ class ReconstructionEvidence:
     coverage: object | None = None    # CoverageGrid
     scale_source: str = "none"
     scale_sigma_rel: float = float("nan")
+    #: Cloud positions, needed only to snap a selection onto a point that has
+    #: lineage. ``None`` when ``cloud.npz`` was not loadable.
+    points: np.ndarray | None = None
+    #: Observation lineage from ``observations.npz``: ``point_index`` rows
+    #: indexing ``points``, the keyframe and decoded frame each measurement came
+    #: from, and its pixel. ``None`` when the engine recorded none.
+    observations: dict | None = None
+    #: Camera row for each *decoded* frame index, so a measurement's frame can
+    #: be turned back into a pose without a linear scan. Keyed by the decoded
+    #: index, not the solver's keyframe index: the exported cameras carry the
+    #: decoded one, and observations carry both precisely so the two numbering
+    #: schemes never have to be guessed between.
+    _camera_of_frame: dict = None
 
     # ---- construction ---------------------------------------------------- #
     @classmethod
@@ -95,8 +120,124 @@ class ReconstructionEvidence:
                     scale_sigma = float(sig) / float(sc)
             except (ValueError, KeyError, TypeError):
                 pass
-        return cls(centres, rotations, [c.get("frame_index") for c in cams],
-                   K, size, cov, scale_source, scale_sigma)
+        points = None
+        cloud_npz = art / "cloud.npz"
+        if cloud_npz.exists():
+            try:
+                points = np.load(cloud_npz)["points"]
+            except (OSError, ValueError, KeyError):
+                points = None
+
+        observations = None
+        obs_npz = art / "observations.npz"
+        if obs_npz.exists():
+            try:
+                d = np.load(obs_npz)
+                observations = {"point_index": d["point_index"],
+                                "keyframe_index": d["keyframe_index"],
+                                "frame_index": d["frame_index"],
+                                "uv": d["uv"]}
+            except (OSError, ValueError, KeyError):
+                observations = None
+
+        frame_indices = [c.get("frame_index") for c in cams]
+        cam_of_frame = {int(f): i for i, f in enumerate(frame_indices)
+                        if f is not None}
+        return cls(centres, rotations, frame_indices, K, size, cov,
+                   scale_source, scale_sigma, points, observations,
+                   cam_of_frame)
+
+    # ---- observation lineage ---------------------------------------------- #
+    @property
+    def has_lineage(self) -> bool:
+        return (self.observations is not None and self.points is not None
+                and len(self.observations["point_index"]) > 0)
+
+    def _spacing(self) -> float:
+        """Median nearest-neighbour distance of the cloud, cached."""
+        if getattr(self, "_spacing_cache", None) is not None:
+            return self._spacing_cache
+        from scipy.spatial import cKDTree
+        pts = self.points
+        if pts is None or len(pts) < 2:
+            self._spacing_cache = float("inf")
+            return self._spacing_cache
+        # A sample is enough for a median and keeps this O(k log N) on a cloud
+        # that can hold hundreds of thousands of points.
+        idx = np.arange(len(pts)) if len(pts) <= 5000 else \
+            np.random.default_rng(0).choice(len(pts), 5000, replace=False)
+        d, _ = cKDTree(pts).query(pts[idx], k=2)
+        self._spacing_cache = float(np.median(d[:, 1]))
+        return self._spacing_cache
+
+    #: Fallback radius when the cloud is too small to have a spacing at all.
+    #: A single-point cloud has no neighbour distance, and treating that as an
+    #: infinite tolerance would let any selection anywhere inherit its lineage,
+    #: while treating it as zero would reject a selection sitting exactly on the
+    #: point. Neither is right, so an exact hit is required instead.
+    _DEGENERATE_SNAP_M = 1e-6
+
+    def lineage_point(self, point) -> int:
+        """Cloud index whose lineage a selection may inherit, or ``-1``.
+
+        Returns ``-1`` when the selection is further from every reconstructed
+        point than :data:`LINEAGE_SNAP_FACTOR` spacings. Inheriting a distant
+        point's measurements would attribute evidence to a piece of surface that
+        was never the one selected.
+        """
+        if self.points is None or len(self.points) == 0:
+            return -1
+        from scipy.spatial import cKDTree
+        if getattr(self, "_tree", None) is None:
+            self._tree = cKDTree(self.points)
+        d, i = self._tree.query(np.asarray(point, float).reshape(3))
+        spacing = self._spacing()
+        radius = (LINEAGE_SNAP_FACTOR * spacing if np.isfinite(spacing)
+                  else self._DEGENERATE_SNAP_M)
+        if d > radius:
+            return -1
+        return int(i)
+
+    def observations_of(self, point) -> dict:
+        """The measurements that produced the point a selection snaps to.
+
+        Returns ``{"point_index", "keyframe_index", "frame_index", "uv"}`` with
+        one row per measurement, or empty arrays when there is no lineage for
+        this selection.
+        """
+        empty = {"point_index": -1,
+                 "keyframe_index": np.zeros(0, np.int32),
+                 "frame_index": np.zeros(0, np.int32),
+                 "uv": np.zeros((0, 2), np.float32)}
+        if not self.has_lineage:
+            return empty
+        pi = self.lineage_point(point)
+        if pi < 0:
+            return empty
+        obs = self.observations
+        m = obs["point_index"] == pi
+        if not m.any():
+            return empty
+        return {"point_index": pi,
+                "keyframe_index": obs["keyframe_index"][m],
+                "frame_index": obs["frame_index"][m],
+                "uv": obs["uv"][m]}
+
+    def measured_ray_separation_deg(self, point) -> float:
+        """Parallax actually provided by the measurements that made this point.
+
+        This is the figure that licenses acceptance, because it is computed over
+        the cameras that contributed an observation rather than over every
+        camera that happened to have the point in frame.
+        """
+        obs = self.observations_of(point)
+        if len(obs["frame_index"]) < 2:
+            return 0.0
+        rows = [self._camera_of_frame.get(int(f)) for f in obs["frame_index"]]
+        rows = [r for r in rows if r is not None]
+        if len(rows) < 2:
+            return 0.0
+        return self.max_ray_separation_deg(point, np.asarray(sorted(set(rows))))
 
     # ---- queries ---------------------------------------------------------- #
     def visible_cameras(self, point) -> np.ndarray:
@@ -162,10 +303,23 @@ class ReconstructionEvidence:
         pts = np.atleast_2d(np.asarray(points, float))
         per_point_views, per_point_sep = [], []
         within = True
+        # Lineage is used only if *every* endpoint has it. A measurement whose
+        # far end fell back to frustum geometry is a frustum-derived measurement
+        # however well supported its near end is, and averaging the two bases
+        # would hide that behind a figure belonging to neither.
+        basis = "triangulated_observations" if self.has_lineage else \
+            "frustum_upper_bound"
         for p in pts:
-            idx = self.visible_cameras(p)
-            per_point_views.append(len(idx))
-            per_point_sep.append(self.max_ray_separation_deg(p, idx))
+            obs = self.observations_of(p) if self.has_lineage else None
+            if obs is not None and len(obs["frame_index"]) > 0:
+                per_point_views.append(int(len(np.unique(obs["frame_index"]))))
+                per_point_sep.append(self.measured_ray_separation_deg(p))
+            else:
+                if self.has_lineage:
+                    basis = "frustum_upper_bound"
+                idx = self.visible_cameras(p)
+                per_point_views.append(len(idx))
+                per_point_sep.append(self.max_ray_separation_deg(p, idx))
             within &= self.within_coverage(p)
 
         observed = endpoints_observed
@@ -182,7 +336,7 @@ class ReconstructionEvidence:
             n_supporting_views=int(min(per_point_views)) if per_point_views else 0,
             max_ray_separation_deg=(float(min(per_point_sep))
                                     if per_point_sep else 0.0),
-            view_support_basis="frustum_upper_bound",
+            view_support_basis=basis,
             touches_inferred=inferred,
             endpoints_observed=bool(observed) if observed is not None else False,
             endpoints_within_coverage=bool(within),
@@ -192,14 +346,27 @@ class ReconstructionEvidence:
         )
 
     def supporting_frames(self, point, *, limit: int = 12) -> list:
-        """Frames that could show ``point``, best parallax first.
+        """Frames for ``point``, most diverse in viewing direction first.
 
-        This is what an evidence panel lists and what a refinement scheduler
-        ranks. It is candidate imagery, not proof that the point was
-        triangulated from these frames -- see the module docstring.
+        When lineage exists these are the frames that actually measured the
+        point, each with the pixel it was measured at -- the source pixels an
+        evidence panel displays. Otherwise they are candidate frames from
+        camera geometry, and ``measured`` on every row says which it is.
         """
         p = np.asarray(point, float).reshape(3)
-        idx = self.visible_cameras(p)
+        obs = self.observations_of(p) if self.has_lineage else None
+        measured_uv = {}
+        if obs is not None and len(obs["frame_index"]) > 0:
+            rows = []
+            for fi, uv in zip(obs["frame_index"], obs["uv"]):
+                r = self._camera_of_frame.get(int(fi))
+                if r is None:
+                    continue
+                rows.append(r)
+                measured_uv[r] = (float(uv[0]), float(uv[1]))
+            idx = np.asarray(sorted(set(rows)), int)
+        else:
+            idx = self.visible_cameras(p)
         if len(idx) == 0:
             return []
         d = p[None, :] - self.centres[idx]
@@ -222,6 +389,8 @@ class ReconstructionEvidence:
             chosen.append(best)
         return [{"camera_index": int(idx[j]),
                  "frame_index": self.frame_indices[int(idx[j])],
+                 "measured": int(idx[j]) in measured_uv,
+                 "pixel": measured_uv.get(int(idx[j])),
                  "distance_m": float(n[j, 0]),
                  "min_separation_from_selected_deg": float(np.degrees(np.arccos(
                      np.clip(min(u[j] @ u[c] for c in chosen if c != j),

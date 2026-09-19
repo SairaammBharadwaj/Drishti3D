@@ -41,8 +41,9 @@ video + telemetry + PipelineParams
  ↓12  mesh           mesh.*                 supported surfaces only
  ↓12b coverage       coverage.build         observed/weak/occluded/unseen/empty
  ↓13  report         quality report assembly
+ ↓13b lineage        _remap_observations    track observations -> fused indices
  ↓14  exports        _write_artifacts       PLY, LAS, GLB, GeoJSON, viewer,
-                                            trajectory, manifest
+                                            trajectory, manifest, observations
 ```
 
 ### Stage detail where behaviour is non-obvious
@@ -85,6 +86,17 @@ and the cell is strictly nearer than `nearest - occlusion_tol`. Only the second
 produces `EMPTY`. See
 [DEC-004](DECISIONS.md#dec-004--verified-free-space-requires-a-finite-depth-return).
 
+**13b — observation lineage.** Both SfM engines emit, per point, the image
+measurements that produced it: `obs_point` indexes the pre-fusion point array,
+`obs_frame` is the keyframe index, `obs_uv` the pixel at solving resolution.
+Fusion reindexes the cloud, so `PointCloud.source_index` maps each survivor back
+to its input row and `_remap_observations` inverts that map. Observations whose
+point did not survive are dropped rather than reassigned — a discarded point's
+measurements are not evidence for whatever took its place. Each surviving row is
+written with **both** frame numberings: the solver's keyframe index and the
+decoded frame index that `sel` maps it to. See
+[DEC-009](DECISIONS.md#dec-009--observation-lineage-is-carried-as-a-separate-artifact-and-a-merged-away-point-donates-nothing).
+
 ### Artifacts written
 
 `cloud.npz` (points, colors, confidence, provenance, sigma, sigma_major),
@@ -92,7 +104,9 @@ produces `EMPTY`. See
 `trajectory.json` (ENU frame, `K`, `image_size`, per-camera `C` and `R`, GNSS
 track), `trajectory.csv`, `trajectory.geojson`, `coverage.npz`,
 `coverage.json`, `frame_metrics.json`, `keyframes.json`,
-`quality_report.json/.html`, `manifest.json`.
+`quality_report.json/.html`, `manifest.json`, `observations.npz`
+(`point_index`, `keyframe_index`, `frame_index`, `uv`, plus the image size the
+pixels are in).
 
 `manifest.json` carries the video hash, the full parameter set, every spatial
 transform applied, the vertical datum, the frame timing source, and the
@@ -166,6 +180,9 @@ sequenceDiagram
 
 `questions.evaluate()`:
 
+0. **Support basis.** `Evidence.view_support_basis` is
+   `triangulated_observations` when every endpoint resolved to observation
+   lineage, `frustum_upper_bound` otherwise. The latter adds a blocking reason.
 1. **Hard refusals → `NOT_OBSERVABLE`.** `value is None`; endpoint not on
    observed geometry; endpoint outside established coverage; measurement touches
    inferred geometry; sigma non-finite. Any of these and no number is presented
@@ -186,9 +203,11 @@ sequenceDiagram
    `MEETS_REQUIREMENT`. Otherwise → `ESTIMATED_ONLY`.
 
 **Today, step 6 never reaches `MEETS_REQUIREMENT`**, because the backend passes
-`profile=None` and `evidence.view_support_basis` is always
-`frustum_upper_bound`. Both are deliberate ([DEC-003](DECISIONS.md),
-[DEC-006](DECISIONS.md)).
+`profile=None` — no calibration profile has been fitted for any capture regime
+([DEC-003](DECISIONS.md)). Since observation lineage landed, that is the only
+remaining blocker on real reconstructions: on the AGZ mission a well-supported
+3 m span returns `estimated_only` with the single reason
+`interval_not_calibrated`.
 
 ### Changing the tolerance
 
@@ -223,25 +242,31 @@ exposure needs the hardening listed in `NEXT_STEPS.md`.
 ```text
 GET /api/projects/{id}/questions/{qid}/evidence
  ↓  ReconstructionEvidence.load(artifacts_dir)
- │     trajectory.json -> centres, rotations, K, image_size
- │     coverage.npz    -> CoverageGrid
- │     manifest.json   -> scale_source, scale_sigma / scale
+ │     trajectory.json   -> centres, rotations, K, image_size
+ │     cloud.npz         -> points (for snapping a selection to lineage)
+ │     observations.npz  -> point_index, keyframe_index, frame_index, uv
+ │     coverage.npz      -> CoverageGrid
+ │     manifest.json     -> scale_source, scale_sigma / scale
  ↓  for each endpoint:
- │     visible_cameras(p)          in front + inside image bounds
- │     max_ray_separation_deg(p)   widest angle between any two rays
- │     within_coverage(p)          CoverageGrid.is_measurable
- │     supporting_frames(p)        diversity-ranked candidate frames
- ↓  support_basis: "frustum_upper_bound"  + a note saying what that means
+ │     lineage_point(p)              nearest point within 2x cloud spacing, or -1
+ │     ├─ found: observations_of(p)  the frames that measured it, and the pixels
+ │     │         measured_ray_separation_deg(p)   parallax they provided
+ │     └─ not found: visible_cameras(p) + max_ray_separation_deg(p)  upper bound
+ │     within_coverage(p)            CoverageGrid.is_measurable
+ │     supporting_frames(p)          diversity-ranked, each row flagged `measured`
+ ↓  support_basis: "triangulated_observations" | "frustum_upper_bound"
 ```
 
 `supporting_frames` ranks by *added* angular spread rather than by proximity or
 distance, so a run of near-identical neighbouring frames does not fill the list.
 This is the ranking a same-pass refinement scheduler will reuse.
 
-**What this is not:** the frames listed are cameras that *could* have seen the
-point. The cloud does not record which image observations produced it, so this
-is candidate imagery. The response says so rather than letting a caller assume
-otherwise.
+**The two bases are not interchangeable.** Measured on the AGZ mission over 400
+sampled points, frustum geometry reports a median of 11 supporting views where
+the measurements provide 3, and 81.1° of parallax where the measurements provide
+20.5°. Only the lineage basis licenses acceptance; the frustum basis adds
+`VIEW_GEOMETRY_UNVERIFIED`, which blocks. A measurement whose worst endpoint
+falls back is reported as frustum-derived in full.
 
 ---
 

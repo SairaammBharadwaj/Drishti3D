@@ -368,3 +368,211 @@ Known limits carried forward, all in [NEXT_STEPS.md](NEXT_STEPS.md): no
 observation lineage (P0, blocks three MVP features), no validated calibration
 (P1, needs field data), 56% of the pass discarded by keyframe selection (P1),
 no refinement, no passport, no Tolerance Lens UI.
+
+---
+
+# 2026-09-19 (later) — Observation lineage: measurements know which frames made them
+
+## Objective
+
+Clear the P0 blocker recorded in the previous entry. Three MVP features
+depend on it — Evidence Replay (F3), same-pass refinement (F4), and acceptance
+on view support (F2) — and none can start until a cloud point can say which
+image measurements produced it.
+
+Plan work package WP1.
+
+## Work Completed
+
+### Lineage out of both engines
+
+`ReconResult` gained three parallel arrays: `obs_point` (index into `points`),
+`obs_frame` (keyframe index) and `obs_uv` (pixel at solving resolution), plus an
+`observations_of(i)` helper.
+
+The in-repo engine already held everything needed — `tracks[root]` maps frame to
+keypoint index and `point_of_track` is iterated in the same order the point
+arrays are built — so the observations are accumulated in the same loop, keyed
+by the point index as it is appended. Only observations in registered cameras
+are recorded; a track can carry a measurement from a frame that never
+registered, and that measurement contributed nothing.
+
+The COLMAP adapter reads `Point3D.track.elements`, which gives an image id and
+the index of the 2D point within that image directly. Image ids are database
+identifiers, so a `frame_of_image` map translates them to keyframe indices once,
+at the point where the cameras are already being walked.
+
+### Survival through fusion
+
+`PointCloud` gained `source_index`: for each surviving point, the row it had in
+the array passed to `fuse`. Both fusion paths now carry it through the same
+indexing they already apply to confidence and sigma — exact on the numpy voxel
+path, nearest-original-point on the Open3D path, which is the mapping that path
+already uses for confidence.
+
+`pipeline._remap_observations` inverts that map onto the fused cloud and drops
+observations whose point did not survive. Each surviving row is written with
+**both** frame numberings: the solver's keyframe index, and the decoded frame
+index `sel` maps it to.
+
+Persisted as `observations.npz` beside `cloud.npz` — one row per observation,
+not per point, so a consumer that wants only geometry does not pay for it.
+
+### Evidence prefers lineage
+
+`ReconstructionEvidence` now loads `cloud.npz` and `observations.npz`, and
+gained `has_lineage`, `lineage_point`, `observations_of` and
+`measured_ray_separation_deg`. `for_points` uses the measuring frames and their
+parallax when every endpoint resolves to lineage, stamping
+`triangulated_observations`; otherwise it falls back to the frustum test and
+stamps `frustum_upper_bound`, which still blocks acceptance.
+
+`supporting_frames` returns the measuring frames with the pixel each
+measurement was made at, flagged `measured`. That is the data Evidence Replay
+needs to draw a marker on a source frame.
+
+The evidence endpoint reports the real basis per endpoint and for the
+measurement as a whole, instead of the hardcoded `frustum_upper_bound` it
+returned before.
+
+## Files Changed
+
+`drishti3d/reconstruction/drishti_recon/sfm.py`
+`ReconResult` carries observation lineage; the assembly loop accumulates it.
+
+`drishti3d/reconstruction/drishti_recon/colmap_adapter.py`
+Same lineage from COLMAP tracks; `frame_of_image` translates database image ids
+to keyframe indices.
+
+`drishti3d/reconstruction/drishti_recon/fusion.py`
+`PointCloud.source_index`, threaded through both cleaning paths.
+`add_inferred_layer` marks AI-proposed points `-1`.
+
+`drishti3d/reconstruction/drishti_recon/pipeline.py`
+`_remap_observations`; `observations.npz` written in `_write_artifacts`.
+
+`drishti3d/reconstruction/drishti_recon/evidence.py`
+Lineage loading and queries; `for_points` and `supporting_frames` prefer it.
+
+`drishti3d/backend/app/routers/questions.py`
+The evidence endpoint reports the actual basis and, where available, the
+measuring frames, their pixels and the measured parallax.
+
+`drishti3d/tests/test_lineage.py` (new), `test_evidence.py`
+13 tests.
+
+## Important Implementation Details
+
+**A merged-away point donates nothing.** Voxel downsampling keeps one
+representative per cell; the survivor keeps only its own observations rather
+than the union of the cell's. That understates support for a point standing in
+for several, which is the safe direction — attributing a measurement of one
+piece of surface to a different one is exactly the overstatement this path
+exists to prevent.
+
+**Both frame numberings are stored in every row.** The solver numbers by
+keyframe; the exported cameras and the mission's `frame_index.csv` use the
+decoded frame index. Keyframe selection decimates, so on the AGZ mission
+keyframe 1 is decoded frame 2.
+
+**A selection must be near a point to inherit its lineage.** Snapping is capped
+at `LINEAGE_SNAP_FACTOR = 2.0` times the cloud's median nearest-neighbour
+spacing. Beyond that the nearest point is different surface and the measurement
+falls back to the frustum basis. A cloud too small to have a spacing requires an
+exact hit.
+
+**A mixed measurement reports as frustum-derived.** If any endpoint lacks
+lineage the whole measurement is stamped `frustum_upper_bound`. Averaging the
+two bases would produce a figure belonging to neither.
+
+## Commands Executed
+
+```bash
+cd drishti3d
+.venv/bin/python scripts/run_mission.py --mission agz_dense_pass \
+    --max-frames 184 --engine colmap --tag lineage
+.venv/bin/python scripts/run_mission.py --mission agz_dense_pass \
+    --max-frames 60 --engine opencv --tag lineage_ocv
+.venv/bin/python -m pytest tests/ -q          # 277 passed, 112 s
+```
+
+## Problems Encountered
+
+**Problem** — On the first real run, `measured_ray_separation_deg` returned
+0.0 for a point with four recorded observations, while the frustum figure for
+the same point was 84.6°.
+
+**Cause** — The camera lookup map was keyed by decoded frame index (what the
+exported cameras carry) while observations were looked up by keyframe index. No
+camera resolved, so fewer than two rows came back and the function returned its
+"not enough views" zero.
+
+**Solution** — Key the map by decoded frame index and resolve through
+`obs["frame_index"]`. This is precisely the trap the "two frame numberings"
+comment written an hour earlier warned about, which is why both numbers are
+stored in every row rather than one being derived at read time.
+`test_frame_numbering_is_not_guessed_between` pins it. The failure mode is worth
+naming: zero parallax on a well-observed point is indistinguishable from a
+correctly detected degenerate capture.
+
+---
+
+**Problem** — Three new evidence tests failed with `frustum_upper_bound` on
+fixtures that clearly had lineage.
+
+**Cause** — `lineage_point` rejects a selection further than two point spacings
+from the cloud, and `_spacing()` returns `inf` for a cloud with fewer than two
+points. The guard `not np.isfinite(spacing)` then rejected everything, so a
+single-point fixture could never match.
+
+**Solution** — A degenerate cloud requires an exact hit (1e-6 m) instead of
+admitting everything or nothing, and the fixtures were given a realistic
+surrounding cloud so the spacing means something.
+
+## Approaches That Did Not Work
+
+**Unioning a voxel cell's observations into its surviving representative.**
+Considered because it would raise measured support toward the frustum figure
+and keep more measurements acceptable. Rejected: the survivor sits at a
+different position from the points merged into it, so their measurements are of
+different surface. It reintroduces the overstatement from a new direction.
+
+**Storing lineage inside `cloud.npz`.** Rejected: it is one row per
+observation, not per point — 69,173 against 17,897 on the AGZ mission — so it
+would need padding to the longest track or object arrays, and every consumer
+wanting geometry alone would load it.
+
+**Deriving the decoded frame index from the keyframe index at read time.**
+Rejected after the bug above. The conversion needs `sel`, which is not in the
+artifact set, and a wrong guess fails silently in the direction that looks like
+a correct refusal.
+
+## Verification
+
+- 277 tests pass, up from 264. 13 added across `test_lineage.py` and
+  `test_evidence.py`.
+- Both engines produce lineage on the real mission: COLMAP 69,173 observations
+  over 17,897 points (median 3 per point, 32 points without lineage); OpenCV
+  7,750 over 3,184 (median 2, none without). Pixels lie within the 1280×720
+  solving resolution and the keyframe→decoded map is correct.
+- Reconstruction is unaffected: the COLMAP run reproduces at 86.6 s with a
+  3.765 m median as-georeferenced error and 0.322 m after Sim(3), matching the
+  runs from earlier in the day.
+- 400 points sampled from the real reconstruction quantify what the frustum
+  basis was overstating: median 11 views against 3 measured (3.0×), and 81.1°
+  of parallax against 20.5° measured (3.7×).
+- End to end, a well-supported 3.0 m span now returns `estimated_only` with the
+  single reason `interval_not_calibrated`; supplying a hypothetical validated
+  profile turns the same measurement into `meets_requirement`.
+
+## Result
+
+Every measurement can name the frames that produced it and the pixel each was
+measured at. `VIEW_GEOMETRY_UNVERIFIED` no longer fires on either engine, so
+**interval calibration is now the only thing standing between this system and
+an accepted measurement** — and that needs field data, not code.
+
+Evidence Replay (F3) and same-pass refinement (F4) are unblocked. The
+measurement passport moves from "needs lineage first" to buildable.
+
+P0 in [NEXT_STEPS.md](NEXT_STEPS.md) is now empty.

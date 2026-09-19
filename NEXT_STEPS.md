@@ -6,73 +6,18 @@ If you are picking this repository up now, read
 Last updated: 2026-09-19.
 
 **The one-line summary of where the project stands:** reconstruction works on
-real single-pass aerial video and is measured against a real reference; the
-measurement layer decides and explains verdicts correctly; but nothing can be
-*accepted* yet, because two things are missing — observation lineage and a
-validated interval calibration — and neither is hard, both just need to be
-built.
+real single-pass aerial video and is measured against a real reference; every
+measurement can name the frames and pixels that produced it; but nothing can be
+*accepted* yet, because there is no validated interval calibration — and that
+one needs field data, not code.
 
 ---
 
 ## P0 — Critical
 
-### Persist observation lineage from SfM through fusion
-
-**Status:** TODO
-**Priority:** P0
-
-**Why it matters**
-
-This is the single blocking dependency for three of the six MVP features.
-Without it: Evidence Replay (F3) cannot show the pixels that produced a
-measurement; same-pass refinement (F4) cannot know which frames to re-match; and
-acceptance (F2) is permanently blocked because view support can only be inferred
-from camera frustums, which is an upper bound
-([DEC-006](DECISIONS.md#dec-006--view-support-is-stamped-with-its-basis-and-a-frustum-derived-basis-cannot-license-acceptance)).
-It is plan work package WP1.
-
-**Current state**
-
-`sfm.reconstruct` builds tracks internally — `ReconResult` carries `obs_count`,
-`reproj_err` and `tri_angle` per point — but discards which frame and pixel each
-observation came from. `fusion.fuse` then voxel-downsamples and removes
-statistical outliers, reindexing the cloud, and nothing carries identity across
-that. `cloud.npz` stores positions, colours, confidence, provenance, sigma and
-sigma_major only.
-
-`evidence.ReconstructionEvidence` is the stand-in: real frustum and coverage
-tests, stamped `view_support_basis="frustum_upper_bound"` so its figures cannot
-be mistaken for support.
-
-**Recommended implementation**
-
-1. Add `track_id: np.ndarray` to `ReconResult`, and an observation table
-   `(track_id, keyframe_index, u, v)` — the SfM front end already has this data
-   in `tracks` / `point_of_track`.
-2. Carry `track_id` through `fusion.fuse` alongside `confidence` and `sigma`;
-   both the Open3D and the numpy path already index those arrays, so this is the
-   same indexing applied to one more array. The Open3D path maps by nearest
-   original point after downsampling, which is already approximate — assign the
-   nearest original point's track and record that the mapping is nearest-point,
-   not exact.
-3. Write `observations.npz` beside `cloud.npz`: `track_id`, `keyframe_index`,
-   `u`, `v`, plus the keyframe → original frame index map already in
-   `keyframes.json`.
-4. Do the same for the COLMAP path in `colmap_adapter.py` — PyCOLMAP's
-   `Point3D.track` gives image id and 2D point index directly, so this side is
-   easier than the in-repo engine.
-5. In `evidence.py`, prefer the lineage when `observations.npz` exists and set
-   `view_support_basis="triangulated_observations"`. Everything downstream then
-   works with no rule change.
-
-**Relevant files**
-
-`reconstruction/drishti_recon/sfm.py`, `fusion.py`, `colmap_adapter.py`,
-`pipeline.py` (`_write_artifacts`), `evidence.py`
-
-**Dependencies/blockers**
-
-None. Start here.
+Nothing. Observation lineage, the previous P0, landed on 2026-09-19 — see
+[DEC-009](DECISIONS.md) and the
+[WORKLOG entry](WORKLOG.md). The top of the backlog is now P1.
 
 ---
 
@@ -85,8 +30,9 @@ None. Start here.
 
 **Why it matters**
 
-The second blocker on acceptance. Until a `CalibrationProfile` exists and is
-validated, every verdict is `estimated_only`
+**The only remaining blocker on acceptance.** Measured on the AGZ mission after
+lineage landed, a well-supported 3 m span returns `estimated_only` with the
+single reason `interval_not_calibrated`. Fix this and the product can say "yes"
 ([DEC-003](DECISIONS.md#dec-003--acceptance-requires-a-validated-calibration-profile)).
 
 **Current state**
@@ -171,9 +117,11 @@ Plan feature F4, and the principal engineering contribution of the product.
 
 **Current state**
 
-Nothing implemented. `evidence.supporting_frames` already does the candidate
-ranking half — diversity-ranked by added angular spread — which is the ranking
-a scheduler would reuse.
+Nothing implemented, but both halves it depends on now exist.
+`evidence.supporting_frames` does the candidate ranking, diversity-ranked by
+added angular spread. `observations.npz` says which frames already measured a
+point, which is exactly the set a scheduler must *exclude* when looking for new
+evidence.
 
 **Recommended implementation**
 
@@ -196,7 +144,8 @@ New `reconstruction/drishti_recon/refinement.py`; `keyframes.py`,
 
 **Dependencies/blockers**
 
-P0 observation lineage. Refinement needs to know which observations to refit.
+None remaining — observation lineage landed 2026-09-19. This is the largest
+open piece of engineering in the plan.
 
 ---
 
@@ -225,8 +174,11 @@ shell access.
    API already returns all of it in `guidance`.
 3. A tolerance slider that issues `PATCH` and re-renders. The card must not
    recompute a status locally; render exactly what the API returns.
-4. An evidence panel listing the candidate frames, showing `support_basis`
-   verbatim so the upper-bound caveat reaches the operator.
+4. An evidence panel listing the frames from `…/evidence`. Each row carries
+   `measured` and, when true, the `pixel` the measurement was made at — enough
+   for Evidence Replay to draw a marker on the source frame. Show
+   `support_basis` verbatim so an upper-bound caveat reaches the operator when
+   the fallback path is in use.
 
 **Relevant files**
 
@@ -274,8 +226,11 @@ PyCOLMAP import fails. Keep both tested either way.
 
 Plan F3's second half: a standalone evidence bundle a verifier can recompute the
 reported number from, and validate artifact hashes against, without the running
-backend. Needs P0 lineage first so the bundle can carry real supporting pixels.
-Expected new module `passport.py`.
+backend. Unblocked as of 2026-09-19 — `observations.npz` supplies the real
+supporting frames and pixels the bundle has to carry, and the mission's
+`frame_index.csv` maps those frames back to original source JPEGs with hashes.
+Expected new module `passport.py`. Arguably belongs at P1 now that it is
+buildable.
 
 ---
 
