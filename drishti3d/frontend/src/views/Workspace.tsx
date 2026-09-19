@@ -5,6 +5,7 @@ import {
   type ModelPayload, type QualityReport, type Trajectory,
   type Measurement, type MeasurementKind, type FrameMetric, type Keyframe, type Vec3,
 } from '../api'
+import ReconstructionNotice from '../ReconstructionNotice'
 import PointCloudViewer from '../PointCloudViewer'
 import TrajectoryMap from '../TrajectoryMap'
 
@@ -81,6 +82,7 @@ export default function Workspace() {
     <div className="workspace">
       {/* LEFT: tools + layers */}
       <aside className="wpanel">
+        <ReconstructionNotice quality={quality} />
         <div className="spread"><h3>Measurement</h3></div>
         <div className="row">
           {(['point', 'distance', 'height', 'area'] as MeasurementKind[]).map((k) => (

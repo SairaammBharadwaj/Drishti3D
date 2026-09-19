@@ -48,13 +48,13 @@ export default function Wizard() {
     nav(`/projects/${project.id}/monitor?job=${job.id}`)
   })
 
-  const canProcess = project?.has_video && project?.has_telemetry
+  const canProcess = project?.has_video
 
   return (
     <div className="container" style={{ maxWidth: 720 }}>
       <h1>New Reconstruction</h1>
       <div className="row" style={{ margin: '10px 0 18px' }}>
-        {['Mission', 'Video', 'Telemetry', 'Camera & options'].map((s, i) => (
+        {['Mission', 'Video', 'Telemetry (optional)', 'Camera & options'].map((s, i) => (
           <span key={s} className="pill" style={{
             color: i === step ? 'var(--accent)' : i < step ? 'var(--green)' : 'var(--muted)',
             borderColor: i === step ? 'var(--accent)' : 'var(--border)',
@@ -83,7 +83,8 @@ export default function Wizard() {
       {step === 1 && project && (
         <div className="card stack">
           <h3>Upload drone video</h3>
-          <input type="file" accept=".mp4,.mov,.m4v,.avi,.mkv" onChange={(e) => onVideo(e.target.files?.[0])} />
+          <input type="file" aria-label="Upload drone video" accept=".mp4,.mov,.m4v,.avi,.mkv,.webm" onChange={(e) => onVideo(e.target.files?.[0])} />
+          <div className="muted">Supported: MP4, MOV, M4V, AVI, MKV, WebM.</div>
           {project.video_filename && <div className="notebox">Uploaded: <span className="mono">{project.video_filename}</span></div>}
           <div className="row">
             <button onClick={() => setStep(0)}>← Back</button>
@@ -94,15 +95,16 @@ export default function Wizard() {
 
       {step === 2 && project && (
         <div className="card stack">
-          <h3>Upload telemetry (CSV / JSON / SRT)</h3>
+          <h3>Telemetry (optional · CSV / JSON / SRT)</h3>
           <div className="muted" style={{ fontSize: 13 }}>
-            Required fields: timestamp, latitude, longitude, altitude. Optional: yaw, gps_accuracy, rtk_status, fx/fy/cx/cy.
+            If supplied, required fields are timestamp, latitude, longitude, altitude. Optional: yaw, gps_accuracy, rtk_status, fx/fy/cx/cy.
           </div>
+          <div className="notebox">No telemetry? Continue with video only. The reconstruction will have relative scale, without established distances in metres or a geographic position.</div>
           <input type="file" accept=".csv,.json,.srt" onChange={(e) => onTelemetry(e.target.files?.[0])} />
           {project.telemetry_filename && <div className="notebox">Uploaded: <span className="mono">{project.telemetry_filename}</span></div>}
           <div className="row">
             <button onClick={() => setStep(1)}>← Back</button>
-            <button className="primary" disabled={!project.has_telemetry || busy} onClick={() => setStep(3)}>Next →</button>
+            <button className="primary" disabled={busy} onClick={() => setStep(3)}>{project.has_telemetry ? 'Next →' : 'Continue without telemetry →'}</button>
           </div>
         </div>
       )}
@@ -161,7 +163,8 @@ export default function Wizard() {
             <button onClick={() => setStep(2)}>← Back</button>
             <button className="primary" disabled={!canProcess || busy} onClick={start}>Start reconstruction →</button>
           </div>
-          {!canProcess && <div className="muted">Upload both video and telemetry to proceed.</div>}
+          {!project.has_telemetry && <div className="notebox">Video-only reconstruction: shape and quality metrics will be available; metric scale and map position are not established.</div>}
+          {!canProcess && <div className="muted">Upload a video to proceed.</div>}
         </div>
       )}
     </div>
