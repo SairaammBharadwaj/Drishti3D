@@ -1471,3 +1471,120 @@ flight, this camera, or this site, and no data in this checkout can.
 `drishti3d/eval/f4_experiment.py`, `drishti3d/scripts/build_agz_mission.py`,
 `drishti3d/docs/benchmarks/2026-09-20_f4_second_capture/`,
 `drishti3d/reconstruction/drishti_recon/keyframes.py`
+
+---
+
+## DEC-017 — Refinement decodes sequentially and caches detections across measurements
+
+**Date:** 2026-09-20
+
+**Status:** Accepted
+
+### Context
+
+After [DEC-016](#dec-016--the-f4-advantage-reproduces-on-further-test-beds-but-they-are-one-flight)
+the only thing targeted refinement lost on was cost: 2–4× the uniform control's
+compute, with break-even at 5–13 questions depending on the test bed. Since the
+control's price is fixed and the targeted arm's is per question, that break-even
+*is* the comparison.
+
+Profiling one refinement, rather than guessing:
+
+| Phase | Share | Per call |
+|---|---:|---:|
+| `_register` | 62% | 1.05 s |
+| `_locate` | 26% | 0.48 s |
+| `_local_bundle` | 12% | 2.22 s |
+
+Then inside `_register`, splitting detection from matching: **detection 94%,
+matching 6%**. And inside detection, splitting decode from SIFT:
+
+| | Cost per frame |
+|---|---:|
+| `gray()` — seek, decode, resize, undistort | **339 ms** |
+| SIFT detect, 4000 features | 47 ms |
+| SIFT detect, 1200 features | 38 ms |
+
+So the cost was never the vision. It was **seeking in an H.264 stream**, which
+decodes from the nearest keyframe every time. Sequential reading of the same
+video costs 8 ms per frame — 48× less — and a question's top ten candidates span
+a median of 16 frames.
+
+### Options Considered
+
+#### Reduce the feature count
+
+The obvious knob, and worth 9 ms of 386. Rejected as irrelevant to the actual
+cost.
+
+#### Re-encode missions all-intra so seeking is cheap
+
+Would work, and makes every mission video far larger for a benefit only this one
+code path needs.
+
+#### Decode the span sequentially, once per refinement
+
+A refinement knows up front which frames it will look at: its candidate batch,
+their PnP anchors, and the endpoint's anchors. Reading that span in one pass
+costs the span, not the seeks.
+
+#### Cache detections across measurements, not within one
+
+`_detect_cached` existed but was per engine, and an engine is created per
+measurement — so the cache was discarded exactly when it would start paying.
+`_register` did not use it at all, re-detecting each anchor once per candidate.
+
+### Decision
+
+The last two. `FrameSource.prefetch` reads a run of frames in one sequential
+pass, bounded by `PREFETCH_MAX_SPAN` and `PREFETCH_MAX_WASTE` so it cannot read
+through the whole clip for two scattered frames. `_DETECT_CACHE` is module-level,
+LRU-bounded, and keyed by (backend name, video path, frame index) — never by
+object identity, because two detectors produce different keypoints for the same
+image and matching one's features against another's fails silently.
+
+`MAX_REFIT_POINTS` stays at 400. Dropping it to 100 was measured: 13% faster,
+one refit fewer in eight, and median sigma 4.6% worse. Interval width is the
+feature's remaining weakness, so that is not a trade worth taking.
+
+### Why
+
+The profile said the cost was frame access, not computation, and the fix is the
+one the access pattern already implied: refinement looks at a contiguous run of
+frames, so it should read them contiguously.
+
+### Consequences
+
+Measured on all three test beds, same frozen questions, same code otherwise:
+
+| Test bed | Before | After | Speedup | Yield, targeted / uniform |
+|---|---:|---:|---:|---|
+| `agz_dense_pass` | 206.7 s | **88.6 s** | 2.33× | 15 / 10 |
+| `agz_dense_firsthalf` | 239.3 s | **75.6 s** | 3.17× | 13 / 5 |
+| `agz_dense_secondhalf` | 223.9 s | **62.5 s** | 3.58× | 15 / 9 |
+
+- **The F4 gate's premise is now satisfiable.** At the control's own budget the
+  targeted arm reaches all 20 questions on the full pass (8 blockers cleared
+  against the control's 8), 14 of 20 on the first half (6 against 1) and 18 of
+  20 on the second (6 against 5). It ties once and wins twice at matched
+  compute, having previously been unable to finish the question set at all.
+- On the full pass it is now **cheaper as well as higher-yield**: 88.6 s against
+  135.4 s.
+- Break-even moved from 4.8–13.1 questions to 15.1–30.6.
+- Quality is unchanged or slightly better — yield 14 → 15 on the full pass,
+  still zero regressions everywhere. The speedup came from doing the same work
+  fewer times, not from doing less of it.
+- A refinement now holds up to 96 decoded frames and 96 detections in
+  process-wide caches: roughly 85 MB and a few hundred MB respectively at the
+  worst.
+- Because the caches are keyed by video path rather than by reconstruction,
+  reprocessing a project is safe — the frames are unchanged. The one case that
+  is not safe is a **new upload landing at the same path with different
+  content**, so `clear_detect_cache()` is called from the video upload handler.
+  That is the only point where a cached frame can go stale.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/refinement.py`
+(`FrameSource.prefetch`, `_prepare`, `_store`, `_detect_cached`,
+`_DETECT_CACHE`, `clear_detect_cache`)

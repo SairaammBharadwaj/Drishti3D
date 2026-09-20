@@ -57,8 +57,20 @@ from pathlib import Path
 
 import numpy as np
 
+from collections import OrderedDict
+
 from . import questions as qmod
 from . import uncertainty as unc
+
+#: Detections keyed by (backend, video, frame). Module-level because an engine
+#: is created per measurement, so a per-engine cache is discarded exactly when
+#: it would start paying for itself.
+_DETECT_CACHE: "OrderedDict" = OrderedDict()
+
+
+def clear_detect_cache() -> None:
+    """Drop cached detections. Call after reprocessing a project's video."""
+    _DETECT_CACHE.clear()
 
 #: Rays from a camera recovered by PnP against the existing model carry this
 #: multiple of the baseline pixel uncertainty.  The camera's own pose error is
@@ -67,6 +79,22 @@ from . import uncertainty as unc
 #: 2.0 is a judgement, not a measurement -- it has not been calibrated against
 #: observed error, and is deliberately on the pessimistic side.
 POSE_UNCERTAINTY_INFLATION = 2.0
+
+#: Decoded frames kept per video. Each is one greyscale image at solving
+#: resolution, about 0.9 MB at 1280x720.
+GRAY_CACHE_FRAMES = 96
+
+#: Widest run of frames a single prefetch will read through, and how much
+#: unwanted decoding it will tolerate to avoid seeking. Sequential reading is
+#: 48x cheaper per frame here, so reading a few unused frames is nearly always
+#: the cheaper choice -- but not without bound.
+PREFETCH_MAX_SPAN = 240
+PREFETCH_MAX_WASTE = 8
+
+#: Frames whose detections are kept in the shared cache. Each entry is one
+#: frame's keypoints and descriptors for one backend; at 4000 SIFT features that
+#: is roughly 2 MB, so 96 entries is a couple of hundred megabytes at worst.
+DETECT_CACHE_ENTRIES = 96
 
 #: Baseline 1-sigma of a feature location, in pixels at solving resolution.
 BASE_PIXEL_SIGMA = 1.0
@@ -372,7 +400,8 @@ class FrameSource:
                                      [0, intr["fy"], intr["cy"]],
                                      [0, 0, 1.0]], float)
         self._cap = None
-        self._cache: dict = {}
+        self._cache: "OrderedDict" = OrderedDict()
+        self._next_frame = None      # where a sequential read would land next
 
     def _open(self):
         import cv2
@@ -387,16 +416,45 @@ class FrameSource:
             self._cap.release()
             self._cap = None
 
-    def gray(self, frame_index: int):
-        """Greyscale frame at solving geometry, or ``None`` if unavailable."""
+    def prefetch(self, frame_indices) -> int:
+        """Decode a run of frames in one sequential pass instead of seeking.
+
+        Seeking in H.264 costs a decode from the nearest keyframe: measured on
+        this mission, 382 ms against 8 ms for a sequential read -- 48x. A
+        refinement's candidates cluster (a question's top ten span a median of
+        16 frames), so decoding the whole span once is far cheaper than seeking
+        to each, even counting the frames in between that are never used.
+
+        Returns the number of frames decoded.
+        """
         import cv2
-        if frame_index in self._cache:
-            return self._cache[frame_index]
+        want = sorted({int(i) for i in frame_indices
+                       if int(i) not in self._cache})
+        if not want:
+            return 0
+        lo, hi = want[0], want[-1]
+        span = hi - lo + 1
+        if span > PREFETCH_MAX_SPAN or span > len(want) * PREFETCH_MAX_WASTE:
+            return 0               # too sparse to be worth reading through
         cap = self._open()
-        cap.set(cv2.CAP_PROP_POS_FRAMES, int(frame_index))
-        ok, img = cap.read()
-        if not ok or img is None:
-            return None
+        if self._next_frame != lo:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
+        wanted = set(want)
+        n = 0
+        for idx in range(lo, hi + 1):
+            ok, img = cap.read()
+            if not ok or img is None:
+                self._next_frame = None
+                break
+            self._next_frame = idx + 1
+            if idx in wanted:
+                self._store(idx, self._prepare(img))
+                n += 1
+        return n
+
+    def _prepare(self, img):
+        """Resize and undistort one decoded frame into the solver's geometry."""
+        import cv2
         ow = img.shape[1]
         scale = 1.0
         if ow > self.proc_max_width:
@@ -418,10 +476,30 @@ class FrameSource:
                 [img], K_scaled, self.distortion)
             if applied:
                 img = imgs[0]
-        g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        if len(self._cache) > 48:
-            self._cache.clear()
-        self._cache[frame_index] = g
+        return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    def _store(self, frame_index: int, gray):
+        self._cache[int(frame_index)] = gray
+        self._cache.move_to_end(int(frame_index))
+        while len(self._cache) > GRAY_CACHE_FRAMES:
+            self._cache.popitem(last=False)
+
+    def gray(self, frame_index: int):
+        """Greyscale frame at solving geometry, or ``None`` if unavailable."""
+        import cv2
+        idx = int(frame_index)
+        if idx in self._cache:
+            self._cache.move_to_end(idx)
+            return self._cache[idx]
+        cap = self._open()
+        if self._next_frame != idx:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        ok, img = cap.read()
+        self._next_frame = idx + 1 if ok else None
+        if not ok or img is None:
+            return None
+        g = self._prepare(img)
+        self._store(idx, g)
         return g
 
 
@@ -645,25 +723,20 @@ class RefinementEngine:
         and the local refit needs them to connect it to the rest of the model.
         """
         import cv2
-        src = self._source_for()
-        g_new = src.gray(frame_index)
-        if g_new is None:
-            return None
         be = self._backend_for()
-        kp_new, desc_new = be.detect(g_new)
+        kp_new, desc_new, shape_new = self._detect_cached(be, frame_index,
+                                                          self.matcher_name)
         if desc_new is None or len(kp_new) < 8:
             return None
 
         obs = self.ev.observations
         pts3d, pts2d, pt_ids = [], [], []
         for f, row, _uv in anchors:
-            g_a = src.gray(f)
-            if g_a is None:
-                continue
-            kp_a, desc_a = be.detect(g_a)
+            kp_a, desc_a, _shape_a = self._detect_cached(be, f,
+                                                          self.matcher_name)
             if desc_a is None or len(kp_a) < 8:
                 continue
-            m = be.match(desc_new, desc_a, kp_new, kp_a, g_new.shape)
+            m = be.match(desc_new, desc_a, kp_new, kp_a, shape_new)
             if not m:
                 continue
             # Anchor observations in this frame, with the 3D point each measures.
@@ -720,14 +793,10 @@ class RefinementEngine:
         So all descriptors within :data:`OBSERVATION_MATCH_PX` are returned and
         a match against any of them counts.
         """
-        src = self._source_for()
         be = self._backend_for()
         out, frames = [], []
         for f, _row, uv in anchors:
-            g_a = src.gray(f)
-            if g_a is None:
-                continue
-            kp_a, desc_a = be.detect(g_a)
+            kp_a, desc_a, _sh = self._detect_cached(be, f, self.matcher_name)
             if desc_a is None or len(kp_a) == 0:
                 continue
             d = np.linalg.norm(np.asarray(kp_a, float) - np.asarray(uv, float),
@@ -814,10 +883,9 @@ class RefinementEngine:
         # Start from whichever measuring frame is nearest the target in time.
         f0, _row, uv0 = min(anchors, key=lambda a: abs(int(a[0])
                                                        - int(target_frame)))
-        g0 = src.gray(int(f0))
-        if g0 is None:
+        kp0, d0, _s0 = self._detect_cached(be, int(f0), self.matcher_name)
+        if d0 is None:
             return None, 0
-        kp0, d0 = be.detect(g0)
         ref = self._descriptors_at(kp0, d0, uv0)
         if ref is None:
             return None, 0
@@ -837,10 +905,9 @@ class RefinementEngine:
             w, h = self.ev.image_size or (0, 0)
             if not (0 <= pred[0] < w and 0 <= pred[1] < h):
                 continue
-            g = src.gray(int(f))
-            if g is None:
+            kp, d, _sh = self._detect_cached(be, int(f), self.matcher_name)
+            if d is None:
                 continue
-            kp, d = be.detect(g)
             j = self._match_in_window(kp, d, ref, pred, CHAIN_WINDOW_PX,
                                       CHAIN_RATIO)
             if j is None:
@@ -873,26 +940,36 @@ class RefinementEngine:
                 RefinementEngine._xfer = self._backend_for()
         return self._xfer
 
-    def _detect_cached(self, backend, frame_index):
-        """Detections for one frame, cached per engine.
+    def _detect_cached(self, backend, frame_index, backend_key=None):
+        """Detections for one frame, cached across engines.
 
-        Keyed by backend identity as well as frame, because the PnP matcher and
-        the transfer matcher produce different keypoints for the same image and
-        confusing the two would silently match one detector's features against
-        another's.
+        Detection dominates refinement: profiled at 62% of a measurement's wall
+        clock, almost all of it re-detecting the same anchor frames once per
+        candidate. Candidates for one question are consecutive frames, so their
+        temporal neighbours repeat; questions in one session revisit the same
+        stretch of pass. None of that work needs doing twice.
+
+        The cache is module-level because an engine is created per measurement,
+        so a per-engine cache is thrown away exactly when it would start paying.
+        The key names the *backend* and the *video*, not object identities: two
+        detectors produce different keypoints for the same image, and matching
+        one detector's features against another's would fail silently.
         """
-        key = (id(backend), int(frame_index))
-        cache = self.__dict__.setdefault("_detect_cache", {})
-        if key not in cache:
-            g = self._source_for().gray(int(frame_index))
-            if g is None:
-                cache[key] = (None, None, None)
-            else:
-                kp, desc = backend.detect(g)
-                cache[key] = (kp, desc, g.shape)
-            if len(cache) > 24:
-                cache.pop(next(iter(cache)))
-        return cache[key]
+        key = (backend_key or getattr(backend, "name", "?"),
+               str(self.video_path), int(frame_index))
+        if key in _DETECT_CACHE:
+            _DETECT_CACHE.move_to_end(key)
+            return _DETECT_CACHE[key]
+        g = self._source_for().gray(int(frame_index))
+        if g is None:
+            entry = (None, None, None)
+        else:
+            kp, desc = backend.detect(g)
+            entry = (kp, desc, g.shape)
+        _DETECT_CACHE[key] = entry
+        while len(_DETECT_CACHE) > DETECT_CACHE_ENTRIES:
+            _DETECT_CACHE.popitem(last=False)
+        return entry
 
     def _locate_by_transfer(self, point, R, C, anchors, frame_index):
         """Carry the endpoint's pixel into a recovered frame through correspondences.
@@ -924,8 +1001,8 @@ class RefinementEngine:
         f_a, _row, uv_a = min(anchors,
                               key=lambda a: abs(int(a[0]) - int(frame_index)))
         be = self._transfer_backend()
-        kp_a, d_a, shape_a = self._detect_cached(be, f_a)
-        kp_t, d_t, _shape_t = self._detect_cached(be, frame_index)
+        kp_a, d_a, shape_a = self._detect_cached(be, f_a, "transfer")
+        kp_t, d_t, _shape_t = self._detect_cached(be, frame_index, "transfer")
         if d_a is None or d_t is None:
             return None
         try:
@@ -1273,9 +1350,22 @@ class RefinementEngine:
                          np.asarray(uv, float)))
             sigmas.append(BASE_PIXEL_SIGMA)
 
+        # Decode everything this refinement will look at in one sequential
+        # pass. Seeking to each frame separately costs 48x more here, and the
+        # frames are clustered, so this is the single largest saving available.
+        batch = usable[:max_decode]
+        want = [c.frame_index for c in batch]
+        for c in batch:
+            want += [f for f, _r, _u in self._pnp_anchors(c.frame_index)]
+        want += [f for f, _r, _u in anchors]
+        try:
+            self._source_for().prefetch(want)
+        except Exception:                      # noqa: BLE001 - an optimisation
+            pass
+
         added_rays = 0
         recovered: list = []
-        for c in usable[:max_decode]:
+        for c in batch:
             if len(run.added_frames) >= budget_frames:
                 run.termination_reason = "budget_exhausted"
                 break

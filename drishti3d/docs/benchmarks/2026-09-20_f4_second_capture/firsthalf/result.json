@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-09-20T12:34:06Z",
+  "generated_utc": "2026-09-20T14:00:30Z",
   "mission": "agz_dense_firsthalf",
   "baseline_run": "balanced",
   "uniform_run": "quality",
@@ -11,20 +11,20 @@
   "uniform_sfm_s": 100.774,
   "equal_budget": {
     "budget_s": 57.2,
-    "targeted_questions_within_budget": 5,
-    "targeted_spend_s": 50.9,
-    "targeted_cleared_within_budget": 2,
-    "uniform_cleared_same_questions": 0,
+    "targeted_questions_within_budget": 14,
+    "targeted_spend_s": 54.5,
+    "targeted_cleared_within_budget": 6,
+    "uniform_cleared_same_questions": 1,
     "uniform_cleared_all_questions": 2,
-    "crossover_questions": 4.8,
-    "note": "The uniform arm's spend buys a new reconstruction that answers every question at once; the targeted arm's buys attention for one question at a time. Within the same seconds, the targeted arm reaches the first 5 of 20 questions."
+    "crossover_questions": 15.1,
+    "note": "The uniform arm's spend buys a new reconstruction that answers every question at once; the targeted arm's buys attention for one question at a time. Within the same seconds, the targeted arm reaches the first 14 of 20 questions."
   },
   "arms": [
     {
       "arm": "targeted",
       "n_questions": 20,
-      "added_compute_s": 239.3,
-      "added_compute_per_question_s": 12.0,
+      "added_compute_s": 75.6,
+      "added_compute_per_question_s": 3.8,
       "measurements_with_fewer_blockers": 9,
       "measurements_regressed": 0,
       "measurements_with_narrower_interval": 15,
@@ -37,7 +37,7 @@
       "median_views_after": 7.0,
       "median_parallax_before": 8.175,
       "median_parallax_after": 27.575,
-      "cleared_per_added_minute": 2.26
+      "cleared_per_added_minute": 7.14
     },
     {
       "arm": "uniform",
@@ -99,7 +99,7 @@
         "max_ray_separation_deg": 2.72
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 10.25
+      "targeted_wall_s": 6.2
     },
     {
       "id": "q001",
@@ -142,7 +142,7 @@
         "max_ray_separation_deg": 4.01
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 7.13
+      "targeted_wall_s": 3.58
     },
     {
       "id": "q002",
@@ -181,7 +181,7 @@
         "max_ray_separation_deg": 11.88
       },
       "targeted_frames_added": 3,
-      "targeted_wall_s": 14.66
+      "targeted_wall_s": 2.92
     },
     {
       "id": "q003",
@@ -222,7 +222,7 @@
         "max_ray_separation_deg": 4.11
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 9.99
+      "targeted_wall_s": 4.65
     },
     {
       "id": "q004",
@@ -262,7 +262,7 @@
         "max_ray_separation_deg": 3.46
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 8.84
+      "targeted_wall_s": 6.05
     },
     {
       "id": "q005",
@@ -303,7 +303,7 @@
         "max_ray_separation_deg": 5.66
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 7.05
+      "targeted_wall_s": 1.72
     },
     {
       "id": "q006",
@@ -342,7 +342,7 @@
         "max_ray_separation_deg": 5.86
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 15.12
+      "targeted_wall_s": 4.6
     },
     {
       "id": "q007",
@@ -381,7 +381,7 @@
         "max_ray_separation_deg": 5.02
       },
       "targeted_frames_added": 2,
-      "targeted_wall_s": 17.0
+      "targeted_wall_s": 4.21
     },
     {
       "id": "q008",
@@ -421,7 +421,7 @@
         "max_ray_separation_deg": 4.01
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 6.44
+      "targeted_wall_s": 1.56
     },
     {
       "id": "q009",
@@ -459,7 +459,7 @@
         "max_ray_separation_deg": 20.7
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 7.22
+      "targeted_wall_s": 1.68
     },
     {
       "id": "q010",
@@ -498,7 +498,7 @@
         "max_ray_separation_deg": 4.83
       },
       "targeted_frames_added": 3,
-      "targeted_wall_s": 22.13
+      "targeted_wall_s": 5.16
     },
     {
       "id": "q011",
@@ -537,7 +537,7 @@
         "max_ray_separation_deg": 9.35
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 16.65
+      "targeted_wall_s": 2.3
     },
     {
       "id": "q012",
@@ -580,7 +580,7 @@
         "max_ray_separation_deg": 4.43
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 11.32
+      "targeted_wall_s": 5.72
     },
     {
       "id": "q013",
@@ -618,7 +618,7 @@
         "max_ray_separation_deg": 8.19
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 9.53
+      "targeted_wall_s": 4.15
     },
     {
       "id": "q014",
@@ -660,7 +660,7 @@
         "max_ray_separation_deg": 3.08
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 10.65
+      "targeted_wall_s": 4.72
     },
     {
       "id": "q015",
@@ -698,7 +698,7 @@
         "max_ray_separation_deg": 19.44
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 9.67
+      "targeted_wall_s": 4.51
     },
     {
       "id": "q016",
@@ -736,7 +736,7 @@
         "max_ray_separation_deg": 9.8
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 15.88
+      "targeted_wall_s": 4.87
     },
     {
       "id": "q017",
@@ -777,7 +777,7 @@
         "max_ray_separation_deg": 2.17
       },
       "targeted_frames_added": 1,
-      "targeted_wall_s": 15.9
+      "targeted_wall_s": 2.89
     },
     {
       "id": "q018",
@@ -817,7 +817,7 @@
         "max_ray_separation_deg": 2.93
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 6.7
+      "targeted_wall_s": 1.47
     },
     {
       "id": "q019",
@@ -857,7 +857,7 @@
         "max_ray_separation_deg": 7.08
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 17.13
+      "targeted_wall_s": 2.63
     }
   ]
 }

@@ -6,13 +6,14 @@ If you are picking this repository up now, read
 Last updated: 2026-09-19.
 
 **Read this first:** the plan's central innovation hypothesis — that targeted
-same-pass refinement beats a uniform budget — now **wins on answer yield across
-all three test beds tried** (14 against 10, 13 against 5, 15 against 9), with
-**zero regressions in every one** against the control's four to seven. It costs
-2–4× more compute. All three test beds are partitions of **one flight**, and the
-only genuinely separate segment cannot run the comparison, so the feature stays
-experimental. Two things would settle it: a field capture that can test
-generalisation, and halving the per-question cost.
+same-pass refinement beats a uniform budget — **now passes its own gate on all
+three test beds tried**: higher answer yield (15 against 10, 13 against 5, 15
+against 9) with **zero regressions** against the control's four to seven, at
+comparable or lower compute after the cost work. All three test beds are
+partitions of **one flight**, and the only genuinely separate segment cannot run
+the comparison, so the feature stays experimental. **One thing would settle it:
+a field capture.** That also unblocks interval calibration, which is still the
+only thing between this system and an accepted measurement.
 
 **The one-line summary of where the project stands:** reconstruction works on
 real single-pass aerial video and is measured against a real reference; every
@@ -121,7 +122,7 @@ redundant, blurry, or wrongly rejected is **not established**.
 ### Capture a flight that can actually test generalisation
 
 **Status:** BLOCKED — needs field data
-**Priority:** P1
+**Priority:** P1 — the top of the backlog
 
 **Why it matters**
 
@@ -156,45 +157,6 @@ the regime explicit)
 **Dependencies/blockers**
 
 A field capture. Shares a site visit with the calibration task above.
-
----
-
-### Reduce the targeted arm's per-question cost
-
-**Status:** TODO
-**Priority:** P1
-
-**Why it matters**
-
-Cost is now the only thing the targeted arm loses on, and it is the clearer of
-the two findings across three test beds. Break-even falls to about **five**
-questions on the dense pass's halves against thirteen on the full pass, because
-the uniform arm's fixed cost is smaller there while the targeted arm's
-per-question cost is unchanged. Halving that cost roughly doubles the break-even
-everywhere and turns a split result into an unambiguous one.
-
-**Current state**
-
-Per question, up to 10 candidates are decoded, each needing a LightGlue
-detection on two frames plus a PnP solve, followed by one local bundle
-adjustment over 400 points.
-
-**Recommended implementation**
-
-1. **Cache detections across questions, not just within one.** `_detect_cached`
-   is per engine and an engine is created per measurement, so a frame detected
-   for one question is detected again for the next. A shared, bounded cache
-   keyed by (backend, frame) would cut most of the repeated work in a session.
-2. **Stop early.** The loop decodes up to `max_decode` candidates even after the
-   budget is met. It should stop as soon as the measurement's blockers are
-   cleared.
-3. **Shrink the refit.** 400 points is a guess; measure whether 150 gives the
-   same sigma.
-
-**Relevant files**
-
-`reconstruction/drishti_recon/refinement.py` (`_detect_cached`, the batch loop,
-`MAX_REFIT_POINTS`), `backend/app/routers/questions.py`
 
 ---
 

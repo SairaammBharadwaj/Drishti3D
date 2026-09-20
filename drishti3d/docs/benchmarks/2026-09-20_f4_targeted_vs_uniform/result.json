@@ -1,5 +1,6 @@
 {
-  "generated_utc": "2026-09-20T11:36:06Z",
+  "generated_utc": "2026-09-20T13:59:11Z",
+  "mission": "agz_dense_pass",
   "baseline_run": "colmap_unc",
   "uniform_run": "colmap_quality",
   "questions_file": "drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/questions_frozen.json",
@@ -10,33 +11,33 @@
   "uniform_sfm_s": 217.319,
   "equal_budget": {
     "budget_s": 135.4,
-    "targeted_questions_within_budget": 12,
-    "targeted_spend_s": 133.3,
-    "targeted_cleared_within_budget": 4,
-    "uniform_cleared_same_questions": 5,
+    "targeted_questions_within_budget": 20,
+    "targeted_spend_s": 88.6,
+    "targeted_cleared_within_budget": 8,
+    "uniform_cleared_same_questions": 8,
     "uniform_cleared_all_questions": 8,
-    "crossover_questions": 13.1,
-    "note": "The uniform arm's spend buys a new reconstruction that answers every question at once; the targeted arm's buys attention for one question at a time. Within the same seconds, the targeted arm reaches the first 12 of 20 questions."
+    "crossover_questions": 30.6,
+    "note": "The uniform arm's spend buys a new reconstruction that answers every question at once; the targeted arm's buys attention for one question at a time. Within the same seconds, the targeted arm reaches the first 20 of 20 questions."
   },
   "arms": [
     {
       "arm": "targeted",
       "n_questions": 20,
-      "added_compute_s": 206.7,
-      "added_compute_per_question_s": 10.3,
-      "measurements_with_fewer_blockers": 7,
+      "added_compute_s": 88.6,
+      "added_compute_per_question_s": 4.4,
+      "measurements_with_fewer_blockers": 8,
       "measurements_regressed": 0,
-      "measurements_with_narrower_interval": 14,
-      "status_moved_up": 5,
+      "measurements_with_narrower_interval": 15,
+      "status_moved_up": 6,
       "blocked_only_by_calibration_before": 8,
-      "blocked_only_by_calibration_after": 14,
+      "blocked_only_by_calibration_after": 15,
       "median_sigma_before": 0.151,
-      "median_sigma_after": 0.101,
+      "median_sigma_after": 0.104,
       "median_views_before": 3.0,
-      "median_views_after": 6.5,
+      "median_views_after": 6.0,
       "median_parallax_before": 9.555,
-      "median_parallax_after": 26.75,
-      "cleared_per_added_minute": 2.03
+      "median_parallax_after": 26.23,
+      "cleared_per_added_minute": 5.42
     },
     {
       "arm": "uniform",
@@ -98,7 +99,7 @@
         "max_ray_separation_deg": 6.68
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 17.13
+      "targeted_wall_s": 11.2
     },
     {
       "id": "q001",
@@ -115,16 +116,15 @@
         "max_ray_separation_deg": 8.08
       },
       "targeted": {
-        "value": 3.003460218588103,
-        "sigma": 0.16938629354221152,
-        "status": "needs_refinement",
+        "value": 2.082418561599735,
+        "sigma": 0.10543359468568017,
+        "status": "estimated_only",
         "reasons": [
-          "interval_not_calibrated",
-          "interval_exceeds_tolerance"
+          "interval_not_calibrated"
         ],
-        "dominant_limitation": "interval_exceeds_tolerance",
-        "n_supporting_views": 3,
-        "max_ray_separation_deg": 8.08
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 5,
+        "max_ray_separation_deg": 48.62
       },
       "uniform": {
         "value": 2.820790098730791,
@@ -137,8 +137,8 @@
         "n_supporting_views": 3,
         "max_ray_separation_deg": 7.77
       },
-      "targeted_frames_added": 0,
-      "targeted_wall_s": 14.14
+      "targeted_frames_added": 2,
+      "targeted_wall_s": 4.73
     },
     {
       "id": "q002",
@@ -178,7 +178,7 @@
         "max_ray_separation_deg": 10.42
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 6.95
+      "targeted_wall_s": 3.28
     },
     {
       "id": "q003",
@@ -194,15 +194,15 @@
         "max_ray_separation_deg": 10.09
       },
       "targeted": {
-        "value": 2.8816042666738086,
-        "sigma": 0.08664000857198956,
+        "value": 2.4522890075656067,
+        "sigma": 0.06665231453563858,
         "status": "estimated_only",
         "reasons": [
           "interval_not_calibrated"
         ],
         "dominant_limitation": "interval_not_calibrated",
-        "n_supporting_views": 5,
-        "max_ray_separation_deg": 66.68
+        "n_supporting_views": 4,
+        "max_ray_separation_deg": 13.89
       },
       "uniform": {
         "value": 3.1082955281449065,
@@ -215,8 +215,8 @@
         "n_supporting_views": 2,
         "max_ray_separation_deg": 3.66
       },
-      "targeted_frames_added": 2,
-      "targeted_wall_s": 20.75
+      "targeted_frames_added": 1,
+      "targeted_wall_s": 5.4
     },
     {
       "id": "q004",
@@ -257,7 +257,7 @@
         "max_ray_separation_deg": 3.04
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 7.81
+      "targeted_wall_s": 5.68
     },
     {
       "id": "q005",
@@ -274,15 +274,15 @@
         "max_ray_separation_deg": 7.88
       },
       "targeted": {
-        "value": 2.0195178481961578,
-        "sigma": 0.12353764432655061,
+        "value": 2.6783228726608534,
+        "sigma": 0.1108471339307595,
         "status": "estimated_only",
         "reasons": [
           "interval_not_calibrated"
         ],
         "dominant_limitation": "interval_not_calibrated",
         "n_supporting_views": 7,
-        "max_ray_separation_deg": 27.24
+        "max_ray_separation_deg": 24.24
       },
       "uniform": {
         "value": 3.071080974033862,
@@ -296,7 +296,7 @@
         "max_ray_separation_deg": 10.39
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 6.02
+      "targeted_wall_s": 1.64
     },
     {
       "id": "q006",
@@ -312,15 +312,15 @@
         "max_ray_separation_deg": 11.58
       },
       "targeted": {
-        "value": 3.232108033391779,
-        "sigma": 0.054807210490609354,
+        "value": 3.040529291074821,
+        "sigma": 0.044123214762168704,
         "status": "estimated_only",
         "reasons": [
           "interval_not_calibrated"
         ],
         "dominant_limitation": "interval_not_calibrated",
-        "n_supporting_views": 7,
-        "max_ray_separation_deg": 33.95
+        "n_supporting_views": 6,
+        "max_ray_separation_deg": 26.48
       },
       "uniform": {
         "value": 2.834157581934245,
@@ -333,8 +333,8 @@
         "n_supporting_views": 4,
         "max_ray_separation_deg": 12.73
       },
-      "targeted_frames_added": 1,
-      "targeted_wall_s": 14.79
+      "targeted_frames_added": 3,
+      "targeted_wall_s": 4.57
     },
     {
       "id": "q007",
@@ -372,7 +372,7 @@
         "max_ray_separation_deg": 11.31
       },
       "targeted_frames_added": 2,
-      "targeted_wall_s": 12.47
+      "targeted_wall_s": 6.05
     },
     {
       "id": "q008",
@@ -428,15 +428,15 @@
         "max_ray_separation_deg": 12.61
       },
       "targeted": {
-        "value": 3.0573041334329063,
-        "sigma": 0.057850702082338584,
+        "value": 2.8997326463043303,
+        "sigma": 0.04042536140417591,
         "status": "estimated_only",
         "reasons": [
           "interval_not_calibrated"
         ],
         "dominant_limitation": "interval_not_calibrated",
-        "n_supporting_views": 7,
-        "max_ray_separation_deg": 30.51
+        "n_supporting_views": 6,
+        "max_ray_separation_deg": 30.73
       },
       "uniform": {
         "value": 2.993759308911666,
@@ -450,7 +450,7 @@
         "max_ray_separation_deg": 16.5
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 4.83
+      "targeted_wall_s": 2.57
     },
     {
       "id": "q010",
@@ -488,7 +488,7 @@
         "max_ray_separation_deg": 11.42
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 13.5
+      "targeted_wall_s": 1.78
     },
     {
       "id": "q011",
@@ -505,15 +505,15 @@
         "max_ray_separation_deg": 6.4
       },
       "targeted": {
-        "value": 3.062706286341456,
-        "sigma": 0.10021003403522144,
+        "value": 2.9966576333099826,
+        "sigma": 0.1463465668827471,
         "status": "estimated_only",
         "reasons": [
           "interval_not_calibrated"
         ],
         "dominant_limitation": "interval_not_calibrated",
-        "n_supporting_views": 3,
-        "max_ray_separation_deg": 59.8
+        "n_supporting_views": 7,
+        "max_ray_separation_deg": 29.99
       },
       "uniform": {
         "value": 2.8258281891491848,
@@ -526,8 +526,8 @@
         "n_supporting_views": 4,
         "max_ray_separation_deg": 17.06
       },
-      "targeted_frames_added": 1,
-      "targeted_wall_s": 14.92
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 2.38
     },
     {
       "id": "q012",
@@ -566,7 +566,7 @@
         "max_ray_separation_deg": 3.15
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 15.16
+      "targeted_wall_s": 7.34
     },
     {
       "id": "q013",
@@ -604,7 +604,7 @@
         "max_ray_separation_deg": 10.12
       },
       "targeted_frames_added": 2,
-      "targeted_wall_s": 4.3
+      "targeted_wall_s": 3.3
     },
     {
       "id": "q014",
@@ -643,7 +643,7 @@
         "max_ray_separation_deg": 24.81
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 6.2
+      "targeted_wall_s": 3.76
     },
     {
       "id": "q015",
@@ -685,7 +685,7 @@
         "max_ray_separation_deg": 5.77
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 11.48
+      "targeted_wall_s": 5.77
     },
     {
       "id": "q016",
@@ -724,7 +724,7 @@
         "max_ray_separation_deg": 10.82
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 7.41
+      "targeted_wall_s": 2.78
     },
     {
       "id": "q017",
@@ -764,7 +764,7 @@
         "max_ray_separation_deg": 7.35
       },
       "targeted_frames_added": 2,
-      "targeted_wall_s": 4.35
+      "targeted_wall_s": 3.31
     },
     {
       "id": "q018",
@@ -804,7 +804,7 @@
         "max_ray_separation_deg": 13.64
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 13.73
+      "targeted_wall_s": 7.12
     },
     {
       "id": "q019",
@@ -845,7 +845,7 @@
         "max_ray_separation_deg": 4.0
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 10.72
+      "targeted_wall_s": 5.94
     }
   ]
 }
