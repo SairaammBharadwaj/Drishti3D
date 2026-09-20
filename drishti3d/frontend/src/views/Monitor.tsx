@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { api } from '../api'
+import ReconstructionNotice from '../ReconstructionNotice'
+import { api, type QualityReport } from '../api'
 
 interface Event { status: string; stage: string; progress: number; message: string; error?: string | null; warnings?: string[] }
 
@@ -15,6 +16,10 @@ export default function Monitor() {
   const jobId = sp.get('job') ?? ''
   const [ev, setEv] = useState<Event>({ status: 'queued', stage: '', progress: 0, message: 'queued' })
   const [warnings, setWarnings] = useState<string[]>([])
+  const [quality, setQuality] = useState<QualityReport | null>(null)
+  useEffect(() => {
+    if (ev.status === 'done' && id) api.quality(id).then(setQuality).catch(() => {})
+  }, [ev.status, id])
   const [elapsed, setElapsed] = useState(0)
   const start = useRef(Date.now())
 
@@ -79,9 +84,11 @@ export default function Monitor() {
 
       {ev.status === 'done' && (
         <div className="notebox" style={{ marginTop: 14 }}>
-          <strong className="badge done">Reconstruction complete</strong>
+          <strong className="badge done">Processing complete</strong>
+          <ReconstructionNotice quality={quality} />
           <div className="row" style={{ marginTop: 10 }}>
-            <Link to={`/projects/${id}`}><button className="primary">Open analysis workspace →</button></Link>
+            <Link to={`/projects/${id}/demo`}><button className="primary">View 3D & metrics →</button></Link>
+            <Link to={`/projects/${id}`}><button>Open analysis workspace →</button></Link>
             <Link to={`/projects/${id}/report`}><button>View report</button></Link>
           </div>
         </div>

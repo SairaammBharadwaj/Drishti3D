@@ -9,6 +9,8 @@ export default function App() {
           <small>Single-pass drone video → georeferenced 3D · SIH26158</small>
         </div>
         <nav>
+          <NavLink to="/prototype">Dense prototype</NavLink>
+          <NavLink to="/demo">Inference demo</NavLink>
           <NavLink to="/" end>Missions</NavLink>
           <NavLink to="/new">New reconstruction</NavLink>
         </nav>

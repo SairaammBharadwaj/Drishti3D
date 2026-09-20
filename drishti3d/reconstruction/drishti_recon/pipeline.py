@@ -170,23 +170,31 @@ def run(project_dir, video_path, telemetry_path, *,
         stride = max(1, int(np.ceil(vinfo.frame_count / params.max_analyze_frames)))
         sf = 1.0
         frames = []          # (frame_index, timestamp, bgr) at processing scale
-        pts_s = []           # container presentation timestamps, seconds
+        pts_pre = []         # POS_MSEC sampled *before* read(), seconds
+        pts_post = []        # POS_MSEC sampled *after* read(), seconds
         idx = 0
         while True:
-            # Query the presentation timestamp of the frame about to be decoded.
-            # Read *before* `read()`: after a successful read some backends have
-            # already advanced to the next frame's position.
-            t_pts = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+            # Sample the position both sides of the read. Backends disagree about
+            # what POS_MSEC means: some report the frame about to be decoded,
+            # others the one just returned. Measured on OpenCV 5.0 here, the
+            # pre-read value duplicates at the start and lags the true PTS by one
+            # frame, while the post-read value is the decoded frame's own PTS.
+            # Guessing one convention silently mis-associates every frame with a
+            # GNSS sample on a variable-frame-rate clip, so both are recorded and
+            # `_adopt_pts` decides which series is self-consistent.
+            t_pre = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             ok, fr = cap.read()
             if not ok:
                 break
+            t_post = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             if idx % stride == 0:
                 if fr.shape[1] > params.proc_max_width:
                     sf = params.proc_max_width / fr.shape[1]
                     fr = cv2.resize(fr, (params.proc_max_width,
                                          int(round(fr.shape[0] * sf))))
                 frames.append((idx, idx / fps, fr))
-                pts_s.append(t_pts)
+                pts_pre.append(t_pre)
+                pts_post.append(t_post)
                 _emit(progress, "frames", len(frames) /
                       (vinfo.frame_count / stride + 1), "decoding")
             idx += 1
@@ -199,7 +207,8 @@ def run(project_dir, video_path, telemetry_path, *,
         # only correct for constant-frame-rate video; a single dropped frame
         # shifts every later timestamp and silently pairs frames with the wrong
         # GNSS sample.
-        timing_source, timing_note = _adopt_pts(frames, pts_s, fps)
+        timing_source, timing_note = _adopt_pts(frames, pts_pre, fps,
+                                                pts_post=pts_post)
         if timing_note:
             warnings.append(timing_note)
 
@@ -609,11 +618,26 @@ def run(project_dir, video_path, telemetry_path, *,
 
     # 13) EXPORTS + viewer payload ------------------------------------------
     with stage_timer("exports"):
+        # Rotations travel with the centres. Without them a stored camera can
+        # place itself but cannot say what it was looking at, and any later
+        # question about which frames see a given point -- evidence display,
+        # view-support scoring, refinement candidate ranking -- has to
+        # re-derive them or guess.
+        # The world->camera rotation in the ENU frame. It is NOT the solver's
+        # R: the similarity that moved the cloud into ENU rotated the world
+        # under every camera, so the stored rotation is R_cam @ R_world^T --
+        # the same composition the coverage grid uses. Exporting the raw R
+        # would point every camera in the wrong direction downstream.
         cameras_enu = [{"frame_index": int(sel[c.frame_index]),
-                        "C": list(map(float, ce))}
+                        "C": list(map(float, ce)),
+                        "R": (np.asarray(c.R, float)
+                              @ R_world_for_cov.T).tolist()}
                        for c, ce in zip(recon.cameras, cams_enu)]
+        observations = _remap_observations(recon, cloud, sel)
         artifacts = _write_artifacts(art_dir, cloud, cameras_enu, enu_frame,
-                                     report, timeline, gps_enu_all, sel, metrics)
+                                     report, timeline, gps_enu_all, sel, metrics,
+                                     K=recon.K, image_size=(proc_w, proc_h),
+                                     observations=observations)
         if mesh_path:
             artifacts["mesh_glb"] = mesh_path
         if cov_grid is not None:
@@ -628,7 +652,8 @@ def run(project_dir, video_path, telemetry_path, *,
         _emit(progress, "exports", 1.0, "artifacts written")
 
     _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings,
-                    leveling=leveling, align=align, timing_source=timing_source)
+                    leveling=leveling, align=align, timing_source=timing_source,
+                    alignment=report.get("alignment"))
     result = PipelineResult(str(project_dir), artifacts, report, warnings)
     return result
 
@@ -654,19 +679,43 @@ class _StageTimer:
         self.sink[self.name] = round(time.time() - self.t, 3)
 
 
-def _adopt_pts(frames, pts_s, fps):
+def _usable_pts(t, _np):
+    """True when a PTS series carries real, strictly increasing timing."""
+    return (len(t) >= 2 and bool(_np.all(_np.isfinite(t)))
+            and not bool(_np.allclose(t, 0.0))
+            and bool(_np.all(_np.diff(t) > 0)))
+
+
+def _adopt_pts(frames, pts_s, fps, *, pts_post=None):
     """Replace nominal timestamps with container PTS when they are trustworthy.
 
     Mutates ``frames`` in place.  Returns ``(source, warning_or_None)``.
 
-    A PTS track is rejected -- and the nominal clock kept -- if it is all zeros
-    (the container carries no timing), not strictly increasing (a decoder quirk
-    or a seek artefact), or spans a duration wildly inconsistent with the frame
-    count and nominal rate.  Silently trusting a broken PTS track would be worse
-    than the assumption it replaces.
+    ``pts_s`` is ``CAP_PROP_POS_MSEC`` sampled before each ``read()`` and
+    ``pts_post`` the same property sampled after it.  Backends disagree about
+    which frame the property refers to, and the disagreement is worth exactly
+    one frame interval -- 33 ms on a 30 Hz clip, but a full second on the
+    variable-frame-rate missions built by ``scripts/build_agz_mission.py``,
+    where it would pair every image with the GNSS sample of its predecessor.
+
+    The series to trust is the one that is self-consistent: strictly increasing
+    and not all zero.  When both qualify, the pre-read series wins, because a
+    backend that reports the frame about to be decoded is the documented
+    reading and the post-read series on such a backend is one frame ahead.  The
+    remaining rejections -- all zeros, non-monotonic, or a span wildly
+    inconsistent with the frame count and nominal rate -- keep the nominal
+    clock, because silently trusting a broken PTS track would be worse than the
+    assumption it replaces.
     """
     import numpy as _np
     t = _np.asarray(pts_s, float)
+    source_note = None
+    if not _usable_pts(t, _np) and pts_post is not None:
+        t_post = _np.asarray(pts_post, float)
+        if _usable_pts(t_post, _np):
+            t = t_post
+            source_note = ("video timestamps read after decode: this backend "
+                           "reports POS_MSEC for the frame just returned")
     if len(t) < 2 or not _np.all(_np.isfinite(t)):
         return "nominal_fps", None
     if _np.allclose(t, 0.0):
@@ -692,6 +741,8 @@ def _adopt_pts(frames, pts_s, fps):
         # Worth surfacing: this is exactly the case the nominal clock gets wrong.
         note = (f"using real video timestamps; they differ from frame_index/fps "
                 f"by up to {drift:.3f}s (variable frame rate or dropped frames)")
+    if source_note:
+        note = f"{note}; {source_note}" if note else source_note
     return "container_pts", note
 
 
@@ -738,8 +789,56 @@ def _maybe_gt_eval(video_path, telemetry_path, enu_frame, cloud):
         return None
 
 
+def _remap_observations(recon, cloud, sel):
+    """Re-express the reconstruction's observation lineage onto the fused cloud.
+
+    The lineage `sfm`/`colmap_adapter` produce indexes the *pre-fusion* point
+    array, and fusion reindexes the cloud. ``cloud.source_index`` is the map
+    back, so this inverts it and drops observations whose point did not survive
+    downsampling or outlier removal -- a discarded point's measurements are not
+    evidence for whatever point happened to take its place.
+
+    Returns ``None`` when the engine produced no lineage, which is what keeps
+    every consumer able to tell "no observations were recorded" apart from "this
+    point has no observations".
+    """
+    if getattr(recon, "obs_point", None) is None or len(recon.obs_point) == 0:
+        return None
+    if cloud.source_index is None:
+        return None
+
+    n_src = int(cloud.source_index.max()) + 1 if len(cloud.source_index) else 0
+    n_src = max(n_src, int(recon.obs_point.max()) + 1)
+    # Inverse of source_index: pre-fusion row -> fused row, or -1 if dropped.
+    inverse = np.full(n_src, -1, np.int32)
+    valid_rows = cloud.source_index >= 0          # inferred points carry -1
+    inverse[cloud.source_index[valid_rows]] = np.flatnonzero(valid_rows).astype(
+        np.int32)
+
+    fused = inverse[recon.obs_point]
+    keep = fused >= 0
+    if not keep.any():
+        return None
+
+    kf = recon.obs_frame[keep]
+    # Two frame numberings exist and confusing them silently mislabels every
+    # piece of evidence: `obs_frame` is the keyframe index the solver used,
+    # while `sel` maps that to the decoded frame index the operator and the
+    # mission's frame_index.csv speak in. Both are stored.
+    sel_arr = np.asarray(sel, np.int32)
+    decoded = np.where(kf < len(sel_arr), sel_arr[np.clip(kf, 0, len(sel_arr) - 1)],
+                       -1).astype(np.int32)
+    return {
+        "point_index": fused[keep].astype(np.int32),
+        "keyframe_index": kf.astype(np.int32),
+        "frame_index": decoded,
+        "uv": np.asarray(recon.obs_uv, np.float32)[keep],
+    }
+
+
 def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
-                     gps_enu_all, sel, metrics):
+                     gps_enu_all, sel, metrics, *, K=None, image_size=None,
+                     observations=None):
     artifacts = {}
     # binary npz for API + PLY/LAS exports
     _extra = {}
@@ -751,6 +850,22 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
                         colors=cloud.colors, confidence=cloud.confidence,
                         provenance=cloud.provenance, **_extra)
     artifacts["cloud_npz"] = str(art_dir / "cloud.npz")
+
+    # Observation lineage: which image measurements produced each cloud point.
+    # Written as its own artifact rather than into cloud.npz because it is one
+    # row per observation, not per point, and a consumer that only wants
+    # geometry should not have to load it.
+    if observations is not None:
+        np.savez_compressed(art_dir / "observations.npz",
+                            point_index=observations["point_index"],
+                            keyframe_index=observations["keyframe_index"],
+                            frame_index=observations["frame_index"],
+                            uv=observations["uv"],
+                            image_width=np.array([image_size[0] if image_size
+                                                  else -1], np.int32),
+                            image_height=np.array([image_size[1] if image_size
+                                                   else -1], np.int32))
+        artifacts["observations_npz"] = str(art_dir / "observations.npz")
     artifacts["ply"] = exports.export_ply(art_dir / "point_cloud.ply", cloud)
     try:
         artifacts["las"] = exports.export_las(art_dir / "point_cloud.las", cloud, enu_frame)
@@ -783,6 +898,12 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
         gps_track = []   # no-GPS / relative-scale run
     traj = {
         "frame": enu_frame.to_dict(),
+        # Intrinsics and the size they were solved at: a stored camera pose is
+        # not usable for projection without them, and re-deriving them from a
+        # config later is how a viewer and the backend end up disagreeing about
+        # what a camera could see.
+        "K": None if K is None else np.asarray(K, float).tolist(),
+        "image_size": None if image_size is None else list(map(int, image_size)),
         "cameras_enu": cameras_enu,
         "gps_track_wgs84": gps_track,
         "cameras_wgs84": enu_frame.enu_to_geodetic(
@@ -811,7 +932,8 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
 
 
 def _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings,
-                    *, leveling=None, align=None, timing_source="nominal_fps"):
+                    *, leveling=None, align=None, timing_source="nominal_fps",
+                    alignment=None):
     manifest = {
         "version": "0.1.0",
         "created": time.time(),
@@ -833,5 +955,10 @@ def _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings,
         # height above a geoid.  Recorded explicitly so a consumer never assumes
         # the wrong vertical datum.
         "vertical_datum": "WGS84 ellipsoidal (EPSG:4979); not orthometric/geoid",
+        # Where the metric scale came from and how well determined it is. A
+        # measurement's interval is dominated by this on anything longer than a
+        # few metres, so it belongs in the artifact manifest rather than only
+        # in a report that is not written to disk.
+        "alignment": alignment,
     }
     (project_dir / "artifacts" / "manifest.json").write_text(json.dumps(manifest, indent=2))

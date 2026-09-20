@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
+from fastapi.responses import FileResponse
 
 from ..db import get_db
 from ..models import Project
@@ -57,6 +58,18 @@ def upload_video(project_id: str, file: UploadFile = File(...),
     db.commit()
     db.refresh(p)
     return p
+
+
+@router.get("/{project_id}/video")
+def original_video(project_id: str, db: Session = Depends(get_db)):
+    """Serve the original capture for the inference presentation."""
+    p = db.get(Project, project_id)
+    if not p or not p.video_filename:
+        raise HTTPException(404, "original video not found")
+    path = storage.project_dir(project_id) / "uploads" / p.video_filename
+    if not path.is_file():
+        raise HTTPException(404, "original video not found")
+    return FileResponse(path)
 
 
 @router.post("/{project_id}/telemetry", response_model=ProjectOut)

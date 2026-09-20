@@ -71,16 +71,25 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
         _p("colmap: features", 0.1)
         mode = pycolmap.CameraMode.SINGLE if single_camera else pycolmap.CameraMode.AUTO
         sift = _with_threads(lambda: pycolmap.SiftExtractionOptions())
+        modern = hasattr(pycolmap, "FeatureExtractionOptions")
         try:
-            pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode,
-                                      sift_options=sift) if sift else \
-                pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode)
+            if modern:
+                ext = pycolmap.FeatureExtractionOptions()
+                ext.num_threads = nthreads
+                ext.max_image_size = max(f.shape[1] for f in frames)
+                pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode,
+                                          extraction_options=ext, device=pycolmap.Device.cpu)
+            else:
+                pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode,
+                                          sift_options=sift) if sift else \
+                    pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode)
         except TypeError:
             pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode)
         _p("colmap: matching", 0.35)
         # sequential matching is far lighter than exhaustive on CPU
         try:
-            mopt = _with_threads(lambda: pycolmap.SequentialMatchingOptions())
+            mopt = _with_threads(lambda: pycolmap.FeatureMatchingOptions() if modern
+                                  else pycolmap.SequentialMatchingOptions())
             pycolmap.match_sequential(str(db), matching_options=mopt) if mopt else \
                 pycolmap.match_sequential(str(db))
         except Exception:
@@ -102,6 +111,11 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
                        if hasattr(maps[k], "num_reg_images") else len(maps[k].images))]
 
         cameras = []
+        # image_id -> keyframe index. COLMAP's own image ids are database
+        # identifiers; the rest of the pipeline keys everything off the keyframe
+        # index encoded in the written filename, so the track observations below
+        # are translated once here rather than leaking two numbering schemes.
+        frame_of_image = {}
         for img in rec.images.values():
             if not img.has_pose:
                 continue
@@ -109,12 +123,15 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
             R = np.asarray(cfw.rotation.matrix(), float)
             t = np.asarray(cfw.translation, float).ravel()
             fidx = int(Path(img.name).stem)
+            frame_of_image[int(img.image_id)] = fidx
             cameras.append(Camera(fidx, R, t))
 
         pts, cols, conf, oc, rep, ang = [], [], [], [], [], []
+        obs_point, obs_frame, obs_uv = [], [], []
         errs = [p.error for p in rec.points3D.values() if p.has_error]
         max_err = max(4.0, float(np.percentile(errs, 95)) if errs else 4.0)
         for p in rec.points3D.values():
+            pi = len(pts)
             pts.append(np.asarray(p.xyz, float))
             cols.append(np.asarray(p.color, np.uint8))
             tl = p.track.length()
@@ -125,6 +142,18 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
             c_obs = min(1.0, (tl - 2) / 4.0)
             c_rep = max(0.0, 1.0 - err / max_err)
             conf.append(float(0.5 * c_obs + 0.5 * c_rep))
+            # COLMAP carries the full track: image id plus the index of the 2D
+            # point within that image. Elements whose image never registered are
+            # skipped -- their measurement contributed nothing to this point.
+            for el in p.track.elements:
+                fidx = frame_of_image.get(int(el.image_id))
+                if fidx is None:
+                    continue
+                img = rec.images[el.image_id]
+                obs_point.append(pi)
+                obs_frame.append(fidx)
+                obs_uv.append(np.asarray(
+                    img.points2D[el.point2D_idx].xy, np.float32))
 
         # recover K from the (shared) COLMAP camera
         cam = next(iter(rec.cameras.values()))
@@ -144,6 +173,12 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
             tri_angle=np.array(ang) if ang else np.zeros(0),
             cameras=sorted(cameras, key=lambda c: c.frame_index),
             K=Kout,
+            obs_point=(np.array(obs_point, np.int32) if obs_point
+                       else np.zeros(0, np.int32)),
+            obs_frame=(np.array(obs_frame, np.int32) if obs_frame
+                       else np.zeros(0, np.int32)),
+            obs_uv=(np.array(obs_uv, np.float32) if obs_uv
+                    else np.zeros((0, 2), np.float32)),
         )
         result.stats = {
             "engine": "colmap",
@@ -155,6 +190,7 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
             "p90_reproj_err": float(np.percentile(rep, 90)) if rep else None,
             "mean_track_length": float(np.mean(oc)) if oc else None,
             "mean_tri_angle": None,
+            "n_observations": len(obs_point),
         }
         _p("colmap: done", 1.0)
         return result

@@ -143,6 +143,7 @@ export const api = {
 
   listProjects: () => fetch(`${BASE}/api/projects`).then(j<Project[]>),
   getProject: (id: string) => fetch(`${BASE}/api/projects/${id}`).then(j<Project>),
+  videoUrl: (id: string) => `${BASE}/api/projects/${id}/video`,
   createProject: (name: string, description: string) =>
     fetch(`${BASE}/api/projects`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

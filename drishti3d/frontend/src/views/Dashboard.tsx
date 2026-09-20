@@ -72,6 +72,7 @@ export default function Dashboard() {
             </div>
             {p.description && <div style={{ fontSize: 13 }}>{p.description}</div>}
             <div className="row" style={{ marginTop: 10 }}>
+              {p.has_video && <Link to={`/projects/${p.id}/demo`} onClick={(e) => e.stopPropagation()}>Present inference →</Link>}
               <span className="pill">{p.has_video ? 'video ✓' : 'no video'}</span>
               <span className="pill">{p.has_telemetry ? 'telemetry ✓' : 'no telemetry'}</span>
             </div>

@@ -81,6 +81,78 @@ class MeasurementOut(BaseModel):
         from_attributes = True
 
 
+class QuestionCreate(BaseModel):
+    kind: str                              # point|distance|height|area
+    points: list[list[float]]              # ENU selection [[e,n,u], ...]
+    tolerance_m: Optional[float] = None    # absolute, same unit as the result
+    interval_level: int = 95
+    threshold_m: Optional[float] = None
+    threshold_direction: str = "at_least"  # at_least|at_most
+    allow_inferred: bool = False
+    label: str = ""
+    notes: str = ""
+
+
+class QuestionUpdate(BaseModel):
+    """Only the requirement may change; the selection defines the question."""
+
+    tolerance_m: Optional[float] = None
+    interval_level: Optional[int] = None
+    threshold_m: Optional[float] = None
+    threshold_direction: Optional[str] = None
+    label: Optional[str] = None
+
+
+class QuestionOut(BaseModel):
+    id: str
+    project_id: str
+    kind: str
+    label: str
+    points_enu: list
+    tolerance_m: Optional[float]
+    interval_level: int
+    threshold_m: Optional[float]
+    threshold_direction: str
+    allow_inferred: bool
+    notes: str
+    created_at: datetime
+    updated_at: datetime
+    result: Optional[dict] = None
+    guidance: list = []
+
+
+class QuestionEvidenceOut(BaseModel):
+    question_id: str
+    support_basis: str
+    endpoints: list
+    note: str = ""
+
+
+class RefineRequest(BaseModel):
+    """How much compute the operator is willing to spend on one measurement."""
+
+    budget_frames: int = 6      # frames actually registered and folded in
+    max_decode: int = 24        # candidates decoded before giving up
+
+
+class RefinementOut(BaseModel):
+    id: str
+    question_id: str
+    parent_measurement_id: Optional[str]
+    result_measurement_id: Optional[str]
+    improved: bool
+    n_considered: int
+    n_added: int
+    termination_reason: str
+    wall_seconds: float
+    before: dict
+    after: dict
+    added_frames: list
+    rejected: list
+    notes: list
+    created_at: datetime
+
+
 class ExportRequest(BaseModel):
     formats: list[str] = ["ply", "geojson", "report_html"]
 

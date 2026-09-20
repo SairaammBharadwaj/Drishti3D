@@ -15,7 +15,8 @@ from fastapi.responses import FileResponse
 from .config import CORS_ORIGINS, FRONTEND_DIST
 from .db import init_db
 from .schemas import CapabilitiesOut
-from .routers import projects, processing, artifacts, measurements
+from .routers import (projects, processing, artifacts, measurements,
+                      questions)
 
 from drishti_recon import ai_adapter, colmap_adapter
 from drishti_recon import mesh as meshmod
@@ -67,6 +68,7 @@ app.include_router(projects.router)
 app.include_router(processing.router)
 app.include_router(artifacts.router)
 app.include_router(measurements.router)
+app.include_router(questions.router)
 
 # Serve the built SPA if present (single-command demo). During development the
 # frontend runs on the Vite dev server and talks to this API via CORS.
