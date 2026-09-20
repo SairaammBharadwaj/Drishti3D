@@ -797,3 +797,160 @@ experiment is now the highest-value work left, at P1.
 Two findings were raised to P0/P1 in [NEXT_STEPS.md](NEXT_STEPS.md): the COLMAP
 path ships no per-point uncertainty and cannot be measured on, and endpoint
 location in recovered frames is the binding constraint on refinement.
+
+---
+
+# 2026-09-20 (later) — Per-point uncertainty on the COLMAP path
+
+## Objective
+
+Clear the P0 from the previous entry. COLMAP reconstructions carried no
+per-point covariance, so every endpoint on one snapped to an infinite sigma and
+every measurement was refused as `not_observable` — the faster, more accurate
+engine was the one that could not be measured on ([DEC-011](DECISIONS.md)).
+
+## Work Completed
+
+### `colmap_adapter._point_uncertainty`
+
+Runs the same covariance pass the in-repo engine uses. Observations are mapped
+from keyframe index to camera row, poses converted to Rodrigues vectors,
+`sigma_px` estimated from this reconstruction's own reprojection residuals via a
+normalised MAD floored at 0.05 px, then `uncertainty.point_covariances` builds
+each point's normal matrix from the observations that produced it — which
+observation lineage made available.
+
+The same estimator on both engines on purpose: a fixed 0.5 px would inflate a
+clean reconstruction's intervals about tenfold, and two different noise models
+would make every engine comparison partly a comparison of the models.
+
+Results flow into `ReconResult.point_cov / point_sigma / point_sigma_major /
+point_observable`, and the pipeline's existing scale multiplication carries them
+into metres without change.
+
+### Refinement outcome accounting
+
+`RefinementRun` gained `reasons_added`, `status_regressed` and a verdict
+ordering; `improved` now requires that the verdict did not regress. See
+Problems below — this was found by running the survey on the new engine.
+
+### Tests
+
+11 added: 8 in `tests/test_colmap_uncertainty.py` (synthetic geometry, so they
+run without PyCOLMAP), 3 in `tests/test_refinement.py`. 301 → 312.
+
+## Files Changed
+
+`drishti3d/reconstruction/drishti_recon/colmap_adapter.py`
+`_point_uncertainty` plus the call site and the `uncertainty` stats block.
+
+`drishti3d/reconstruction/drishti_recon/refinement.py`
+`reasons_added`, `status_regressed`, verdict ordering, corrected `improved`.
+
+`drishti3d/tests/test_colmap_uncertainty.py` (new), `test_refinement.py`.
+
+## Important Implementation Details
+
+**Observations are matched to cameras by frame index, not row index.** COLMAP's
+image ids are database identifiers and the camera list is sorted by frame index,
+so the two numbering schemes differ. Observations whose camera is absent are
+dropped rather than allowed to select the wrong pose.
+
+**The helper returns its error rather than swallowing it.** It returns
+`(PointUncertainty | None, sigma_px | None, error | None)` and the error lands
+in `stats["uncertainty"]["error"]`. This is not decoration — see below.
+
+## Commands Executed
+
+```bash
+cd drishti3d
+.venv/bin/python scripts/run_mission.py --mission agz_dense_pass \
+    --max-frames 184 --engine colmap --tag colmap_unc
+.venv/bin/python -m pytest tests/ -q          # 312 passed, 111 s
+# 30-measurement refinement survey on both engines (scratchpad script)
+```
+
+## Problems Encountered
+
+**Problem** — Every call to the new helper returned `None`. All eight unit tests
+failed identically.
+
+**Cause** — `NameError: name 'np' is not defined`. This module imports numpy
+*inside* each function rather than at module scope, and the new helper did not.
+A blanket `except Exception: return None, None` turned a one-line import bug
+into a silent no-op.
+
+**Solution** — Add the import, and change the helper to return the error string
+so a failure is reported in `stats` instead of vanishing. The irony is the
+point: a silently swallowed `None` is exactly what let the *absence* of this
+whole pass go unnoticed until a measurement refused itself for want of a sigma
+nobody had computed.
+
+---
+
+**Problem** — The refinement survey on the newly measurable COLMAP
+reconstruction reported 8 improvements in 30, and two of them were measurements
+that had become **unusable**:
+
+```
+needs_refinement -> not_observable
+  cleared: ["interval_exceeds_tolerance", "interval_not_calibrated"]
+  interval_narrowed: true
+```
+
+**Cause** — `questions.evaluate` returns early on a hard refusal carrying only
+its hard-refusal reasons, so a verdict that drops to `not_observable` sheds
+every soft reason it had. A set difference over the reason lists reads that as a
+clean sweep. Both statements above are literally true; the measurement is worse.
+It happens for a real reason: a re-triangulated endpoint can land outside
+established coverage, and the coverage gate correctly refuses it.
+
+**Solution** — `status_regressed` against an explicit verdict ordering, and
+`improved` gated on it. Reported improvements on COLMAP fall from 8 to 6, with 2
+regressions. Recorded as [DEC-012](DECISIONS.md).
+
+The in-repo survey was re-run under the corrected metric so the two are
+comparable — it is unchanged at 10 of 30 with no regressions, so the earlier
+figure was already sound.
+
+## Approaches That Did Not Work
+
+**Nothing was abandoned this session.** Worth recording instead: substituting a
+default sigma on the COLMAP path was rejected in the previous session and stayed
+rejected. It would have made every measurement "work" immediately and fed a
+fabricated interval straight into acceptance once calibration exists.
+
+## Verification
+
+- 312 tests pass, up from 301.
+- COLMAP run: `sigma_px` 0.486 px estimated from its own residuals, 22,649
+  points with covariance, `sigma_major` median 0.0364 m after fusion and scale.
+  Reconstruction unchanged (94.7 s, 3.764 m median as-georeferenced).
+- **60 in-coverage measurements per engine, ±0.30 m tolerance:**
+
+  | | COLMAP | in-repo |
+  |---|---:|---:|
+  | Median measurement sigma | 0.0638 m | 0.0687 m |
+  | Blocked only by calibration | 51 / 60 | 10 / 60 |
+  | Blocked by `insufficient_views` | 4 / 60 | 50 / 60 |
+
+- **Refinement survey on both engines**, corrected metric: in-repo 10 of 30
+  improved with 0 regressions; COLMAP 6 of 30 improved with 2 regressions.
+
+## Result
+
+Both engines now produce measurable reconstructions, and the better one is
+markedly better at it: COLMAP's longer mean track length (3.91 vs 2.78
+observations per point) means 51 of 60 sampled measurements have nothing
+blocking them but calibration, against 10 of 60.
+
+An uncomfortable corollary, recorded rather than buried: **fixing the engine
+reduced the need for same-pass refinement.** Refinement improved 6 of 30
+measurements on COLMAP against 10 of 30 on the in-repo engine, because fewer
+measurements were short of views to begin with. The feature's value depends on
+what it is compared against, which is exactly why the plan's F4 gate — targeted
+versus uniform refinement at equal compute — is now the highest-value experiment
+left.
+
+P0 in [NEXT_STEPS.md](NEXT_STEPS.md) is empty again. Interval calibration
+remains the only thing between this system and an accepted measurement.

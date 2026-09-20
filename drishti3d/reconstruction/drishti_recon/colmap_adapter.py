@@ -23,6 +23,83 @@ SETUP = (
 )
 
 
+def _point_uncertainty(points, cam_list, K, obs_point, obs_frame, obs_uv):
+    """Propagate per-point positional covariance for a COLMAP reconstruction.
+
+    COLMAP returns geometry and a per-point reprojection error, but no
+    covariance, and nothing downstream can invent one: an endpoint whose sigma
+    is missing is reported ``not_observable``, so before this existed every
+    measurement on a COLMAP reconstruction was refused for lack of an
+    uncertainty the pipeline had simply never computed.
+
+    The same estimator the in-repo engine uses is applied here on purpose, so
+    the two engines' intervals mean the same thing and an engine comparison is
+    not also a comparison of two noise models:
+
+    * ``sigma_px`` comes from this reconstruction's own reprojection residuals
+      via a normalised MAD, floored at 0.05 px.  A fixed 0.5 px on imagery whose
+      residuals are 0.05 px inflates every interval about tenfold and makes the
+      tolerance gate useless; the same constant on noisy imagery understates it.
+      The MAD rather than an RMS because RANSAC and the reprojection filter
+      leave a heavy tail.
+    * :func:`uncertainty.point_covariances` then builds each point's normal
+      matrix from the observations that actually produced it.
+
+    Returns ``(PointUncertainty | None, sigma_px | None, error | None)``.
+    Uncertainty is additive information: a failure here leaves the geometry
+    intact and is *reported* in ``stats`` rather than raised -- and rather than
+    swallowed, which is how the absence of this pass stayed invisible until a
+    measurement refused itself for want of a sigma nobody had computed.
+    """
+    import numpy as np            # imported per-function, as elsewhere here
+
+    if len(points) == 0 or len(cam_list) == 0 or len(obs_point) == 0:
+        return None, None, "no points, cameras or observations"
+    try:
+        import cv2
+        from . import uncertainty as _unc
+        from . import bundle as _bundle
+
+        # Observations carry the keyframe index; the covariance pass indexes
+        # into the camera array. Map once, and drop observations whose camera
+        # is not in the list rather than letting a stray index silently select
+        # the wrong pose.
+        row_of_frame = {int(c.frame_index): i for i, c in enumerate(cam_list)}
+        cam_idx, pt_idx, uv = [], [], []
+        for pi, fi, xy in zip(obs_point, obs_frame, obs_uv):
+            r = row_of_frame.get(int(fi))
+            if r is None:
+                continue
+            cam_idx.append(r)
+            pt_idx.append(int(pi))
+            uv.append(xy)
+        if len(cam_idx) < 2:
+            return None, None, "fewer than two usable observations"
+        cam_idx = np.asarray(cam_idx, int)
+        pt_idx = np.asarray(pt_idx, int)
+        uv = np.asarray(uv, float).reshape(-1, 2)
+
+        rvecs = np.array([cv2.Rodrigues(np.asarray(c.R, float))[0].ravel()
+                          for c in cam_list], float)
+        tvecs = np.array([np.asarray(c.t, float).ravel() for c in cam_list],
+                         float)
+
+        res = _bundle.reprojection_errors(rvecs, tvecs, points, cam_idx,
+                                          pt_idx, uv, K)
+        res = res[np.isfinite(res)]
+        if len(res) >= 20:
+            mad = float(np.median(np.abs(res - np.median(res))))
+            sigma_px = max(1.4826 * mad, 0.05)
+        else:
+            sigma_px = _unc.DEFAULT_SIGMA_PX
+
+        pu = _unc.point_covariances(points, cam_idx, pt_idx, uv, rvecs, tvecs,
+                                    K, sigma_px=sigma_px)
+        return pu, float(sigma_px), None
+    except Exception as exc:          # noqa: BLE001 - never fatal, always named
+        return None, None, f"{type(exc).__name__}: {exc}"
+
+
 def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
     """Run COLMAP on in-memory BGR frames and return a ``sfm.ReconResult``.
 
@@ -164,6 +241,10 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
         Kout = np.array([[fx, 0, cx], [0, fx, cy], [0, 0, 1.0]], float)
 
         pts = np.array(pts) if pts else np.zeros((0, 3))
+        cam_list = sorted(cameras, key=lambda c: c.frame_index)
+        pu, sig_px, unc_error = _point_uncertainty(pts, cam_list, Kout,
+                                                    obs_point, obs_frame,
+                                                    obs_uv)
         result = ReconResult(
             points=pts,
             colors=np.array(cols, np.uint8) if cols else np.zeros((0, 3), np.uint8),
@@ -171,8 +252,12 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
             obs_count=np.array(oc, int) if oc else np.zeros(0, int),
             reproj_err=np.array(rep) if rep else np.zeros(0),
             tri_angle=np.array(ang) if ang else np.zeros(0),
-            cameras=sorted(cameras, key=lambda c: c.frame_index),
+            cameras=cam_list,
             K=Kout,
+            point_cov=None if pu is None else pu.cov,
+            point_sigma=None if pu is None else pu.sigma,
+            point_sigma_major=None if pu is None else pu.sigma_major,
+            point_observable=None if pu is None else pu.observable,
             obs_point=(np.array(obs_point, np.int32) if obs_point
                        else np.zeros(0, np.int32)),
             obs_frame=(np.array(obs_frame, np.int32) if obs_frame
@@ -191,6 +276,17 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
             "mean_track_length": float(np.mean(oc)) if oc else None,
             "mean_tri_angle": None,
             "n_observations": len(obs_point),
+            "uncertainty": {
+                "sigma_px_estimated": sig_px,
+                "n_with_covariance": (0 if pu is None
+                                      else int(np.isfinite(pu.sigma).sum())),
+                "n_observable": (0 if pu is None
+                                 else int(np.sum(pu.observable))),
+                "error": unc_error,
+                "median_sigma_recon_frame": (
+                    None if pu is None or not np.any(np.isfinite(pu.sigma))
+                    else float(np.median(pu.sigma[np.isfinite(pu.sigma)]))),
+            },
         }
         _p("colmap: done", 1.0)
         return result
