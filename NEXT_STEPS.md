@@ -6,12 +6,13 @@ If you are picking this repository up now, read
 Last updated: 2026-09-19.
 
 **Read this first:** the plan's central innovation hypothesis — that targeted
-same-pass refinement beats a uniform budget — was tested on 2026-09-20, lost,
-rebuilt with the local bundle refit plan section 5.7 asks for, and **lost
-again**: it now ties the control on answer yield with zero regressions against
-the control's five, but needs 1.6× the compute. The feature is experimental. The
-binding constraint has moved from the refit to **reach** — only 5 of 20 questions
-could be touched — and that is the top of the backlog.
+same-pass refinement beats a uniform budget — has been tested five times against
+one frozen question set as the feature was built out. It went from losing
+outright to producing a **higher answer yield than the control** (14 of 20
+against 10) with **zero regressions against the control's five** — on 1.53× the
+compute, and level at matched budget. That is one mission's evidence, so the
+feature stays experimental. The top of the backlog is a second capture, and
+after that the per-question cost, which is the whole of the remaining gap.
 
 **The one-line summary of where the project stands:** reconstruction works on
 real single-pass aerial video and is measured against a real reference; every
@@ -117,57 +118,83 @@ redundant, blurry, or wrongly rejected is **not established**.
 
 ---
 
-### Make endpoint location succeed more often — the binding constraint on F4
+### Confirm the F4 yield advantage on a second capture
 
 **Status:** TODO
 **Priority:** P1 — the top of the backlog
 
 **Why it matters**
 
-The local bundle refit landed and the F4 gate was rerun: the targeted arm now
-ties the control on answer yield and regresses nothing against its five, but
-still needs 1.6× the compute ([DEC-014](DECISIONS.md)). The constraint is no
-longer the refit — it is **reach**. Only 5 of 20 questions had any frame
-recovered, so 15 were untouchable. On the five it reached, four intervals
-improved, two cleared blockers, none regressed, and the worst measurement's
-sigma fell 47%.
-
-If matching succeeded on most attempts rather than a third, the targeted arm
-would act on 15–20 questions instead of 5, and the comparison would have to be
-rerun. This is the single change most likely to change the verdict.
+Targeted refinement now produces a **higher answer yield** than a uniform budget
+— 14 of 20 measurements blocked only by calibration against 10, with zero
+regressions against the control's five ([DEC-015](DECISIONS.md)). That is the
+first advantage the feature has ever measured, and it rests on **one mission,
+twenty questions, and no truth to score error against**. One capture is not
+enough to retire the experimental caveat, and the yield advantage depends on the
+transfer locator succeeding at 40% of candidates on *this* imagery.
 
 **Current state**
 
-`_locate` projects the endpoint through the recovered pose to bound a 40 px
-window, then matches an independently detected keypoint in it against the
-endpoint's descriptors from a frame that measured it, with a 0.7 ratio test.
-Across the surveys it failed roughly 250 times per 30 measurements against about
-15 pose failures.
+`eval/f4_experiment.py` with a frozen question set, run five times on
+`agz_dense_pass`. Nothing has been run on `agz_pass` or `agz_seg2`.
 
 **Recommended implementation**
 
-In order of expected value per effort:
-
-1. **Affine-normalised patch matching** in the window instead of raw SIFT
-   descriptors. The recovered pose and the local surface normal give the warp,
-   which is exactly the viewpoint change defeating the descriptor.
-2. **Chain through an intermediate frame** rather than jumping straight to one
-   25 frames away: match the recovered frame to a temporal neighbour that
-   already measured the endpoint.
-3. **LightGlue/DISK** for the guided match — `features.create("lightglue")`
-   exists and is markedly more viewpoint-robust than SIFT.
-
-Measure each against the 30-measurement survey; recovery rate is the metric.
-Then rerun `eval/f4_experiment.py` against the **same** `questions_frozen.json`.
+1. Build missions from `agz_pass` and `agz_seg2`
+   (`scripts/build_agz_mission.py`), reconstruct each at `balanced` and
+   `quality`.
+2. Freeze a question set per mission, before running either arm.
+3. Run the gate on each. Report all of them, including any that disagree with
+   `agz_dense_pass`.
+4. Report the locator's per-candidate rate per mission: if it varies a lot, the
+   yield advantage is a property of the imagery rather than the method.
 
 **Relevant files**
 
-`reconstruction/drishti_recon/refinement.py` (`_locate`,
-`_endpoint_descriptors`), `features.py`, `eval/f4_experiment.py`
+`eval/f4_experiment.py`, `scripts/build_agz_mission.py`,
+`reconstruction/drishti_recon/refinement.py`
 
 **Dependencies/blockers**
 
 None.
+
+---
+
+### Reduce the targeted arm's per-question cost
+
+**Status:** TODO
+**Priority:** P1
+
+**Why it matters**
+
+The remaining gap in the F4 gate is entirely cost: 206.7 s against 135.4 s, and
+level at matched budget. The control's price is fixed whatever is asked of it;
+the targeted arm's is 10.3 s per question, so the two break even at about 13
+questions. Halving the per-question cost would move the break-even to ~26 and
+turn a split result into a clear one.
+
+**Current state**
+
+Per question, up to 10 candidates are decoded, each needing a LightGlue
+detection on two frames plus a PnP solve, followed by one local bundle
+adjustment over 400 points.
+
+**Recommended implementation**
+
+1. **Cache detections across questions, not just within one.** `_detect_cached`
+   is per engine and an engine is created per measurement, so a frame detected
+   for one question is detected again for the next. A shared, bounded cache
+   keyed by (backend, frame) would cut most of the repeated work in a session.
+2. **Stop early.** The loop decodes up to `max_decode` candidates even after the
+   budget is met. It should stop as soon as the measurement's blockers are
+   cleared.
+3. **Shrink the refit.** 400 points is a guess; measure whether 150 gives the
+   same sigma.
+
+**Relevant files**
+
+`reconstruction/drishti_recon/refinement.py` (`_detect_cached`, the batch loop,
+`MAX_REFIT_POINTS`), `backend/app/routers/questions.py`
 
 ---
 

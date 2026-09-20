@@ -409,3 +409,125 @@ def test_endpoint_provenance_reaches_the_before_and_after_snapshots(tmp_path):
                            provenances=[0, 0])          # OBSERVED_HIGH_CONF
     assert "endpoint_not_observed" in without.before["reasons"]
     assert "endpoint_not_observed" not in with_prov.before["reasons"]
+
+
+# --- endpoint location by transfer ----------------------------------------- #
+def test_transfer_needs_enough_local_correspondences(tmp_path, monkeypatch):
+    """A fit from a handful of matches is not overdetermined enough to trust."""
+    ev, art = _fixture(tmp_path / "xf1")
+    eng = rf.RefinementEngine(ev, art)
+
+    class _Backend:
+        def detect(self, gray):
+            return np.zeros((4, 2), np.float32), np.zeros((4, 8), np.float32)
+
+        def match(self, d1, d2, kp1=None, kp2=None, shape=None):
+            return [(0, 0), (1, 1)]
+
+    monkeypatch.setattr(eng, "_transfer_backend", lambda: _Backend())
+    monkeypatch.setattr(eng, "_detect_cached",
+                        lambda be, f: (np.zeros((4, 2), np.float32),
+                                       np.zeros((4, 8), np.float32), (720, 1280)))
+    cams = _arc_cams((0, 4, 8))
+    R = np.asarray(cams[0]["R"], float)
+    C = np.asarray(cams[0]["C"], float)
+    anchors = eng._endpoint_anchors([0.0, 0.0, 0.0])
+    assert eng._locate_by_transfer([0.0, 0.0, 0.0], R, C, anchors, 5) is None
+
+
+def test_transfer_is_rejected_when_it_disagrees_with_the_projection(tmp_path,
+                                                                    monkeypatch):
+    """The two estimates share no inputs, so agreement is the check.
+
+    A transfer that lands far from where the recovered pose says the endpoint
+    should be is not a measurement of that endpoint.
+    """
+    ev, art = _fixture(tmp_path / "xf2")
+    eng = rf.RefinementEngine(ev, art)
+    cams = _arc_cams((0, 4, 8))
+    anchors = eng._endpoint_anchors([0.0, 0.0, 0.0])
+    assert anchors, "the fixture's endpoint must have measuring frames"
+    uv_a = anchors[0][2]
+
+    # A pure translation of the whole neighbourhood by a large offset: the fit
+    # succeeds, and what it produces cannot be this endpoint.
+    n = 40
+    rng = np.random.default_rng(2)
+    a = rng.uniform(-100, 100, (n, 2)).astype(np.float32) + uv_a
+    offset = np.float32([300.0, 200.0])
+
+    class _Backend:
+        def detect(self, gray):
+            return a, np.zeros((n, 8), np.float32)
+
+        def match(self, d1, d2, kp1=None, kp2=None, shape=None):
+            return [(i, i) for i in range(n)]
+
+    be = _Backend()
+    monkeypatch.setattr(eng, "_transfer_backend", lambda: be)
+
+    def _cached(backend, frame_index):
+        kp = a if int(frame_index) == int(anchors[0][0]) else a + offset
+        return kp, np.zeros((n, 8), np.float32), (720, 1280)
+
+    monkeypatch.setattr(eng, "_detect_cached", _cached)
+    R = np.asarray(cams[0]["R"], float)
+    C = np.asarray(cams[0]["C"], float)
+    assert eng._locate_by_transfer([0.0, 0.0, 0.0], R, C, anchors, 5) is None
+
+
+def test_transfer_recovers_a_shifted_neighbourhood(tmp_path, monkeypatch):
+    """A small, consistent shift is exactly what a transfer should carry."""
+    ev, art = _fixture(tmp_path / "xf3")
+    eng = rf.RefinementEngine(ev, art)
+    cams = _arc_cams((0, 4, 8))
+    anchors = eng._endpoint_anchors([0.0, 0.0, 0.0])
+    uv_a = anchors[0][2]
+    n = 40
+    rng = np.random.default_rng(3)
+    a = (rng.uniform(-80, 80, (n, 2)) + uv_a).astype(np.float32)
+    # Shift by the difference between the anchor's and the target's projections,
+    # so the transfer lands where the pose says it should.
+    R = np.asarray(cams[0]["R"], float)
+    C = np.asarray(cams[0]["C"], float)
+    v = R @ (np.zeros(3) - C)
+    pred = np.array([K[0][0] * v[0] / v[2] + K[0][2],
+                     K[1][1] * v[1] / v[2] + K[1][2]])
+    offset = (pred - np.asarray(uv_a, float)).astype(np.float32)
+
+    class _Backend:
+        def detect(self, gray):
+            return a, np.zeros((n, 8), np.float32)
+
+        def match(self, d1, d2, kp1=None, kp2=None, shape=None):
+            return [(i, i) for i in range(n)]
+
+    monkeypatch.setattr(eng, "_transfer_backend", lambda: _Backend())
+
+    def _cached(backend, frame_index):
+        kp = a if int(frame_index) == int(anchors[0][0]) else a + offset
+        return kp, np.zeros((n, 8), np.float32), (720, 1280)
+
+    monkeypatch.setattr(eng, "_detect_cached", _cached)
+    uv = eng._locate_by_transfer([0.0, 0.0, 0.0], R, C, anchors, 5)
+    assert uv is not None
+    assert np.linalg.norm(uv - pred) < 2.0
+
+
+def test_the_transfer_matcher_is_shared_across_engines(tmp_path):
+    """A learned matcher holds GPU weights; one per measurement exhausts the card.
+
+    Measured: a per-engine model loaded twenty times over one benchmark filled
+    an 8 GB card and took a single question from a 12-second median to 74
+    minutes.
+    """
+    ev, art = _fixture(tmp_path / "shared")
+    sentinel = object()
+    rf.RefinementEngine._xfer = sentinel
+    try:
+        a = rf.RefinementEngine(ev, art)
+        b = rf.RefinementEngine(ev, art)
+        assert a._transfer_backend() is sentinel
+        assert b._transfer_backend() is sentinel
+    finally:
+        rf.RefinementEngine._xfer = None

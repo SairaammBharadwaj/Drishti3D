@@ -144,15 +144,16 @@ acceptance — on the AGZ mission the frustum figures overstate view count by 3.
 and parallax by 3.7× against what the measurements actually provided.
 
 ### Same-pass evidence recovery — **experimental**
-**Status:** the hypothesis behind this feature is **not supported** on the one
-mission where it has been tested. With the local bundle refit plan section 5.7
-asks for, the targeted arm now ties a uniform budget on answer yield (10 of 20
-measurements blocked only by calibration, both arms) and regresses none against
-the control's five — but takes 1.6× the compute to get there. The gate asks for
-better yield *or* the same yield faster; it delivers neither
-([DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md),
+**Status: experimental, with a measured advantage and a measured cost.** On the
+one mission where it has been tested, targeted refinement produces a **higher
+answer yield than a uniform budget** — 14 of 20 measurements blocked only by
+calibration against 10, with **zero regressions against the control's five** —
+on 1.53× the compute. At matched budget the two are level. The control's price
+is fixed; this one's is 10.3 s per question, so they break even at about 13
+questions ([DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md),
+[DEC-015](DECISIONS.md),
 [full results](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md)).
-It is retained for its observed benefits and must not be described as a proven
+One mission is not enough to retire the caveat: do not describe it as a proven
 advantage.
 
 **What:** "Improve this measurement" — frames of the pass that the
@@ -163,20 +164,23 @@ and re-triangulated, and the measurement is re-decided. Runs are recorded
 whether or not they helped.
 **Where:** `refinement.py` (`RefinementEngine`, `RefinementRun`),
 `POST /api/projects/{id}/questions/{qid}/refine`, `models.RefinementRun`.
-**Observed benefits, which are real:** on 30 weak measurements (4-frame budget,
-median 12.8 s each) it recovered at least one frame for 10 and improved all 10 —
-supporting views from a median of 2 to 4, parallax from 8.1° to 15.5°. On a
-COLMAP reconstruction it improved 6 of 30 and regressed 2, because the better
-engine leaves fewer measurements short of views to fix.
+**Observed benefits, which are real:** in the F4 experiment it recovered frames
+for 16 of 20 questions, took supporting views from a median of 3 to 6.5 and
+measured parallax from 9.56° to 26.75° — against the control's 3 → 3 and
+9.56° → 10.26°. It is adding evidence where the control is adding resolution.
 
-**On the measurements it can reach** — 5 of 20 in the F4 experiment — it
-improved 4 of 5 intervals, cleared blockers on 2, regressed none, and cut the
-worst measurement's sigma by 47%. The binding constraint is reach, not the
-mechanism: the other 15 could not be touched because the endpoint could not be
-matched into any recovered frame.
+**How the endpoint is found in a recovered frame:** not by re-identifying its
+keypoint — the reconstruction's observations sit at its own detector's
+keypoints, a median 8.9 px from a fresh detection's, and across the viewpoint
+change worth recovering SIFT matches the same surface at a best-to-second ratio
+of 0.93, no better than chance. Instead the two frames are matched densely,
+correspondences near the endpoint fit a local affine map, and the pixel is
+transferred through it. Measured: 1.3% of candidates located by descriptor
+match, 10.7% by chaining descriptors through intermediates, **40.0% by
+transfer**.
 
-**What it does not do:** match the throughput of spending the same compute on a
-denser reconstruction. See the status note above.
+**What it does not do:** produce a narrower interval than the control (0.101 m
+against 0.092 m), or clear blockers faster (2.03 per added minute against 3.55).
 
 ### Dataset tooling
 **What:** inventory of every dataset in the checkout with content digests, LFS
@@ -474,13 +478,14 @@ cd drishti3d
   `estimated_only`. This is deliberate, not a defect ([DEC-003](DECISIONS.md)),
   and since observation lineage landed it is the *only* remaining blocker on
   real data.
-- **Same-pass refinement lost its own gate, twice.** The F4 paired experiment
-  was run, then rerun after building the local bundle refit plan section 5.7
-  asks for. The refit helped substantially — median sigma now moves, regressions
-  went to zero, answer yield ties the control — but the targeted arm still needs
-  1.6× the compute for that yield. The feature stays experimental
-  ([DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md)). The binding constraint is
-  now reach: 5 of 20 questions could be touched at all.
+- **Same-pass refinement is unproven, not disproven.** Across five runs of its
+  own gate it went from losing outright to producing a higher answer yield than
+  the control with zero regressions — on 1.53× the compute, level at matched
+  budget. It stays experimental on one mission's evidence
+  ([DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md), [DEC-015](DECISIONS.md)).
+- **A learned matcher is now on the refinement path.** LightGlue/DISK
+  (Apache-2.0 via kornia) is what made endpoint location work, and it wants a
+  GPU. The classical fallback exists but is untested at scale.
 - **The pipeline still defaults to the slower engine.** Both engines now
   produce measurable reconstructions, but `PipelineParams.engine` defaults to
   `"opencv"`, and on COLMAP 51 of 60 sampled measurements have nothing blocking

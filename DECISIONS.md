@@ -1255,3 +1255,118 @@ targeting rather than about the scope of what was built.
 (`for_points(endpoints_within_coverage=...)`, `sigma_major`),
 `drishti3d/eval/f4_experiment.py`,
 `drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/`
+
+---
+
+## DEC-015 — Endpoints are located by transferring through dense correspondences, not by re-identifying a keypoint
+
+**Date:** 2026-09-20
+
+**Status:** Accepted
+
+### Context
+
+[DEC-014](#dec-014--targeted-refinement-gets-a-local-refit-it-ties-on-yield-and-still-loses-on-speed)
+left reach as the binding constraint on same-pass refinement: 15 of 20 questions
+in the F4 gate had no frame recovered at all, because the endpoint could not be
+found in a recovered frame. Measured directly on 75 candidates from 25 weak
+endpoints, the shipping locator succeeded on **1.3%** of them.
+
+Diagnosis, from counting where each attempt died:
+
+- **The endpoint's own descriptor often cannot be read.** The reconstruction's
+  observations sit at *its* detector's keypoints. Matching COLMAP's stored
+  observations against a fresh OpenCV SIFT detection gives a median separation
+  of 8.9 px; only 212 of 1,852 have a redetected keypoint within 3 px. This
+  killed 31 of 60 attempts.
+- **Where it can be read, it does not discriminate.** At the final match the
+  best-to-second ratio has a median of 0.93, with the best descriptor distance
+  at 388 against the ~123 seen between adjacent frames. Across the viewpoint
+  change worth recovering, SIFT does not recognise the surface. This killed most
+  of the rest.
+
+### Options Considered
+
+#### Compute the descriptor directly at the stored pixel
+
+Sidesteps the detector mismatch by describing the exact location rather than
+hunting for a keypoint there.
+
+**Measured and rejected.** Upright SIFT at an arbitrary pixel separates true
+correspondences from random pixels by only 1.6–1.9x, against roughly 4x for
+descriptors at detected keypoints. An arbitrary pixel is frequently on texture
+that is not distinctive, and orientation has to be fixed by convention on both
+sides, which loses more.
+
+#### Widen the radius and take the nearest keypoint's descriptor
+
+Cheap, and wrong: a keypoint 8 px away is a different feature. Tracking it would
+measure a different 3D point and attribute the result to the endpoint — about
+0.18 m of error at this range.
+
+#### Chain the descriptor through intermediate frames
+
+Re-read the descriptor at each registered frame between the measuring frame and
+the recovered one, so appearance never has to survive the full viewpoint change
+in one step.
+
+**Built and measured: 1.3% → 10.7%.** Real, and not enough. The chain completed
+zero hops in the median case, because each hop still needs a descriptor read
+that the detector mismatch defeats.
+
+#### Transfer the location through dense correspondences
+
+Match the two frames densely, fit a local affine from the correspondences near
+the endpoint's known pixel, and push the pixel through it. No keypoint has to be
+found twice.
+
+**Built and measured: 40.0% located, 36% accepted by the refit.**
+
+### Decision
+
+Transfer, with LightGlue as the matcher where available and the PnP matcher as a
+fallback. Accepted only when the transferred pixel agrees to
+`TRANSFER_AGREEMENT_PX` = 25 px with the pose-projected prediction.
+
+### Why
+
+The problem was misframed for three iterations. Re-identifying one keypoint
+across a large viewpoint change is a hard problem that this system does not need
+to solve: it already knows where the endpoint is in the anchor frame, and it
+needs the same location in another. That is a transfer problem, and a dense
+correspondence field solves it without identification.
+
+The agreement check is what keeps it a measurement rather than a projection. The
+two estimates share no inputs — one comes from image correspondences, the other
+from the recovered pose and the current 3D estimate — so agreement between them
+is evidence. Accepting the projection itself would make the new ray pass through
+the estimate that produced it, which is the circularity this whole path has been
+guarding against since [DEC-010](#dec-010--same-pass-refinement-recovers-frames-by-pnp-against-the-existing-model-and-is-judged-on-what-it-unblocks).
+
+### Consequences
+
+- **Reach went from 5 of 20 questions to 16 of 20**, and with it the F4 gate's
+  result: the targeted arm now produces a higher answer yield than the uniform
+  control (14 of 20 blocked only by calibration against 10), with zero
+  regressions against the control's five. It is still not cheaper — 206.7 s
+  against 135.4 s — and at matched budget the two are level.
+- Supporting views went 3 → 6.5 and measured parallax 9.56° → 26.75°, against
+  the control's 3 → 3 and 9.56° → 10.26°.
+- **A learned matcher is now on the refinement path.** LightGlue/DISK is
+  Apache-2.0 via kornia, unlike some checkpoints in this repository, but it is a
+  new runtime dependency for a feature that previously needed none, and it
+  wants a GPU. The fallback to the classical matcher exists and is untested at
+  scale.
+- The matcher is cached at module scope, not per engine. Per-engine loading
+  filled an 8 GB card over twenty questions and took one of them from a
+  12-second median to 74 minutes.
+- Transfer assumes the surface around the endpoint is locally planar over
+  `TRANSFER_RADIUS_PX` = 160 px. On a depth discontinuity the affine fit is
+  wrong, and the 25 px agreement check is the only thing that catches it.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/refinement.py`
+(`_locate_by_transfer`, `_transfer_backend`, `_detect_cached`,
+`_chained_descriptors`), `features.py`,
+`drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/`

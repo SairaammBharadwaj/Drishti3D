@@ -113,6 +113,39 @@ LOCATE_SEARCH_PX = 40.0
 #: candidates, so a loose ratio here buys nothing and admits near-duplicates.
 LOCATE_RATIO = 0.7
 
+#: Most intermediate frames walked when carrying an endpoint's appearance from
+#: the frame that measured it to a newly recovered one.  Each hop costs a
+#: detection, so this bounds the cost; the hops are spread evenly along the path
+#: rather than taken consecutively.
+MAX_CHAIN_HOPS = 6
+
+#: Search window at an intermediate hop, in pixels.  Smaller than
+#: :data:`LOCATE_SEARCH_PX` because an intermediate frame's pose is the
+#: reconstruction's own, not one recovered by PnP, so its projection is tighter.
+CHAIN_WINDOW_PX = 24.0
+
+#: Radius, in pixels, around the endpoint's known position in an anchor frame
+#: from which correspondences are taken to fit the local transfer.  Small enough
+#: that the surface is locally planar, large enough to hold enough matches.
+TRANSFER_RADIUS_PX = 160.0
+
+#: Fewest local correspondences needed to fit a transfer.  Below this the fit is
+#: not overdetermined enough for its RANSAC to mean anything.
+MIN_TRANSFER_MATCHES = 8
+
+#: How far a transferred pixel may sit from the pose-projected prediction before
+#: the two are judged to disagree.  They are independent: one comes from image
+#: correspondences, the other from the recovered pose and the current 3D
+#: estimate.  Agreement is a real check; this is not the tolerance on either.
+TRANSFER_AGREEMENT_PX = 25.0
+
+#: Lowe ratio at an intermediate hop.  Looser than :data:`LOCATE_RATIO`: a hop
+#: is a small viewpoint change, so the right match is usually unambiguous, and
+#: being strict here mostly breaks the chain rather than preventing bad matches
+#: -- which the final hop's own ratio test and the refit's residual check still
+#: have to pass.
+CHAIN_RATIO = 0.8
+
 
 #: Why a candidate frame was not used. Stable, reportable codes.
 REJECT_ALREADY_USED = "already_in_reconstruction"
@@ -706,7 +739,232 @@ class RefinementEngine:
             return None, []
         return np.asarray(out, np.float32), frames
 
-    def _locate(self, point, R, C, anchors, kp_new, desc_new):
+    def _descriptors_at(self, kp, desc, uv, radius=OBSERVATION_MATCH_PX):
+        """Every descriptor within ``radius`` of a pixel.
+
+        Plural because SIFT emits one keypoint per dominant orientation at a
+        location, and they are mutually unrelated -- picking one arbitrarily is
+        what made the same point's two observations compare at 599 when the
+        correct pairing compared at 122.9.
+        """
+        if desc is None or len(kp) == 0:
+            return None
+        d = np.linalg.norm(np.asarray(kp, float) - np.asarray(uv, float),
+                           axis=1)
+        idx = np.flatnonzero(d <= radius)
+        return None if len(idx) == 0 else np.asarray(desc, np.float32)[idx]
+
+    def _match_in_window(self, kp, desc, ref, predicted, window, ratio):
+        """Best independently detected keypoint near ``predicted`` matching ``ref``.
+
+        The projection only bounds the search.  What is returned is a keypoint
+        the detector found on its own whose descriptor matches the reference,
+        because accepting the projected pixel itself would make the new ray pass
+        through the estimate that produced it.
+        """
+        if ref is None or desc is None or len(kp) == 0:
+            return None
+        kpa = np.asarray(kp, float)
+        near = np.flatnonzero(
+            np.linalg.norm(kpa - np.asarray(predicted, float), axis=1) <= window)
+        if len(near) < 2:
+            return None
+        cand = np.asarray(desc, np.float32)[near]
+        d = np.min(np.linalg.norm(cand[:, None, :]
+                                  - np.asarray(ref, np.float32)[None, :, :],
+                                  axis=2), axis=1)
+        order = np.argsort(d)
+        if d[order[0]] >= ratio * d[order[1]]:
+            return None
+        return int(near[order[0]])
+
+    def _chain_path(self, from_frame: int, to_frame: int) -> list:
+        """Registered frames between two frames, evenly spread, bounded in count."""
+        lo, hi = sorted((int(from_frame), int(to_frame)))
+        between = sorted(f for f in self.ev._camera_of_frame
+                         if lo < int(f) < hi)
+        if int(from_frame) > int(to_frame):
+            between.reverse()
+        if len(between) <= MAX_CHAIN_HOPS:
+            return between
+        step = len(between) / MAX_CHAIN_HOPS
+        return [between[int(i * step)] for i in range(MAX_CHAIN_HOPS)]
+
+    def _chained_descriptors(self, point, target_frame, anchors):
+        """Carry the endpoint's appearance from a measuring frame towards a new one.
+
+        The failure this exists for: an endpoint's measuring frames can sit 25
+        frames -- about 32 m of flight -- from a recovered one, and SIFT across
+        that viewpoint change does not recognise the surface.  Measured on the
+        AGZ mission, the baseline locator succeeded on 1.3% of candidates.
+
+        Each hop is a small viewpoint change between two frames whose poses the
+        reconstruction already knows, so the point's projection is accurate and
+        the appearance barely changes.  The descriptor is re-read at every hop,
+        so what arrives at the recovered frame is the endpoint as it looks from
+        nearby, not as it looked 32 m ago.
+
+        Returns ``(descriptors, n_hops)``; falls back to the measuring frame's
+        own descriptors if the chain breaks.
+        """
+        src = self._source_for()
+        be = self._backend_for()
+        if not anchors or self.ev.K is None:
+            return None, 0
+        # Start from whichever measuring frame is nearest the target in time.
+        f0, _row, uv0 = min(anchors, key=lambda a: abs(int(a[0])
+                                                       - int(target_frame)))
+        g0 = src.gray(int(f0))
+        if g0 is None:
+            return None, 0
+        kp0, d0 = be.detect(g0)
+        ref = self._descriptors_at(kp0, d0, uv0)
+        if ref is None:
+            return None, 0
+
+        p = np.asarray(point, float).reshape(3)
+        hops = 0
+        for f in self._chain_path(f0, target_frame):
+            row = self.ev._camera_of_frame.get(int(f))
+            if row is None:
+                continue
+            cam = self.ev.rotations[row] @ (p - self.ev.centres[row])
+            if cam[2] <= 1e-6:
+                continue
+            pred = np.array(
+                [self.ev.K[0, 0] * cam[0] / cam[2] + self.ev.K[0, 2],
+                 self.ev.K[1, 1] * cam[1] / cam[2] + self.ev.K[1, 2]])
+            w, h = self.ev.image_size or (0, 0)
+            if not (0 <= pred[0] < w and 0 <= pred[1] < h):
+                continue
+            g = src.gray(int(f))
+            if g is None:
+                continue
+            kp, d = be.detect(g)
+            j = self._match_in_window(kp, d, ref, pred, CHAIN_WINDOW_PX,
+                                      CHAIN_RATIO)
+            if j is None:
+                continue                  # this hop failed; keep what we have
+            nxt = self._descriptors_at(kp, d, np.asarray(kp, float)[j])
+            if nxt is not None:
+                ref = nxt
+                hops += 1
+        return ref, hops
+
+    def _transfer_backend(self):
+        """Matcher used for location transfer, separate from the PnP matcher.
+
+        LightGlue when available: measured on this mission it returns 700-1600
+        correspondences between frames ten apart where SIFT returns 90-190, and
+        density is what the transfer needs. Falls back to the PnP matcher.
+
+        Cached at module scope, not per engine. A learned matcher holds weights
+        on the GPU, and an engine is created per measurement -- so a per-engine
+        model loaded twenty times over a benchmark filled an 8 GB card and one
+        question took 74 minutes against a median of 12 seconds. The backend is
+        stateless with respect to the engine, so there is no reason to have more
+        than one.
+        """
+        if self._xfer is None:
+            from . import features
+            try:
+                RefinementEngine._xfer = features.create("lightglue")
+            except Exception:              # noqa: BLE001
+                RefinementEngine._xfer = self._backend_for()
+        return self._xfer
+
+    def _detect_cached(self, backend, frame_index):
+        """Detections for one frame, cached per engine.
+
+        Keyed by backend identity as well as frame, because the PnP matcher and
+        the transfer matcher produce different keypoints for the same image and
+        confusing the two would silently match one detector's features against
+        another's.
+        """
+        key = (id(backend), int(frame_index))
+        cache = self.__dict__.setdefault("_detect_cache", {})
+        if key not in cache:
+            g = self._source_for().gray(int(frame_index))
+            if g is None:
+                cache[key] = (None, None, None)
+            else:
+                kp, desc = backend.detect(g)
+                cache[key] = (kp, desc, g.shape)
+            if len(cache) > 24:
+                cache.pop(next(iter(cache)))
+        return cache[key]
+
+    def _locate_by_transfer(self, point, R, C, anchors, frame_index):
+        """Carry the endpoint's pixel into a recovered frame through correspondences.
+
+        Everything tried before this attempted to *re-identify* the endpoint's
+        own keypoint in the new frame, and that is what kept failing: the
+        reconstruction's observations sit at its own detector's keypoints, which
+        a fresh detection does not reproduce (median 8.9 px apart for COLMAP
+        observations against OpenCV SIFT), and across the viewpoint change worth
+        recovering, descriptors of the same surface compare at ratios around
+        0.93 -- no clearer than chance.
+
+        Transfer sidesteps the identification problem. Two frames are matched
+        densely; the correspondences within :data:`TRANSFER_RADIUS_PX` of the
+        endpoint's known pixel in the anchor fit a local affine map; the
+        endpoint's pixel goes through it. No single keypoint has to be found
+        twice, and the result is still an image measurement -- it is built from
+        where the detector independently found features in both frames.
+
+        It is accepted only if it agrees with the pose-projected prediction to
+        :data:`TRANSFER_AGREEMENT_PX`. Those two estimates share nothing: one
+        comes from image correspondences, the other from the PnP pose and the
+        current 3D estimate. Agreement between them is evidence; using the
+        projection alone would be circular.
+        """
+        import cv2
+        if self.ev.K is None or not anchors:
+            return None
+        f_a, _row, uv_a = min(anchors,
+                              key=lambda a: abs(int(a[0]) - int(frame_index)))
+        be = self._transfer_backend()
+        kp_a, d_a, shape_a = self._detect_cached(be, f_a)
+        kp_t, d_t, _shape_t = self._detect_cached(be, frame_index)
+        if d_a is None or d_t is None:
+            return None
+        try:
+            matches = be.match(d_a, d_t, kp_a, kp_t, shape_a)
+        except Exception:                  # noqa: BLE001
+            return None
+        if not matches:
+            return None
+
+        a = np.asarray([kp_a[i] for i, _ in matches], float)
+        b = np.asarray([kp_t[j] for _, j in matches], float)
+        near = np.flatnonzero(
+            np.linalg.norm(a - np.asarray(uv_a, float), axis=1)
+            <= TRANSFER_RADIUS_PX)
+        if len(near) < MIN_TRANSFER_MATCHES:
+            return None
+        M, inl = cv2.estimateAffine2D(
+            a[near].reshape(-1, 1, 2), b[near].reshape(-1, 1, 2),
+            method=cv2.RANSAC, ransacReprojThreshold=3.0,
+            maxIters=2000, confidence=0.999)
+        if M is None or inl is None or int(inl.sum()) < MIN_TRANSFER_MATCHES:
+            return None
+        uv = (M[:, :2] @ np.asarray(uv_a, float)) + M[:, 2]
+
+        w, h = self.ev.image_size or (0, 0)
+        if not (0 <= uv[0] < w and 0 <= uv[1] < h):
+            return None
+        cam = np.asarray(R, float) @ (np.asarray(point, float)
+                                      - np.asarray(C, float))
+        if cam[2] <= 1e-6:
+            return None
+        pred = np.array([self.ev.K[0, 0] * cam[0] / cam[2] + self.ev.K[0, 2],
+                         self.ev.K[1, 1] * cam[1] / cam[2] + self.ev.K[1, 2]])
+        if np.linalg.norm(uv - pred) > TRANSFER_AGREEMENT_PX:
+            return None                    # the two independent estimates disagree
+        return uv
+
+    def _locate(self, point, R, C, anchors, kp_new, desc_new,
+                frame_index=None):
         """Find the endpoint in a newly posed frame, by guided descriptor match.
 
         The recovered pose and the endpoint's current estimate predict where it
@@ -720,9 +978,25 @@ class RefinementEngine:
         the window, whose descriptor matches the endpoint's appearance in a
         frame that actually measured it.  That is a new observation.
         """
+        mode = getattr(self, "locator", "transfer")
+        if mode == "transfer" and frame_index is not None:
+            uv = self._locate_by_transfer(point, R, C, anchors, frame_index)
+            if uv is not None:
+                return uv
+            # fall through: a dense transfer that could not be fitted or did not
+            # agree with the projection is not a reason to skip the cheaper path
         if self.ev.K is None or not len(kp_new):
             return None
-        desc_ref, _src_frames = self._endpoint_descriptors(anchors)
+        # Carry the endpoint's appearance towards this frame through
+        # intermediates whose poses are already known, rather than comparing
+        # against how it looked in a frame that may be a long way back down the
+        # pass. See :meth:`_chained_descriptors`.
+        desc_ref, _hops = (self._chained_descriptors(point, frame_index,
+                                                     anchors)
+                           if getattr(self, "locator", "chained") == "chained"
+                           else (None, 0))
+        if desc_ref is None:
+            desc_ref, _src_frames = self._endpoint_descriptors(anchors)
         if desc_ref is None:
             return None
         cam = np.asarray(R, float) @ (np.asarray(point, float)
@@ -731,22 +1005,14 @@ class RefinementEngine:
             return None
         pred = np.array([self.ev.K[0, 0] * cam[0] / cam[2] + self.ev.K[0, 2],
                          self.ev.K[1, 1] * cam[1] / cam[2] + self.ev.K[1, 2]])
-        kp = np.asarray(kp_new, float)
-        near = np.flatnonzero(
-            np.linalg.norm(kp - pred, axis=1) <= LOCATE_SEARCH_PX)
-        if len(near) < 2:
-            return None
-        # Distance from each windowed keypoint to its best-matching reference
-        # orientation. The ratio test then compares the best windowed keypoint
-        # against the second best, which is what rejects a location where two
-        # different features fit the reference equally well.
-        cand = desc_new[near].astype(np.float32)
-        d = np.min(np.linalg.norm(cand[:, None, :] - desc_ref[None, :, :],
-                                  axis=2), axis=1)
-        order = np.argsort(d)
-        if d[order[0]] >= LOCATE_RATIO * d[order[1]]:
-            return None            # ambiguous: two candidates fit equally well
-        return kp[near[order[0]]]
+        j = self._match_in_window(kp_new, desc_new, desc_ref, pred,
+                                   LOCATE_SEARCH_PX, LOCATE_RATIO)
+        if j is None:
+            return None            # ambiguous, or nothing near the prediction
+        return np.asarray(kp_new, float)[j]
+
+    #: Shared across engines: see :meth:`_transfer_backend`.
+    _xfer = None
 
     #: Cap on the points entering a local refit. Large enough that the
     #: endpoint's neighbourhood is genuinely connected to the boundary, small
@@ -1021,7 +1287,8 @@ class RefinementEngine:
                                      "explanation": REJECT_GUIDANCE[REJECT_PNP_FAILED]})
                 continue
             R, C, inl, rmse, kp_new, desc_new, in_pts, in_uv = reg
-            uv = self._locate(pts[target], R, C, anchors, kp_new, desc_new)
+            uv = self._locate(pts[target], R, C, anchors, kp_new, desc_new,
+                              frame_index=c.frame_index)
             if uv is None:
                 run.rejected.append({"frame_index": c.frame_index,
                                      "reason": REJECT_NOT_LOCATED,

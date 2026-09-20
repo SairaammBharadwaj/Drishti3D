@@ -25,9 +25,10 @@ Command: `cd drishti3d && .venv/bin/python -m pytest tests/ -q`
 | After same-pass refinement | 301 passed | 191 s |
 | After COLMAP uncertainty | 312 passed | 199 s |
 | After the F4 experiment | 313 passed | 196 s |
-| After the local bundle refit | **314 passed, 0 failed** | 109 s |
+| After the local bundle refit | 314 passed | 109 s |
+| After the transfer locator | **318 passed, 0 failed** | 117 s |
 
-91 tests were added. No test was removed, skipped or weakened.
+95 tests were added. No test was removed, skipped or weakened.
 
 ### New test files
 
@@ -200,8 +201,9 @@ and area error against ground truth is entirely unmeasured.
 
 ### Same-pass refinement versus a uniform budget (plan F4 gate)
 
-**Run 2026-09-20, then rerun after building the local bundle refit. The
-hypothesis is NOT SUPPORTED on this mission in either run.** Full write-up:
+**Run five times against one frozen question set as the targeted arm was built
+out. It now produces a higher answer yield than the control, on more compute.**
+Full write-up:
 [`docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md`](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md).
 
 20 distance questions, ±0.30 m, frozen and hashed before either arm ran.
@@ -209,47 +211,52 @@ Baseline: COLMAP, 80 keyframes, 81.9 s SfM. Uniform arm: the same pipeline at
 `preset="quality"`, 160 keyframes, 217.3 s SfM. Targeted arm: 4-frame budget per
 question against the baseline.
 
-| Metric | Targeted, no refit | **Targeted, local refit** | Uniform |
-|---|---:|---:|---:|
-| Added compute | 210.5 s | 219.8 s | **135.4 s** |
-| Blocked only by calibration, after (from 8) | 7 / 20 | **10 / 20** | **10 / 20** |
-| Measurements with fewer blockers | 2 / 20 | 2 / 20 | **8 / 20** |
-| Measurements regressed | 1 / 20 | **0 / 20** | 5 / 20 |
-| Narrower interval | 1 / 20 | 4 / 20 | **14 / 20** |
-| Verdict moved up | 0 / 20 | 2 / 20 | **4 / 20** |
-| Median measurement sigma | 0.151 → 0.151 m | 0.151 → 0.128 m | 0.151 → **0.092 m** |
-| Blockers cleared per added minute | 0.57 | 0.55 | **3.55** |
+| Metric | Targeted, no refit | + local refit | **+ transfer locator** | Uniform |
+|---|---:|---:|---:|---:|
+| Added compute | 210.5 s | 219.8 s | 206.7 s | **135.4 s** |
+| Blocked only by calibration, after (from 8) | 7 / 20 | 10 / 20 | **14 / 20** | 10 / 20 |
+| Questions with any frame recovered | 5 / 20 | 5 / 20 | **16 / 20** | n/a |
+| Measurements regressed | 1 / 20 | 0 / 20 | **0 / 20** | 5 / 20 |
+| Narrower interval | 1 / 20 | 4 / 20 | **14 / 20** | **14 / 20** |
+| Verdict moved up | 0 / 20 | 2 / 20 | **5 / 20** | 4 / 20 |
+| Median measurement sigma | 0.151 → 0.151 m | 0.151 → 0.128 m | 0.151 → 0.101 m | 0.151 → **0.092 m** |
+| Median supporting views | 3 → 3 | 3 → 3 | 3 → **6.5** | 3 → 3 |
+| Median measured parallax | 9.56° → 10.35° | 9.56° → 10.42° | 9.56° → **26.75°** | 9.56° → 10.26° |
+| Blockers cleared per added minute | 0.57 | 0.55 | 2.03 | **3.55** |
 
-Truncated to the uniform arm's exact 135.4 s budget, the targeted arm reached 12
-of 20 questions and cleared 1 blocker; the uniform arm cleared 8 across all 20.
+**At equal budget** (135.4 s): the targeted arm reaches 12 of 20 questions and
+clears 4 blockers; the uniform arm clears 5 on **the same twelve**. Level. The
+control's cost is fixed and this one's is 10.3 s per question, so they break
+even at 13.1 questions.
 
-**Result: FAIL for the hypothesis in both runs, PASS for the experiment.** The
-gate asks for better answer yield *or* the same yield faster. With the refit the
-targeted arm ties on yield (10 of 20, both arms) and regresses nothing against
-the control's five — but needs 1.6× the compute. Neither condition is met.
-Recorded as [DEC-013](DECISIONS.md) and [DEC-014](DECISIONS.md).
+**Result: the gate's answer is split.** It improves answer yield (14 against
+10) but not at an equal budget (206.7 s against 135.4 s). The feature stays
+experimental on one mission's evidence. Recorded as
+[DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md), [DEC-015](DECISIONS.md).
 
-**On the 5 questions the targeted arm could reach**, the refit is effective:
+#### Endpoint location, measured on 75 candidates from 25 weak endpoints
 
-| Question | Frames | Sigma before → after | Status |
-|---|---:|---|---|
-| q004 | 4 | 0.201 → **0.106 m** | `needs_refinement` → `estimated_only` |
-| q015 | 1 | 0.181 → **0.128 m** | `needs_refinement` → `estimated_only` |
-| q014 | 1 | 0.074 → **0.054 m** | unchanged (already calibration-only) |
-| q013 | 2 | 0.095 → **0.086 m** | unchanged (already calibration-only) |
-| q012 | 2 | 0.114 → 0.115 m | refit rejected; fell back to a ray intersection |
+| Locator | Endpoint located | Refit accepted |
+|---|---:|---:|
+| Descriptor match against a measuring frame | 1.3% | 4% |
+| Descriptors chained through intermediate frames | 10.7% | 20% |
+| **Transfer through dense correspondences** | **40.0%** | **36%** |
 
-A representative refit: 21 cameras, 400 points, 3,377 observations, reprojection
-RMSE 1.31 → 0.77 px, boundary drift 0.054 m, anchor scale 0.9993. The binding
-constraint is **reach**, not the mechanism: 15 of 20 questions had no frame
-recovered at all.
+Why re-identification fails, measured: COLMAP's stored observations sit a median
+**8.9 px** from a fresh OpenCV SIFT detection (212 of 1,852 within 3 px), and at
+the final match the best-to-second descriptor ratio has a median of **0.93** —
+no clearer than chance. Computing descriptors directly at the stored pixel was
+tried and rejected: upright SIFT at an arbitrary pixel separates true
+correspondences from random ones by 1.6–1.9× against roughly 4× at detected
+keypoints.
 
-**Three runs, one frozen question set.** (1) No refit, 2 regressions — one an
-artefact of `refine` building evidence without endpoint provenances. (2) Same,
-provenances fixed: regressions fell to 1, nothing else changed. (3) With the
-refit, plus two corrections it needed to be meaningful (the neighbourhood
-uncertainty term and the coverage exemption, both in
-[DEC-014](DECISIONS.md)). The conclusion held across all three.
+**Five runs, one frozen question set.** (1) No refit, 2 regressions — one an
+artefact of `refine` building evidence without provenances. (2) Provenances
+fixed: regressions fell to 1. (3) With the local refit and the two corrections
+it needed ([DEC-014](DECISIONS.md)). (4) With the transfer locator — reported
+4,665 s, which was one question taking 74 minutes because each engine loaded its
+own LightGlue model onto an 8 GB card. (5) Matcher shared at module scope: 206.7
+s, the numbers above. The conclusion changed at run 4.
 
 ### Measurement passport and offline verifier (plan F3)
 

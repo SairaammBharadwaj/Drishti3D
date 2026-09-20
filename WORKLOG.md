@@ -1265,3 +1265,166 @@ Worth stating on its own: the two arms differ in risk profile, not only in
 throughput. The control clears more (8 against 2) *and* breaks more (5 against
 0). For a product whose whole claim is that it does not overstate what it knows,
 that is not a neutral trade.
+
+---
+
+# 2026-09-20 (last) — Endpoint location: stop re-identifying, start transferring
+
+## Objective
+
+Lift the binding constraint on same-pass refinement. After the local refit,
+15 of 20 questions in the F4 gate still had no frame recovered because the
+endpoint could not be found in a recovered frame. Measured directly on 75
+candidates from 25 weak endpoints, the shipping locator succeeded on **1.3%**.
+
+## Work Completed
+
+### Diagnosis first
+
+Counting where each attempt died gave two causes, both measured:
+
+- **The endpoint's own descriptor often cannot be read.** The reconstruction's
+  observations sit at *its* detector's keypoints. COLMAP's observations are a
+  median 8.9 px from a fresh OpenCV SIFT detection; only 212 of 1,852 have a
+  redetected keypoint within 3 px. This killed 31 of 60 attempts.
+- **Where it can be read, it does not discriminate.** At the final match the
+  best-to-second ratio has a median of 0.93, with the best descriptor distance
+  at 388 against the ~123 seen between adjacent frames.
+
+### Three locators, measured on the same 75 candidates
+
+| Locator | Located | Refit accepted |
+|---|---:|---:|
+| Descriptor match against a measuring frame | 1.3% | 4% |
+| Descriptors chained through intermediates | 10.7% | 20% |
+| **Transfer through dense correspondences** | **40.0%** | **36%** |
+
+Transfer matches the two frames densely (LightGlue returns 700–1,600
+correspondences where SIFT returns 90–190), fits a local affine from the
+correspondences near the endpoint's known pixel, and pushes the pixel through
+it. No keypoint has to be found twice. It is accepted only when it agrees to
+25 px with the pose-projected prediction, which shares none of its inputs.
+
+### The F4 gate, rerun
+
+| Metric | Before this change | **After** | Uniform |
+|---|---:|---:|---:|
+| Questions with a frame recovered | 5 / 20 | **16 / 20** | n/a |
+| Blocked only by calibration (from 8) | 10 / 20 | **14 / 20** | 10 / 20 |
+| Regressed | 0 | **0** | 5 |
+| Median supporting views | 3 → 3 | 3 → **6.5** | 3 → 3 |
+| Median measured parallax | 9.56° → 10.42° | 9.56° → **26.75°** | 9.56° → 10.26° |
+| Added compute | 219.8 s | 206.7 s | **135.4 s** |
+
+**For the first time the targeted arm wins something.** Higher answer yield than
+the control, zero regressions against its five — at 1.53× the compute, and level
+at matched budget (4 blockers cleared against 5 on the same twelve questions).
+
+## Files Changed
+
+`drishti3d/reconstruction/drishti_recon/refinement.py`
+`_locate_by_transfer`, `_transfer_backend` (module-scope cached),
+`_detect_cached`, `_chained_descriptors`, `_descriptors_at`,
+`_match_in_window`, `_chain_path`.
+
+`drishti3d/eval/f4_experiment.py`
+The equal-budget block now compares the uniform arm on **the same** questions
+the targeted arm reached, and reports the break-even question count.
+
+`drishti3d/tests/test_refinement.py` — 4 tests.
+
+## Important Implementation Details
+
+The transfer's output is an image measurement, not a projection: it is built
+from where the detector independently found features in both frames. The
+projection is used only as an agreement check, because accepting it directly
+would make the new ray pass through the estimate that produced it.
+
+The local affine fit assumes the surface is locally planar over
+`TRANSFER_RADIUS_PX` = 160 px. On a depth discontinuity it is wrong and the
+25 px agreement check is the only thing that catches it.
+
+## Commands Executed
+
+```bash
+cd drishti3d
+.venv/bin/python -m eval.f4_experiment \
+    --baseline colmap_unc --uniform colmap_quality --n-questions 20
+.venv/bin/python -m pytest tests/ -q          # 318 passed
+```
+
+## Problems Encountered
+
+**Problem** — The first run with the transfer locator reported 4,665 s of added
+compute, 21× the previous run.
+
+**Cause** — One question took 74 minutes against a median of 12 seconds.
+`RefinementEngine` loaded its own LightGlue model per instance and an engine is
+created per measurement, so twenty of them filled the 8 GB card and it began
+thrashing. Reproducing that question alone took 9 s, which is what showed the
+cost was cumulative rather than in the question.
+
+**Solution** — Cache the matcher at module scope. The backend is stateless with
+respect to the engine, so there was never a reason for more than one. 206.7 s on
+the rerun. This would have hit every API request too, not only the benchmark.
+
+---
+
+**Problem** — The equal-budget comparison charged the targeted arm for questions
+it was never given the budget to answer: 12 questions of targeted against 20 of
+uniform, reported as 4 cleared against 8.
+
+**Cause** — My own summary code compared the targeted arm's prefix against the
+uniform arm's whole set.
+
+**Solution** — Compare the uniform arm on the same prefix. The honest figure is
+4 against 5 — level — not 4 against 8.
+
+## Approaches That Did Not Work
+
+**Computing the descriptor directly at the stored pixel.** The obvious way round
+the detector mismatch, and measured as a dead end: upright SIFT at an arbitrary
+pixel separates true correspondences from random ones by only 1.6–1.9×, against
+roughly 4× for descriptors at detected keypoints. An arbitrary pixel is often on
+texture that is not distinctive.
+
+**Widening the radius to take the nearest keypoint's descriptor.** A keypoint
+8 px away is a different feature; tracking it would measure a different 3D point
+and attribute the result to the endpoint — about 0.18 m of error at this range.
+
+**Chaining descriptors through intermediate frames.** Built and measured:
+1.3% → 10.7%. Real, and not enough — the chain completed zero hops in the median
+case, because each hop still needs a descriptor read that the detector mismatch
+defeats. Kept as the fallback when transfer cannot be fitted.
+
+**Using LightGlue to re-identify the stored keypoint directly.** It returns 5–10×
+more matches than SIFT but recovers 0 of the known correspondences, because DISK
+keypoints do not coincide with the stored observations either. That result is
+what reframed the problem from identification to transfer.
+
+## Verification
+
+- 318 tests pass, up from 314.
+- Three locators measured on identical inputs; each located pixel was also put
+  through the refit, which rejects on rising reprojection RMSE or an implausible
+  move, so a locator producing wrong matches would show as located-but-rejected
+  rather than as success.
+- The gate was rerun against the same frozen question set, fifth run.
+
+## Result
+
+The problem was misframed for three iterations. Re-identifying one keypoint
+across a large viewpoint change is a hard problem this system does not need to
+solve: it already knows where the endpoint is in the anchor frame and needs the
+same location in another. That is a transfer problem, and a dense correspondence
+field solves it without identification.
+
+Reach went from 5 of 20 questions to 16, and with it the gate's result. Targeted
+refinement now produces a higher answer yield than the uniform control with zero
+regressions against its five — on 1.53× the compute, level at matched budget.
+
+It stays experimental: one mission, twenty questions, no truth to score error
+against, and the advantage depends on the locator succeeding at 40% of
+candidates on this particular imagery. A second capture is the top of the
+backlog, and after that the per-question cost, which is the whole of the
+remaining gap.
