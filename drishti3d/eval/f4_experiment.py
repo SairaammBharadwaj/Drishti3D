@@ -322,13 +322,26 @@ def main() -> int:
             "targeted_cleared_within_budget": sum(
                 1 for b, t in zip(before[:taken], targeted[:taken])
                 if _blockers(t) < _blockers(b)),
+            # The like-for-like figure: what the uniform arm did for the same
+            # questions the targeted arm reached. Comparing the targeted arm's
+            # prefix against the uniform arm's whole set would charge it for
+            # questions it was never given the budget to answer.
+            "uniform_cleared_same_questions": sum(
+                1 for b, u in zip(before[:taken], uniform[:taken])
+                if _blockers(u) < _blockers(b)),
             "uniform_cleared_all_questions": sum(
                 1 for b, u in zip(before, uniform)
                 if _blockers(u) < _blockers(b)),
+            # The uniform arm's cost is fixed whatever is asked of it; the
+            # targeted arm's scales per question. Below this many questions the
+            # targeted arm is the cheaper of the two as well as the other
+            # comparisons; above it, the reconstruction amortises better.
+            "crossover_questions": round(
+                uniform_s / max(targeted_s / max(len(questions), 1), 1e-9), 1),
             "note": ("The uniform arm's spend buys a new reconstruction that "
                      "answers every question at once; the targeted arm's buys "
                      "attention for one question at a time. Within the same "
-                     "seconds, the targeted arm only reaches the first "
+                     "seconds, the targeted arm reaches the first "
                      f"{taken} of {len(questions)} questions."),
         }
 
