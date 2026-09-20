@@ -6,6 +6,7 @@ import {
   type Measurement, type MeasurementKind, type FrameMetric, type Keyframe, type Vec3,
 } from '../api'
 import ReconstructionNotice from '../ReconstructionNotice'
+import ToleranceLens from '../ToleranceLens'
 import PointCloudViewer from '../PointCloudViewer'
 import TrajectoryMap from '../TrajectoryMap'
 
@@ -113,6 +114,12 @@ export default function Workspace() {
             {lastResult.warnings.map((w, i) => <div key={i} className="warn" style={{ fontSize: 12 }}>⚠ {w}</div>)}
           </div>
         )}
+
+        <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+          <ToleranceLens
+            projectId={id} kind={kind} points={pts}
+            onConsumed={() => { setPts([]); setKind(null) }} />
+        </div>
 
         <h3 style={{ marginTop: 18 }}>Display</h3>
         <div className="row">

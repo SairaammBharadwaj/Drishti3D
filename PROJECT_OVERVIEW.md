@@ -36,7 +36,7 @@ dimensions and coverage information before leaving a site.
 
 | Output | File | Notes |
 |---|---|---|
-| Colour point cloud | `point_cloud.ply`, `point_cloud.las`, `cloud.npz` | Per-point provenance class and propagated 1-sigma |
+| Colour point cloud | `point_cloud.ply`, `point_cloud.las`, `cloud.npz` | Per-point provenance class and propagated 1-sigma. Sparse by default; `densify="mvs"` adds dense stereo geometry, `densify="depth"` adds inferred points excluded from measurement |
 | Supported-surface mesh | `mesh.glb` | Visualisation; not measurement evidence |
 | Camera trajectory | `trajectory.json/.csv/.geojson` | ENU poses, GNSS track, intrinsics |
 | Coverage field | `coverage.npz`, `coverage.json` | Per-voxel observed / weak / occluded / unseen / verified-empty |
@@ -496,6 +496,14 @@ cd drishti3d
 - **A learned matcher is now on the refinement path.** LightGlue/DISK
   (Apache-2.0 via kornia) is what made endpoint location work, and it wants a
   GPU. The classical fallback exists but is untested at scale.
+- **The clouds are sparse, and a dense stage exists but has never run.** The
+  pipeline ships only triangulated feature points — 17,898 for a 233 m flight,
+  0.167 m spacing, and **zero AI-assisted points**. `densify="mvs"` adds COLMAP
+  PatchMatch stereo, which is observed geometry and measurable, but it needs a
+  CUDA-enabled `colmap` executable and none is installed here: the PyPI
+  `pycolmap` wheels are CPU-only and dense stereo refuses without CUDA. The
+  module and plumbing are built and tested; the dense reconstruction itself has
+  not been run ([DEC-018](DECISIONS.md)).
 - **The pipeline still defaults to the slower engine.** Both engines now
   produce measurable reconstructions, but `PipelineParams.engine` defaults to
   `"opencv"`, and on COLMAP 51 of 60 sampled measurements have nothing blocking

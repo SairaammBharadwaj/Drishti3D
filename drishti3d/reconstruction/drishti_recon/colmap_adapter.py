@@ -100,13 +100,21 @@ def _point_uncertainty(points, cam_list, K, obs_point, obs_frame, obs_uv):
         return None, None, f"{type(exc).__name__}: {exc}"
 
 
-def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
+def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
+                       keep_workspace=None):
     """Run COLMAP on in-memory BGR frames and return a ``sfm.ReconResult``.
 
     This lets the COLMAP engine drop into the same pipeline as the built-in
     OpenCV SfM (georegistration, fusion, exports, viewer all unchanged).
     Requires PyCOLMAP; raises with setup guidance otherwise.  COLMAP performs
     global bundle adjustment, which is what real wide-baseline aerial grids need.
+
+    ``keep_workspace`` is a directory to move the scratch workspace into
+    instead of deleting it.  Dense multi-view stereo needs the images and the
+    sparse model COLMAP just wrote, and re-exporting them from the in-memory
+    result would reconstruct by hand what is already on disk -- and risk
+    disagreeing with it.  The path is recorded on ``result.stats`` so the
+    caller can find it.
     """
     if not is_available():
         raise RuntimeError("PyCOLMAP not installed. " + SETUP)
@@ -288,10 +296,20 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True):
                     else float(np.median(pu.sigma[np.isfinite(pu.sigma)]))),
             },
         }
+        if keep_workspace is not None:
+            kept = Path(keep_workspace)
+            shutil.rmtree(kept, ignore_errors=True)
+            kept.parent.mkdir(parents=True, exist_ok=True)
+            (work / "sparse").mkdir(parents=True, exist_ok=True)
+            rec.write(str(work / "sparse"))
+            shutil.move(str(work), str(kept))
+            work = kept                    # so the finally clause does not
+            result.stats["workspace"] = str(kept)   # delete what we just kept
         _p("colmap: done", 1.0)
         return result
     finally:
-        shutil.rmtree(work, ignore_errors=True)
+        if keep_workspace is None:
+            shutil.rmtree(work, ignore_errors=True)
 
 
 def reconstruct(image_dir, work_dir, intrinsics=None, *,

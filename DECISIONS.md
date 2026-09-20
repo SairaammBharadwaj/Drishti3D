@@ -1588,3 +1588,97 @@ Measured on all three test beds, same frozen questions, same code otherwise:
 `drishti3d/reconstruction/drishti_recon/refinement.py`
 (`FrameSource.prefetch`, `_prepare`, `_store`, `_detect_cached`,
 `_DETECT_CACHE`, `clear_detect_cache`)
+
+---
+
+## DEC-018 — Dense geometry comes from multi-view stereo, and is kept distinct from the depth prior
+
+**Date:** 2026-09-20
+
+**Status:** Accepted — built, not yet verified end to end
+
+### Context
+
+The clouds this pipeline ships look like a scattering of corners, because that
+is what they are: 17,898 points for 233 m of flight on the AGZ mission, 4,037 on
+a 63 s clip, at 0.167 m average spacing and only where features were matched.
+Every one of those points is observed — the class counts are
+`AI_ASSISTED: 0` on both — so the poor appearance is not inference creeping in.
+It is that **no dense stage was ever built**, although plan section 5.3 asks for
+one by name: *"Create dense observed geometry using multi-view stereo where the
+capture supports it."*
+
+### Options Considered
+
+#### Extend the existing depth-prior path
+
+`densify="depth"` already produces a dense-looking cloud from a monocular depth
+model. It is the cheapest route to a better-looking viewer and the wrong one:
+those points are predictions from a single image, tagged `AI_ASSISTED` and
+excluded from measurement. Making the product look finished by filling it with
+geometry nobody may measure is the failure this system exists to avoid.
+
+#### COLMAP PatchMatch stereo
+
+The reference implementation, and genuinely observed: every point comes from
+photometric agreement across several real images, so it carries the same
+provenance as a sparse point and is measurable under the same rules.
+
+The obstacle is concrete. `pycolmap` exposes `patch_match_stereo`,
+`stereo_fusion` and `undistort_images`, but `pycolmap.has_cuda` is `False` and
+the call fails with *"Dense stereo reconstruction requires CUDA or HIP, neither
+of which is available on your system."* **No CUDA-enabled pycolmap wheel exists
+on PyPI** — checked: 4.2.0 publishes only `manylinux` CPU wheels. So the dense
+stage must shell out to a separately installed `colmap` executable.
+
+#### Write a GPU plane-sweep in torch
+
+`torch` cu128 already works on this machine, so this needs no system install.
+It also reimplements, worse, something COLMAP does well.
+
+### Decision
+
+Shell out to a CUDA-enabled `colmap` binary, behind `densify="mvs"`. Keep the
+depth prior as a separate, differently-tagged option. Report availability — and
+*why* it is unavailable — through `/api/capabilities`.
+
+If installing a CUDA COLMAP proves impractical, a torch plane-sweep goes behind
+the same `mvs` interface rather than changing the contract.
+
+### Why
+
+The distinction between measured and inferred geometry is the product's whole
+claim, and a dense stage is where it is easiest to lose. Two options that both
+"make the cloud look good" are kept as separate parameters with different
+provenance tags, so the choice has to be made explicitly and shows up in the
+class counts.
+
+### Consequences
+
+- Dense points are fused into the **same** cloud as the sparse ones, not
+  layered beside them like the depth prior, because they are the same kind of
+  thing.
+- **They carry a geometric uncertainty, not a propagated covariance.** Fusion
+  does not report which images agreed at what disparity, so the Jacobian in
+  :mod:`uncertainty` cannot be formed. `mvs.depth_uncertainty` estimates
+  `range * sigma_px / focal / sqrt(n_views)` instead, and the pipeline raises a
+  warning saying so on every run that uses it. That number is what a
+  measurement on a dense point would be quoted from, so it must not be quietly
+  optimistic.
+- When sparse points have a propagated sigma and dense points do not, the
+  arrays are dropped rather than concatenated — otherwise a dense point would
+  inherit a sparse point's sigma through indexing.
+- The COLMAP workspace now survives the sparse stage when `densify="mvs"`
+  (`keep_workspace`), because dense stereo needs the images and sparse model
+  COLMAP itself wrote. Re-exporting them by hand would risk disagreeing with it.
+- **Not yet verified end to end.** No CUDA-enabled COLMAP is installed on this
+  machine, so the subprocess path has never run. The module, the plumbing, the
+  uncertainty model and the capability reporting are tested; the actual dense
+  reconstruction is not. That is stated here rather than implied by the code
+  existing.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/mvs.py`,
+`colmap_adapter.py` (`keep_workspace`), `pipeline.py` (densify stage, fusion),
+`backend/app/main.py` (`_mvs_status`), `drishti3d/tests/test_mvs.py`
