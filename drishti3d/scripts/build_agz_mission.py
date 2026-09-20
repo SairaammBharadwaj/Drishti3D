@@ -113,11 +113,14 @@ def _camera_json(out: Path) -> dict:
     return cam
 
 
-def build(source: Path, name: str, overwrite: bool, crf: int) -> dict:
+def build(source: Path, name: str, overwrite: bool, crf: int,
+          imgid_min: int | None = None, imgid_max: int | None = None) -> dict:
     if not LOGS.exists():
         raise SystemExit(f"AGZ logs not found at {LOGS}")
     images = sorted((p for p in source.iterdir()
-                     if p.suffix.lower() in {".jpg", ".jpeg"} and p.stem.isdigit()),
+                     if p.suffix.lower() in {".jpg", ".jpeg"} and p.stem.isdigit()
+                     and (imgid_min is None or int(p.stem) >= imgid_min)
+                     and (imgid_max is None or int(p.stem) <= imgid_max)),
                     key=lambda p: int(p.stem))
     if len(images) < 2:
         raise SystemExit(f"{source} holds fewer than 2 numerically named JPEGs")
@@ -248,6 +251,7 @@ def build(source: Path, name: str, overwrite: bool, crf: int) -> dict:
         "built_by": "drishti3d/scripts/build_agz_mission.py",
         "dataset": "Zurich Urban Micro Aerial Vehicle (AGZ)",
         "source_image_dir": str(source.relative_to(REPO)),
+        "imgid_range_requested": [imgid_min, imgid_max],
         "source_license": "AGZ MAV imagery: academic research use, per "
                           "AGZ_subset/readme.txt",
         "capture": {
@@ -326,6 +330,10 @@ def main() -> int:
                          "to the repository root or absolute")
     ap.add_argument("--name", required=True, help="mission id")
     ap.add_argument("--overwrite", action="store_true")
+    ap.add_argument("--imgid-min", type=int, default=None,
+                    help="lowest AGZ image id to include; use with --imgid-max "
+                         "to cut one flight into separate missions")
+    ap.add_argument("--imgid-max", type=int, default=None)
     ap.add_argument("--crf", type=int, default=12,
                     help="x264 quality (lower is better; 12 is near-visually-"
                          "lossless and keeps the re-encode from dominating)")
@@ -333,7 +341,8 @@ def main() -> int:
     src = Path(a.source)
     if not src.is_absolute():
         src = (REPO / src) if (REPO / src).exists() else (APP / src)
-    m = build(src.resolve(), a.name, a.overwrite, a.crf)
+    m = build(src.resolve(), a.name, a.overwrite, a.crf,
+              a.imgid_min, a.imgid_max)
     print(json.dumps({"mission": m["mission_id"], **m["capture"],
                       "video_bytes": m["artifacts"]["video"]["bytes"],
                       "reference_positions":

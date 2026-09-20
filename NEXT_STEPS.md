@@ -6,13 +6,13 @@ If you are picking this repository up now, read
 Last updated: 2026-09-19.
 
 **Read this first:** the plan's central innovation hypothesis — that targeted
-same-pass refinement beats a uniform budget — has been tested five times against
-one frozen question set as the feature was built out. It went from losing
-outright to producing a **higher answer yield than the control** (14 of 20
-against 10) with **zero regressions against the control's five** — on 1.53× the
-compute, and level at matched budget. That is one mission's evidence, so the
-feature stays experimental. The top of the backlog is a second capture, and
-after that the per-question cost, which is the whole of the remaining gap.
+same-pass refinement beats a uniform budget — now **wins on answer yield across
+all three test beds tried** (14 against 10, 13 against 5, 15 against 9), with
+**zero regressions in every one** against the control's four to seven. It costs
+2–4× more compute. All three test beds are partitions of **one flight**, and the
+only genuinely separate segment cannot run the comparison, so the feature stays
+experimental. Two things would settle it: a field capture that can test
+generalisation, and halving the per-question cost.
 
 **The one-line summary of where the project stands:** reconstruction works on
 real single-pass aerial video and is measured against a real reference; every
@@ -118,45 +118,44 @@ redundant, blurry, or wrongly rejected is **not established**.
 
 ---
 
-### Confirm the F4 yield advantage on a second capture
+### Capture a flight that can actually test generalisation
 
-**Status:** TODO
-**Priority:** P1 — the top of the backlog
+**Status:** BLOCKED — needs field data
+**Priority:** P1
 
 **Why it matters**
 
-Targeted refinement now produces a **higher answer yield** than a uniform budget
-— 14 of 20 measurements blocked only by calibration against 10, with zero
-regressions against the control's five ([DEC-015](DECISIONS.md)). That is the
-first advantage the feature has ever measured, and it rests on **one mission,
-twenty questions, and no truth to score error against**. One capture is not
-enough to retire the experimental caveat, and the yield advantage depends on the
-transfer locator succeeding at 40% of candidates on *this* imagery.
+The F4 advantage reproduced on three test beds, and **all three are partitions
+of one flight** ([DEC-016](DECISIONS.md)). The only genuinely separate AGZ
+segment cannot run the comparison at all: at a 2.8 m median baseline
+`keyframes.select` correctly declines to thin it, so there is no unused frame
+pool and no denser arm. No denser frame set for those image ids exists on disk.
 
-**Current state**
+Until a second flight is tested, "targeted refinement beats a uniform budget" is
+a statement about one capture.
 
-`eval/f4_experiment.py` with a frozen question set, run five times on
-`agz_dense_pass`. Nothing has been run on `agz_pass` or `agz_seg2`.
+**What the capture has to be**
 
-**Recommended implementation**
+The comparison only means anything on a pass that is **over-sampled relative to
+what reconstruction needs** — `agz_dense_pass` at a 1.17 m median baseline is;
+`agz_segment_two` at 2.8 m is not. So: continuous video, not a stride subsample,
+at a frame spacing well under a metre. That is the normal output of a drone
+flying and recording, which is the point.
 
-1. Build missions from `agz_pass` and `agz_seg2`
-   (`scripts/build_agz_mission.py`), reconstruct each at `balanced` and
-   `quality`.
-2. Freeze a question set per mission, before running either arm.
-3. Run the gate on each. Report all of them, including any that disagree with
-   `agz_dense_pass`.
-4. Report the locator's per-candidate rate per mission: if it varies a lot, the
-   yield advantage is a property of the imagery rather than the method.
+The Field Pack v1 specification in plan section 6.3 already asks for this, and
+its reference dimensions would also let both arms be scored on **error against
+truth** rather than on measurement standing — which no run so far has been able
+to do.
 
 **Relevant files**
 
 `eval/f4_experiment.py`, `scripts/build_agz_mission.py`,
-`reconstruction/drishti_recon/refinement.py`
+`reconstruction/drishti_recon/keyframes.py` (the sparse-capture guard that makes
+the regime explicit)
 
 **Dependencies/blockers**
 
-None.
+A field capture. Shares a site visit with the calibration task above.
 
 ---
 
@@ -167,11 +166,12 @@ None.
 
 **Why it matters**
 
-The remaining gap in the F4 gate is entirely cost: 206.7 s against 135.4 s, and
-level at matched budget. The control's price is fixed whatever is asked of it;
-the targeted arm's is 10.3 s per question, so the two break even at about 13
-questions. Halving the per-question cost would move the break-even to ~26 and
-turn a split result into a clear one.
+Cost is now the only thing the targeted arm loses on, and it is the clearer of
+the two findings across three test beds. Break-even falls to about **five**
+questions on the dense pass's halves against thirteen on the full pass, because
+the uniform arm's fixed cost is smaller there while the targeted arm's
+per-question cost is unchanged. Halving that cost roughly doubles the break-even
+everywhere and turns a split result into an unambiguous one.
 
 **Current state**
 

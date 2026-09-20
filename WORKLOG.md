@@ -1428,3 +1428,143 @@ against, and the advantage depends on the locator succeeding at 40% of
 candidates on this particular imagery. A second capture is the top of the
 backlog, and after that the per-question cost, which is the whole of the
 remaining gap.
+
+---
+
+# 2026-09-20 (second capture) — The advantage reproduces; the test beds do not generalise
+
+## Objective
+
+Find out whether the F4 yield advantage is a property of the method or of one
+capture. The plan: build missions from `agz_pass` and `agz_seg2`, reconstruct
+each at two keyframe densities, and run the gate on each with its own frozen
+question set.
+
+## Work Completed
+
+### The second capture could not run the experiment
+
+`agz_segment_two` (ids 64531–70021, 62 frames, 2.8 m median baseline) keeps
+**all 62 frames at every keyframe preset** — fast, balanced and quality alike.
+`keyframes.select` declines to thin a capture whose inter-frame image shift
+already exceeds its sparse-capture guard, which exists because thinning a
+photo-survey-like capture destroys it.
+
+So the targeted arm has no candidate pool (every frame is already a keyframe)
+and the uniform arm has nowhere to go (no denser preset adds frames). No denser
+frame set for those image ids exists on disk. Only 19 of 62 frames register
+there, against 80 of 184 on the dense pass.
+
+`agz_sparse_pass` is worse than useless as an independent test: it covers the
+*same* image-id range as `agz_dense_pass` at a coarser stride, so it is the same
+route.
+
+**The finding to keep: the F4 comparison only means anything on a capture that
+is over-sampled relative to what reconstruction needs.**
+
+### What was used instead
+
+`agz_dense_pass` split into two halves by image id, each built as its own
+mission. `scripts/build_agz_mission.py` gained `--imgid-min/--imgid-max` for it.
+Different scene content, same flight; their georeferencing differs sharply
+(0.41 m against 4.73 m median as-georeferenced error), so they are not the same
+scene twice.
+
+| Test bed | Baseline | Targeted | Uniform | Targeted regressions | Uniform regressions |
+|---|---:|---:|---:|---:|---:|
+| `agz_dense_pass` (full) | 8 | **14** | 10 | **0** | 5 |
+| `agz_dense_firsthalf` | 7 | **13** | 5 | **0** | 7 |
+| `agz_dense_secondhalf` | 9 | **15** | 9 | **0** | 4 |
+
+Break-even falls to 4.8 and 5.2 questions on the halves, against 13.1 on the
+full pass: the uniform arm's fixed cost is smaller there while the targeted
+arm's per-question cost is unchanged.
+
+## Files Changed
+
+`drishti3d/scripts/build_agz_mission.py` — `--imgid-min/--imgid-max`.
+
+`drishti3d/eval/f4_experiment.py` — `--mission`/`--set`, the video path derived
+from the mission, and `--out` resolved before use.
+
+`drishti3d/docs/benchmarks/2026-09-20_f4_second_capture/` — write-up, both
+frozen question sets, both result records.
+
+## Important Implementation Details
+
+Each half gets its own frozen, hashed question set, written before either arm
+runs and reused on re-run.
+
+## Commands Executed
+
+```bash
+cd drishti3d
+.venv/bin/python scripts/build_agz_mission.py --source data/real_drone/agz_seg2 \
+    --name agz_segment_two --overwrite
+for p in fast balanced quality; do
+  .venv/bin/python scripts/run_mission.py --mission agz_segment_two \
+      --max-frames 62 --engine colmap --preset $p --tag seg2_$p
+done
+.venv/bin/python scripts/build_agz_mission.py --source data/real_drone/agz_dense \
+    --name agz_dense_firsthalf --imgid-max 59941 --overwrite
+# ... secondhalf, four reconstructions, two gate runs
+.venv/bin/python -m pytest tests/ -q          # 318 passed
+```
+
+## Problems Encountered
+
+**Problem** — Both gate runs crashed at the very end, after both arms had run:
+`'docs/...' is not in the subpath of '/home/naveen/Drishti3D'`.
+
+**Cause** — `--out` was given as a relative path, and the result record computes
+`qfile.relative_to(REPO)`.
+
+**Solution** — Resolve `out_dir` before use and fall back to the absolute path
+when the file is outside the repository. Both arms' compute was wasted once; the
+frozen question sets survived, so the rerun scored the same questions.
+
+## Approaches That Did Not Work
+
+**Using `agz_segment_two` as the second capture.** Not a bug and not a null
+result — an inapplicable one, for a specific and recordable reason. Recorded
+rather than worked around, because manufacturing a pool there (by forcing a
+thinner preset) would have tested a capture the pipeline deliberately refuses to
+thin.
+
+**Using `agz_sparse_pass`.** Same image-id range as the dense pass. It would
+have looked like a second capture in the results table and been the same route.
+
+## Verification
+
+- 318 tests pass.
+- Three reconstructions of `agz_segment_two` at three presets, all keeping 62 of
+  62 frames — the finding is not one preset's behaviour.
+- Four reconstructions of the halves, all registering 100% of their keyframes.
+- Two gate runs, each against its own question set frozen before either arm ran.
+
+## Result
+
+**The direction reproduced on both halves, with a larger margin than the
+original.** Targeted refinement beat the uniform control on answer yield in all
+three test beds and regressed nothing in any of them, against the control's four
+to seven regressions.
+
+**And all three test beds are partitions of one flight.** Splitting a capture
+and calling the pieces independent evidence is exactly the move this project's
+documentation has spent its whole trail refusing, so the experimental label
+stays. The honest statement is that the result is not an artefact of one
+question set or one part of the scene, and may still be a property of this
+flight, camera or site.
+
+One finding that did not appear on the full pass: **the uniform arm made
+measurements worse.** On the first half, doubling the keyframes took answer
+yield from 7 down to 5, regressed seven measurements — four newly
+`outside_established_coverage` — and raised median measurement sigma from
+0.183 m to 0.260 m. A denser reconstruction is a different cloud, not a strictly
+better one: endpoints re-snap elsewhere and the coverage grid's boundaries move.
+The targeted arm regressed nothing anywhere, because it does not rebuild the
+cloud and so cannot move what it was not asked about.
+
+Two things would settle the hypothesis, and one of them needs a site visit: a
+field capture dense enough to run the comparison, and halving the per-question
+cost. Both are P1.
