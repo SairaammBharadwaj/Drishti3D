@@ -5,6 +5,11 @@ If you are picking this repository up now, read
 
 Last updated: 2026-09-19.
 
+**Read this first:** the plan's central innovation hypothesis — that targeted
+same-pass refinement beats a uniform budget — was tested on 2026-09-20 and
+**lost**. The feature is experimental. The top of the backlog is the one change
+most likely to give it a fair rerun.
+
 **The one-line summary of where the project stands:** reconstruction works on
 real single-pass aerial video and is measured against a real reference; every
 measurement can name the frames and pixels that produced it, and can spend a
@@ -109,50 +114,88 @@ redundant, blurry, or wrongly rejected is **not established**.
 
 ---
 
-### Test the refinement hypothesis against a uniform-budget control
+### Give the targeted arm a local bundle adjustment, then rerun the F4 gate
 
 **Status:** TODO
-**Priority:** P1
+**Priority:** P1 — the top of the backlog
 
 **Why it matters**
 
-Same-pass refinement is built and measured, but the plan's F4 gate is a
-*comparison*: "on frozen questions and equal added compute budgets, targeted
-refinement improves correct accepted-answer yield or reaches the same quality
-faster than uniform refinement." Only the targeted arm exists. Until the control
-runs, the central innovation hypothesis is supported and untested — and the plan
-is explicit that a negative result is acceptable and must be visible.
+The F4 gate has now been run and **targeted refinement lost**: 2 of 20
+measurements' blockers cleared against the uniform arm's 8, on 55% more compute
+([DEC-013](DECISIONS.md),
+[results](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md)).
+The feature is demoted to experimental and no claim that the innovation
+hypothesis holds may be made until this rerun wins.
+
+The most likely cause is also the most actionable. Plan section 5.7 step 4 asks
+for "local re-match and refit with a connected boundary to the global model".
+What was built adds rays to a *single point in isolation*
+([DEC-010](DECISIONS.md), scope) while the control re-solves every pose and
+point. The uniform arm's 39% median sigma reduction came from its global bundle
+adjustment, not from extra views — median supporting views was 3 in both arms.
+The targeted arm has never had the mechanism that would let it compete.
 
 **Current state**
 
-`refinement.RefinementEngine` and the outcome survey in `TESTS_AND_RESULTS.md`:
-10 of 30 weak measurements recovered evidence, all 10 clearing a blocking
-reason, median 13.7 s each.
+`refinement.RefinementEngine.refine` recovers frames, poses them by PnP, locates
+the endpoint and calls `_triangulate` — a weighted closest-point over the rays,
+with no pose refinement at all. `bundle.py` has the machinery for the refit.
 
 **Recommended implementation**
 
-1. A frozen question set: fix the endpoints and tolerances once, in a file, and
-   do not touch them again.
-2. The uniform arm: spend the same added compute by re-running the
-   reconstruction with N more keyframes selected uniformly, then re-measure the
-   same questions.
-3. Equalise on *measured* wall clock, not frame count.
-4. Report accepted-answer yield, cleared blocking reasons, and error against
-   whatever truth exists, for both arms.
-5. Publish the result either way. If targeted refinement does not win, keep it
-   as an experimental feature and say so in `PROJECT_OVERVIEW.md`.
+1. After the batch is recovered, collect the connected neighbourhood: the
+   recovered cameras, the registered cameras that share observations with them,
+   and the points those cameras see.
+2. Run `bundle` over that subproblem with the boundary cameras fixed, then
+   propagate covariance through `uncertainty.point_covariances` on the refined
+   subproblem rather than through the standalone ray intersection.
+3. Keep plan section 5.7 step 5: retaining global uncertainty at the boundary.
+   Fixing neighbouring cameras must not make the interval artificially certain —
+   which is the opposite failure from the one the experiment just found, and
+   easier to fall into once a solver is involved.
+4. Rerun `eval/f4_experiment.py` against the **same** `questions_frozen.json`.
+   Do not regenerate it; a question set chosen after seeing a result is not a
+   test.
+5. Publish the outcome either way.
 
 **Relevant files**
 
-`reconstruction/drishti_recon/refinement.py`, `keyframes.py`, `eval/`
+`reconstruction/drishti_recon/refinement.py` (`_triangulate` and the batch
+loop), `bundle.py`, `uncertainty.py`, `eval/f4_experiment.py`
 
 **Dependencies/blockers**
 
-None. This is the highest-value experiment left in the plan, and the COLMAP
-survey sharpened why: refinement improved 6 of 30 measurements there against 10
-of 30 on the in-repo engine, because the better engine left fewer measurements
-short of views to begin with. What the targeted arm is worth depends entirely
-on what it is measured against.
+None.
+
+---
+
+### Build a capture where targeting could plausibly pay off
+
+**Status:** TODO
+**Priority:** P1 — the diagnostic that says whether the F4 loss is mechanism or regime
+
+**Why it matters**
+
+The F4 experiment's third explanation for the loss is regime, not mechanism: the
+AGZ pass is a continuous traverse decimated to 80 of 184 frames, so it is short
+of views nearly everywhere and spreading the budget hits something useful
+wherever it lands. Targeting should pay off where *most* of the scene is
+adequately covered and a few measurements are not — a regime no capture in this
+repository tests.
+
+**Recommended implementation**
+
+Construct it from AGZ rather than waiting for field data: reconstruct at
+`preset="quality"` but hold out a contiguous window of frames covering one part
+of the scene, so that region alone is under-observed. Freeze questions inside
+and outside the window, and rerun the F4 experiment. If targeting wins inside
+the window and loses outside it, the mechanism works and the AGZ result is about
+regime; if it loses in both, it is about the mechanism.
+
+**Relevant files**
+
+`eval/f4_experiment.py`, `scripts/run_mission.py`, `keyframes.py`
 
 ---
 

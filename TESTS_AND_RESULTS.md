@@ -23,9 +23,10 @@ Command: `cd drishti3d && .venv/bin/python -m pytest tests/ -q`
 | After the measurement gate | 264 passed | 140 s |
 | After observation lineage | 277 passed | 112 s |
 | After same-pass refinement | 301 passed | 191 s |
-| After COLMAP uncertainty | **312 passed, 0 failed** | 199 s |
+| After COLMAP uncertainty | 312 passed | 199 s |
+| After the F4 experiment | **313 passed, 0 failed** | 196 s |
 
-89 tests were added. No test was removed, skipped or weakened.
+90 tests were added. No test was removed, skipped or weakened.
 
 ### New test files
 
@@ -198,8 +199,46 @@ and area error against ground truth is entirely unmeasured.
 
 ### Same-pass refinement versus a uniform budget (plan F4 gate)
 
-`NOT TESTED`. The targeted arm is measured above. The uniform-refinement
-comparison arm, at equal added compute, has not been built or run.
+**Run 2026-09-20. The hypothesis is NOT SUPPORTED on this mission.** Full
+write-up:
+[`docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md`](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md).
+
+20 distance questions, ±0.30 m, frozen and hashed before either arm ran.
+Baseline: COLMAP, 80 keyframes, 81.9 s SfM. Uniform arm: the same pipeline at
+`preset="quality"`, 160 keyframes, 217.3 s SfM. Targeted arm: 4-frame budget per
+question against the baseline.
+
+| Metric | Targeted | Uniform |
+|---|---:|---:|
+| Added compute | 210.5 s | **135.4 s** |
+| Measurements with fewer blockers | 2 / 20 | **8 / 20** |
+| Measurements regressed | **1 / 20** | 5 / 20 |
+| Measurements with a narrower interval | 1 / 20 | **14 / 20** |
+| Verdict moved up the ladder | 0 / 20 | **4 / 20** |
+| Blocked only by calibration, after | 7 (from 8) | **10** (from 8) |
+| Median measurement sigma | 0.151 → 0.151 m | 0.151 → **0.092 m** |
+| Blockers cleared per added minute | 0.57 | **3.55** |
+
+Truncated to the uniform arm's exact 135.4 s budget, the targeted arm reached 12
+of 20 questions and cleared 1 blocker; the uniform arm cleared 8 across all 20.
+
+The targeted arm recovered frames for only 5 of 20 questions and moved no
+verdict upward. Median supporting views is 3 in both arms — the uniform arm's
+39% sigma reduction comes from its global bundle adjustment and denser cloud
+(52,005 points against 17,898, mean track 4.93 against 3.91), not from extra
+views at the endpoints.
+
+**Result: FAIL for the hypothesis, PASS for the experiment.** Recorded as
+[DEC-013](DECISIONS.md); the feature is demoted to experimental. What this does
+*not* establish is in the write-up: one mission, one scene, no truth to score
+error against, and the targeted arm was deliberately denied the local bundle
+adjustment plan section 5.7 asks for.
+
+The experiment was run twice. The first run showed 2 targeted regressions; one
+was an artefact of `refine` building evidence without endpoint provenances, now
+fixed and covered by
+`test_endpoint_provenance_reaches_the_before_and_after_snapshots`. Regressions
+fell to 1; no other figure changed and the conclusion did not.
 
 ### Measurement passport and offline verifier (plan F3)
 

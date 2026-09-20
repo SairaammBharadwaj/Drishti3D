@@ -143,7 +143,15 @@ falls back to camera frustums, is stamped `frustum_upper_bound`, and blocks
 acceptance — on the AGZ mission the frustum figures overstate view count by 3.0×
 and parallax by 3.7× against what the measurements actually provided.
 
-### Same-pass evidence recovery
+### Same-pass evidence recovery — **experimental**
+**Status:** the hypothesis behind this feature is **not supported** on the one
+mission where it has been tested. Against a uniform budget spent on a denser
+reconstruction, targeted refinement cleared 2 of 20 measurements' blockers to
+the control's 8, on 55% *more* compute
+([DEC-013](DECISIONS.md), [full results](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md)).
+It is retained for its observed benefits and must not be described as a proven
+advantage.
+
 **What:** "Improve this measurement" — frames of the pass that the
 reconstruction never processed are ranked by the parallax they would add at the
 measurement's weakest endpoint, a bounded batch is posed by PnP against the
@@ -152,13 +160,14 @@ and re-triangulated, and the measurement is re-decided. Runs are recorded
 whether or not they helped.
 **Where:** `refinement.py` (`RefinementEngine`, `RefinementRun`),
 `POST /api/projects/{id}/questions/{qid}/refine`, `models.RefinementRun`.
-**Measured on the AGZ mission** (30 weak measurements, 4-frame budget, median
-12.8 s each): 10 of 30 recovered at least one frame, and all 10 improved;
-supporting views went from a median of 2 to 4 and parallax from 8.1° to 15.5°.
-The other 20 recovered nothing, almost always because the endpoint could not be
-matched into the recovered frame. Repeated on a COLMAP reconstruction it
-improved only 6 of 30 and regressed 2 — the better engine leaves fewer
-measurements short of views for refinement to fix.
+**Observed benefits, which are real:** on 30 weak measurements (4-frame budget,
+median 12.8 s each) it recovered at least one frame for 10 and improved all 10 —
+supporting views from a median of 2 to 4, parallax from 8.1° to 15.5°. On a
+COLMAP reconstruction it improved 6 of 30 and regressed 2, because the better
+engine leaves fewer measurements short of views to fix.
+
+**What it does not do:** beat spending the same compute on a denser
+reconstruction. See the status note above.
 
 ### Dataset tooling
 **What:** inventory of every dataset in the checkout with content digests, LFS
@@ -443,7 +452,9 @@ cd drishti3d
 - Measurement evidence for any selected point, labelled with the basis it was
   derived from.
 - Same-pass evidence recovery for a single measurement, with every candidate
-  frame's fate reported.
+  frame's fate reported — experimental, and measured against its control.
+- A reproducible A/B harness for that control (`eval/f4_experiment.py`) with a
+  frozen, hashed question set.
 - Reproducible dataset inventory, mission construction and scoring, with
   reference data access-separated from the worker.
 
@@ -454,11 +465,12 @@ cd drishti3d
   `estimated_only`. This is deliberate, not a defect ([DEC-003](DECISIONS.md)),
   and since observation lineage landed it is the *only* remaining blocker on
   real data.
-- **Same-pass refinement works but is unproven.** It recovers evidence on a
-  third of attempts and clears the blocking reason when it does, but the paired
-  experiment the plan's F4 gate asks for — targeted versus uniform refinement at
-  equal added compute — has not been run. The hypothesis is supported, not
-  tested.
+- **Same-pass refinement lost its own gate.** The F4 paired experiment has now
+  been run and the targeted arm lost to a uniform budget on every metric, on
+  more compute. The feature is experimental ([DEC-013](DECISIONS.md)). The most
+  likely cause is that the targeted arm was deliberately denied the local bundle
+  adjustment plan section 5.7 asks for, while the control re-solves everything;
+  the retry is specified in [NEXT_STEPS.md](NEXT_STEPS.md).
 - **The pipeline still defaults to the slower engine.** Both engines now
   produce measurable reconstructions, but `PipelineParams.engine` defaults to
   `"opencv"`, and on COLMAP 51 of 60 sampled measurements have nothing blocking
