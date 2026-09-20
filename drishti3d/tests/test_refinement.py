@@ -426,8 +426,9 @@ def test_transfer_needs_enough_local_correspondences(tmp_path, monkeypatch):
 
     monkeypatch.setattr(eng, "_transfer_backend", lambda: _Backend())
     monkeypatch.setattr(eng, "_detect_cached",
-                        lambda be, f: (np.zeros((4, 2), np.float32),
-                                       np.zeros((4, 8), np.float32), (720, 1280)))
+                        lambda be, f, key=None: (np.zeros((4, 2), np.float32),
+                                                 np.zeros((4, 8), np.float32),
+                                                 (720, 1280)))
     cams = _arc_cams((0, 4, 8))
     R = np.asarray(cams[0]["R"], float)
     C = np.asarray(cams[0]["C"], float)
@@ -466,7 +467,7 @@ def test_transfer_is_rejected_when_it_disagrees_with_the_projection(tmp_path,
     be = _Backend()
     monkeypatch.setattr(eng, "_transfer_backend", lambda: be)
 
-    def _cached(backend, frame_index):
+    def _cached(backend, frame_index, key=None):
         kp = a if int(frame_index) == int(anchors[0][0]) else a + offset
         return kp, np.zeros((n, 8), np.float32), (720, 1280)
 
@@ -504,7 +505,7 @@ def test_transfer_recovers_a_shifted_neighbourhood(tmp_path, monkeypatch):
 
     monkeypatch.setattr(eng, "_transfer_backend", lambda: _Backend())
 
-    def _cached(backend, frame_index):
+    def _cached(backend, frame_index, key=None):
         kp = a if int(frame_index) == int(anchors[0][0]) else a + offset
         return kp, np.zeros((n, 8), np.float32), (720, 1280)
 
@@ -531,3 +532,66 @@ def test_the_transfer_matcher_is_shared_across_engines(tmp_path):
         assert b._transfer_backend() is sentinel
     finally:
         rf.RefinementEngine._xfer = None
+
+
+def test_the_detection_cache_is_shared_across_engines(tmp_path):
+    """An engine is created per measurement; a per-engine cache never pays.
+
+    Detection was 62% of a refinement's wall clock, almost all of it re-doing
+    the same anchor frames once per candidate.
+    """
+    ev, art = _fixture(tmp_path / "cache")
+    rf.clear_detect_cache()
+    calls = {"n": 0}
+
+    class _Backend:
+        name = "stub"
+
+        def detect(self, gray):
+            calls["n"] += 1
+            return np.zeros((4, 2), np.float32), np.zeros((4, 8), np.float32)
+
+    be = _Backend()
+    a = rf.RefinementEngine(ev, art, video_path="/tmp/x.mp4")
+    b = rf.RefinementEngine(ev, art, video_path="/tmp/x.mp4")
+    a._source = _FakeSource()
+    b._source = _FakeSource()
+    a._detect_cached(be, 7, "stub")
+    b._detect_cached(be, 7, "stub")
+    assert calls["n"] == 1, "the second engine must reuse the first's detection"
+
+    # A different video at the same frame index is a different image.
+    c = rf.RefinementEngine(ev, art, video_path="/tmp/y.mp4")
+    c._source = _FakeSource()
+    c._detect_cached(be, 7, "stub")
+    assert calls["n"] == 2
+    rf.clear_detect_cache()
+
+
+class _FakeSource:
+    def gray(self, i):
+        return np.zeros((720, 1280), np.uint8)
+
+    def close(self):
+        pass
+
+
+def test_clearing_the_detect_cache_forces_redetection(tmp_path):
+    """A new upload can put different content at the same path."""
+    ev, art = _fixture(tmp_path / "clear")
+    rf.clear_detect_cache()
+    calls = {"n": 0}
+
+    class _Backend:
+        name = "stub"
+
+        def detect(self, gray):
+            calls["n"] += 1
+            return np.zeros((4, 2), np.float32), np.zeros((4, 8), np.float32)
+
+    eng = rf.RefinementEngine(ev, art, video_path="/tmp/z.mp4")
+    eng._source = _FakeSource()
+    eng._detect_cached(_Backend(), 3, "stub")
+    rf.clear_detect_cache()
+    eng._detect_cached(_Backend(), 3, "stub")
+    assert calls["n"] == 2

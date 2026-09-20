@@ -53,6 +53,13 @@ def upload_video(project_id: str, file: UploadFile = File(...),
     if not p:
         raise HTTPException(404, "project not found")
     name, sha = storage.save_upload(project_id, file, "video")
+    # Refinement caches decoded frames and their detections process-wide, keyed
+    # by video path. Reprocessing the same file is safe -- the frames are the
+    # same -- but a new upload can land at the same path with different content,
+    # and a stale entry would have a refinement match against the old video's
+    # frames. This is the only point where that can happen.
+    from drishti_recon.refinement import clear_detect_cache
+    clear_detect_cache()
     p.video_filename = name
     p.video_sha256 = sha
     db.commit()

@@ -211,28 +211,27 @@ Baseline: COLMAP, 80 keyframes, 81.9 s SfM. Uniform arm: the same pipeline at
 `preset="quality"`, 160 keyframes, 217.3 s SfM. Targeted arm: 4-frame budget per
 question against the baseline.
 
-| Metric | Targeted, no refit | + local refit | **+ transfer locator** | Uniform |
-|---|---:|---:|---:|---:|
-| Added compute | 210.5 s | 219.8 s | 206.7 s | **135.4 s** |
-| Blocked only by calibration, after (from 8) | 7 / 20 | 10 / 20 | **14 / 20** | 10 / 20 |
-| Questions with any frame recovered | 5 / 20 | 5 / 20 | **16 / 20** | n/a |
-| Measurements regressed | 1 / 20 | 0 / 20 | **0 / 20** | 5 / 20 |
-| Narrower interval | 1 / 20 | 4 / 20 | **14 / 20** | **14 / 20** |
-| Verdict moved up | 0 / 20 | 2 / 20 | **5 / 20** | 4 / 20 |
-| Median measurement sigma | 0.151 → 0.151 m | 0.151 → 0.128 m | 0.151 → 0.101 m | 0.151 → **0.092 m** |
-| Median supporting views | 3 → 3 | 3 → 3 | 3 → **6.5** | 3 → 3 |
-| Median measured parallax | 9.56° → 10.35° | 9.56° → 10.42° | 9.56° → **26.75°** | 9.56° → 10.26° |
-| Blockers cleared per added minute | 0.57 | 0.55 | 2.03 | **3.55** |
+| Metric | no refit | + local refit | + transfer locator | **+ cost work** | Uniform |
+|---|---:|---:|---:|---:|---:|
+| Added compute | 210.5 s | 219.8 s | 206.7 s | **88.6 s** | 135.4 s |
+| Blocked only by calibration (from 8) | 7 | 10 | 14 | **15** | 10 |
+| Questions with any frame recovered | 5 | 5 | 16 | **17** | n/a |
+| Measurements regressed | 1 | 0 | 0 | **0** | 5 |
+| Narrower interval | 1 | 4 | 14 | **15** | 14 |
+| Verdict moved up | 0 | 2 | 5 | **6** | 4 |
+| Median measurement sigma | 0.151 | 0.128 | 0.101 | 0.104 | **0.092** |
+| Median supporting views | 3 → 3 | 3 → 3 | 3 → 6.5 | 3 → **6.0** | 3 → 3 |
+| Median measured parallax | 10.35° | 10.42° | 26.75° | **26.23°** | 10.26° |
+| Blockers cleared per added minute | 0.57 | 0.55 | 2.03 | **5.42** | 3.55 |
 
-**At equal budget** (135.4 s): the targeted arm reaches 12 of 20 questions and
-clears 4 blockers; the uniform arm clears 5 on **the same twelve**. Level. The
-control's cost is fixed and this one's is 10.3 s per question, so they break
-even at 13.1 questions.
+**At the control's budget** (135.4 s) the targeted arm now reaches **all 20**
+questions and clears 8 blockers — the same 8 the control clears. Break-even
+moved from 13.1 questions to 30.6.
 
-**Result: the gate's answer is split.** It improves answer yield (14 against
-10) but not at an equal budget (206.7 s against 135.4 s). The feature stays
-experimental on one mission's evidence. Recorded as
-[DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md), [DEC-015](DECISIONS.md).
+**Result: the gate is met on this test bed.** Higher answer yield (15 against
+10) *and* less compute (88.6 s against 135.4 s). The feature stays experimental
+because all test beds are partitions of one flight, not because of the gate.
+Recorded as [DEC-013](DECISIONS.md) … [DEC-017](DECISIONS.md).
 
 #### The same gate on two further test beds
 
@@ -250,15 +249,18 @@ Answer yield (measurements blocked only by calibration), 20 frozen questions eac
 
 | Test bed | Baseline | **Targeted** | Uniform | Targeted regressions | Uniform regressions |
 |---|---:|---:|---:|---:|---:|
-| `agz_dense_pass` (full) | 8 | **14** | 10 | **0** | 5 |
+| `agz_dense_pass` (full) | 8 | **15** | 10 | **0** | 5 |
 | `agz_dense_firsthalf` | 7 | **13** | 5 | **0** | 7 |
 | `agz_dense_secondhalf` | 9 | **15** | 9 | **0** | 4 |
 
-| Test bed | Targeted compute | Uniform compute | Break-even questions |
-|---|---:|---:|---:|
-| `agz_dense_pass` | 206.7 s | 135.4 s | 13.1 |
-| `agz_dense_firsthalf` | 239.3 s | 57.2 s | 4.8 |
-| `agz_dense_secondhalf` | 223.9 s | 58.2 s | 5.2 |
+| Test bed | Targeted compute | Uniform compute | Break-even | Median sigma t / u |
+|---|---:|---:|---:|---|
+| `agz_dense_pass` | **88.6 s** | 135.4 s | 30.6 | 0.104 / **0.092** m |
+| `agz_dense_firsthalf` | 75.6 s | **57.2 s** | 15.1 | **0.126** / 0.260 m |
+| `agz_dense_secondhalf` | 62.5 s | **58.2 s** | 18.6 | **0.125** / 0.132 m |
+
+At the control's own budget the targeted arm clears 8 against 8 on the full
+pass, 6 against 1 on the first half, and 6 against 5 on the second.
 
 Supporting views went 3 → 7.0 on both halves against the control's 3 → 3;
 measured parallax 8.18° → 27.58° and 9.08° → 26.74° against 4.93° and 7.48°.
@@ -272,6 +274,37 @@ strictly better one.
 **Result: PASS for reproducibility of direction, NOT ESTABLISHED for
 generalisation.** All three test beds are partitions of one flight. Recorded as
 [DEC-016](DECISIONS.md).
+
+#### Per-question cost, profiled rather than guessed
+
+| Phase | Share of a refinement | Per call |
+|---|---:|---:|
+| `_register` | 62% | 1.05 s |
+| `_locate` | 26% | 0.48 s |
+| `_local_bundle` | 12% | 2.22 s |
+
+Inside `_register`: detection 94%, matching 6%. Inside detection:
+
+| | Per frame |
+|---|---:|
+| `gray()` — seek, decode, resize, undistort | **339 ms** |
+| SIFT detect, 4000 features | 47 ms |
+| SIFT detect, 1200 features | 38 ms |
+| **Sequential decode** (no seek) | **8 ms** |
+
+The cost was seeking in H.264, not vision. A question's top-ten candidates span
+a median of 16 frames, so the span is read in one pass.
+
+| Test bed | Before | After | Speedup |
+|---|---:|---:|---:|
+| `agz_dense_pass` | 206.7 s | **88.6 s** | 2.33× |
+| `agz_dense_firsthalf` | 239.3 s | **75.6 s** | 3.17× |
+| `agz_dense_secondhalf` | 223.9 s | **62.5 s** | 3.58× |
+
+Quality unchanged or slightly better (yield 14 → 15 on the full pass, still zero
+regressions). `MAX_REFIT_POINTS` was measured and **left at 400**: dropping it to
+100 is 13% faster, one refit fewer in eight, and 4.6% worse median sigma —
+[DEC-017](DECISIONS.md).
 
 #### Endpoint location, measured on 75 candidates from 25 weak endpoints
 

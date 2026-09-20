@@ -1568,3 +1568,134 @@ cloud and so cannot move what it was not asked about.
 Two things would settle the hypothesis, and one of them needs a site visit: a
 field capture dense enough to run the comparison, and halving the per-question
 cost. Both are P1.
+
+---
+
+# 2026-09-20 (cost) — The per-question cost was frame seeking, not vision
+
+## Objective
+
+Close the last thing targeted refinement lost on. After the second-capture runs
+it beat the uniform control on answer yield everywhere but cost 2–4× more, with
+break-even at 5–13 questions. Since the control's price is fixed and the
+targeted arm's is per question, that break-even *is* the comparison.
+
+## Work Completed
+
+### Profiled first, rather than optimising the obvious thing
+
+| Phase | Share | Per call |
+|---|---:|---:|
+| `_register` | 62% | 1.05 s |
+| `_locate` | 26% | 0.48 s |
+| `_local_bundle` | 12% | 2.22 s |
+
+Inside `_register`: **detection 94%, matching 6%**. Inside detection:
+
+| | Per frame |
+|---|---:|
+| `gray()` — seek, decode, resize, undistort | **339 ms** |
+| SIFT detect, 4000 features | 47 ms |
+| SIFT detect, 1200 features | 38 ms |
+| **Sequential decode, no seek** | **8 ms** |
+
+The cost was never the vision. It was seeking in an H.264 stream, which decodes
+from the nearest keyframe every time — 48× more than reading forward. A
+question's top-ten candidates span a median of 16 frames.
+
+### Two changes
+
+**`FrameSource.prefetch`** reads the whole span a refinement will look at —
+candidates, their PnP anchors, the endpoint's anchors — in one sequential pass,
+bounded so it cannot read through the clip for two scattered frames.
+
+**`_DETECT_CACHE` is module-level**, LRU-bounded, keyed by (backend name, video
+path, frame). It was per engine, and an engine is created per measurement, so it
+was discarded exactly when it would start paying. `_register` did not use it at
+all, re-detecting each anchor once per candidate.
+
+### Result, all three test beds, same frozen questions
+
+| Test bed | Before | After | Speedup | Yield t / u |
+|---|---:|---:|---:|---|
+| `agz_dense_pass` | 206.7 s | **88.6 s** | 2.33× | 15 / 10 |
+| `agz_dense_firsthalf` | 239.3 s | **75.6 s** | 3.17× | 13 / 5 |
+| `agz_dense_secondhalf` | 223.9 s | **62.5 s** | 3.58× | 15 / 9 |
+
+**The gate's premise is now satisfiable.** At the control's own budget the
+targeted arm reaches all 20 questions on the full pass (clearing 8 against the
+control's 8), 14 of 20 on the first half (6 against 1) and 18 of 20 on the
+second (6 against 5). Break-even moved from 4.8–13.1 questions to 15.1–30.6.
+
+## Files Changed
+
+`drishti3d/reconstruction/drishti_recon/refinement.py`
+`FrameSource.prefetch`, `_prepare`, `_store`, an LRU gray cache, the
+module-level `_DETECT_CACHE` and `clear_detect_cache`, and every detection path
+routed through the cache.
+
+`drishti3d/backend/app/routers/projects.py`
+`clear_detect_cache()` on video upload.
+
+`drishti3d/tests/test_refinement.py` — 2 tests for the shared cache.
+
+## Important Implementation Details
+
+The detection cache is keyed by backend **name** and video **path**, never by
+object identity: two detectors produce different keypoints for the same image,
+and matching one's features against another's fails silently.
+
+Reprocessing a project is safe — the frames are unchanged, and the cache is not
+keyed by reconstruction. The one unsafe case is a new upload landing at the same
+path with different content, which is why `clear_detect_cache()` is called from
+the upload handler and not from the reprocess path.
+
+## Commands Executed
+
+```bash
+cd drishti3d
+.venv/bin/python -m eval.f4_experiment --mission agz_dense_pass \
+    --baseline colmap_unc --uniform colmap_quality --n-questions 20 \
+    --out "$PWD/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform"
+# ... and both halves
+.venv/bin/python -m pytest tests/ -q          # 320 passed
+```
+
+## Problems Encountered
+
+None worth recording. The first profile run measured `_register` directly rather
+than through `refine`, so it missed the prefetch entirely and showed only a 6%
+gain; measuring end to end showed 2.4×.
+
+## Approaches That Did Not Work
+
+**Reducing the SIFT feature count.** The obvious knob, worth 9 ms of 386, and
+irrelevant to the actual cost. Measured before changing anything.
+
+**Shrinking the local refit.** `MAX_REFIT_POINTS` 400 → 100 is 13% faster, one
+refit fewer in eight, and 4.6% worse median sigma. Interval width is the
+feature's remaining weakness against the control on the full pass, so trading it
+for speed is the wrong direction. Left at 400, and now measured rather than a
+guess.
+
+## Verification
+
+- 320 tests pass, up from 318.
+- All three gates rerun against their own frozen question sets. Quality
+  unchanged or slightly better: yield 14 → 15 on the full pass, still zero
+  regressions on all three. The speedup came from doing the same work fewer
+  times, not from doing less of it.
+
+## Result
+
+**Targeted refinement now passes its own gate on all three test beds**: higher
+answer yield than the uniform control, zero regressions against its four to
+seven, at comparable or lower compute. On the full pass it is both cheaper
+(88.6 s against 135.4 s) and higher-yield (15 against 10).
+
+It stays experimental, and the reason is no longer the gate. All three test beds
+are partitions of one flight, and the only genuinely separate AGZ segment cannot
+run the comparison at all because keyframe selection correctly declines to thin
+it. A field capture is now the single thing that would settle the hypothesis —
+and it is the same site visit that unblocks interval calibration, which remains
+the only thing between this system and an accepted measurement.

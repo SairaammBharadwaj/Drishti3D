@@ -144,12 +144,13 @@ acceptance — on the AGZ mission the frustum figures overstate view count by 3.
 and parallax by 3.7× against what the measurements actually provided.
 
 ### Same-pass evidence recovery — **experimental**
-**Status: experimental, with a measured advantage and a measured cost.**
-Targeted refinement produces a **higher answer yield than a uniform budget on
-all three test beds tried** — 14 against 10, 13 against 5, and 15 against 9
-measurements blocked only by calibration — with **zero regressions in every one,
-against the control's four to seven**. It costs 2–4× more compute, and the two
-break even at 5–13 questions depending on the test bed.
+**Status: experimental, and it now passes its own gate.** Targeted refinement
+produces a **higher answer yield than a uniform budget on all three test beds
+tried** — 15 against 10, 13 against 5, and 15 against 9 measurements blocked
+only by calibration — with **zero regressions in every one, against the
+control's four to seven**. Since the per-question cost work it does so at
+comparable or lower compute (88.6 s against the control's 135.4 s on the full
+pass), and at the control's own budget it ties once and wins twice.
 
 **All three test beds are partitions of one flight.** The only genuinely
 separate AGZ segment cannot run the comparison at all: at a 2.8 m baseline
@@ -183,8 +184,9 @@ transferred through it. Measured: 1.3% of candidates located by descriptor
 match, 10.7% by chaining descriptors through intermediates, **40.0% by
 transfer**.
 
-**What it does not do:** produce a narrower interval than the control (0.101 m
-against 0.092 m), or clear blockers faster (2.03 per added minute against 3.55).
+**What it does not do:** produce a narrower interval than the control on the
+full pass (0.104 m against 0.092 m) — though on both half-pass test beds the
+ordering reverses, so neither method is uniformly better on interval width.
 
 ### Dataset tooling
 **What:** inventory of every dataset in the checkout with content digests, LFS
@@ -483,10 +485,10 @@ cd drishti3d
   and since observation lineage landed it is the *only* remaining blocker on
   real data.
 - **Same-pass refinement is unproven, not disproven.** It now beats the uniform
-  control on answer yield across three test beds with zero regressions, at 2–4×
-  the compute — but all three are partitions of one flight, and the one
-  genuinely separate segment cannot run the comparison. It stays experimental
-  ([DEC-013](DECISIONS.md) … [DEC-016](DECISIONS.md)).
+  control on answer yield across three test beds with zero regressions and at
+  comparable or lower compute — but all three are partitions of one flight, and
+  the one genuinely separate segment cannot run the comparison. It stays
+  experimental ([DEC-013](DECISIONS.md) … [DEC-017](DECISIONS.md)).
 - **A denser reconstruction is not strictly better for measurement.** On one
   test bed, doubling the keyframes took answer yield from 7 down to 5 and raised
   median measurement sigma from 0.183 m to 0.260 m: endpoints re-snap elsewhere

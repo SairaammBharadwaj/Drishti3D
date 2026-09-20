@@ -4,8 +4,9 @@ _Run 2026-09-20 by `python -m eval.f4_experiment`. Per-question records and the
 frozen question sets are in `firsthalf/` and `secondhalf/`._
 
 **Result: targeted refinement beat the uniform control on answer yield in all
-three test beds, with zero regressions against the control's four to seven. It
-cost 2–4× more compute in every one.**
+three test beds, with zero regressions against the control's four to seven.
+Since the per-question cost work it is also within a few seconds of the
+control's compute on the halves, and cheaper than it on the full pass.**
 
 **Read the independence caveat first.** These are not three captures. They are
 one flight, partitioned. The genuinely separate AGZ segment could not run this
@@ -61,15 +62,18 @@ available proxy while no calibration profile exists.
 
 | Test bed | Baseline | **Targeted** | Uniform | Targeted regressions | Uniform regressions |
 |---|---:|---:|---:|---:|---:|
-| `agz_dense_pass` (full, 184 frames) | 8 | **14** | 10 | **0** | 5 |
+| `agz_dense_pass` (full, 184 frames) | 8 | **15** | 10 | **0** | 5 |
 | `agz_dense_firsthalf` | 7 | **13** | 5 | **0** | 7 |
 | `agz_dense_secondhalf` | 9 | **15** | 9 | **0** | 4 |
 
-| Test bed | Targeted compute | Uniform compute | Break-even questions |
-|---|---:|---:|---:|
-| `agz_dense_pass` | 206.7 s | 135.4 s | 13.1 |
-| `agz_dense_firsthalf` | 239.3 s | 57.2 s | 4.8 |
-| `agz_dense_secondhalf` | 223.9 s | 58.2 s | 5.2 |
+| Test bed | Targeted compute | Uniform compute | Break-even questions | Median sigma, targeted / uniform |
+|---|---:|---:|---:|---|
+| `agz_dense_pass` | **88.6 s** | 135.4 s | 30.6 | 0.104 / **0.092** m |
+| `agz_dense_firsthalf` | 75.6 s | **57.2 s** | 15.1 | **0.126** / 0.260 m |
+| `agz_dense_secondhalf` | 62.5 s | **58.2 s** | 18.6 | **0.125** / 0.132 m |
+
+Interval width goes the control's way on the full pass and the targeted arm's
+way on both halves, so neither method is uniformly better on it.
 
 Supporting evidence, both halves:
 
@@ -79,6 +83,10 @@ Supporting evidence, both halves:
 | Median measured parallax (first half) | 8.18° → **27.58°** | 8.18° → 4.93° |
 | Median measured parallax (second half) | 9.08° → **26.74°** | 9.08° → 7.48° |
 | Questions with a frame recovered | 20/20 and 15/20 | n/a |
+
+At the control's own budget the targeted arm reaches 14 of 20 questions on the
+first half and clears 6 blockers against the control's 1 on the same questions;
+on the second half it reaches 18 of 20 and clears 6 against 5.
 
 ## The uniform arm made measurements worse
 
@@ -129,11 +137,10 @@ Same-pass refinement stays **experimental**. The evidence is stronger than it
 was — three test beds, consistent direction, zero regressions throughout — and
 still comes from a single flight with no truth.
 
-The compute gap is now the clearer of the two findings: break-even falls to
-about five questions on the halves, against thirteen on the full pass, because
-the uniform arm's fixed cost is smaller there while the targeted arm's
-per-question cost is unchanged. Reducing that per-question cost is what would
-turn a split result into an unambiguous one.
+The compute gap has since been closed by the per-question cost work: break-even
+moved from about five questions on the halves to fifteen and nineteen, and from
+thirteen to thirty-one on the full pass. What remains is the generalisation
+question, and no data in this checkout can answer it.
 
 Recorded as [DEC-016](../../../DECISIONS.md).
 
