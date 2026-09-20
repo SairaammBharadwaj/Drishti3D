@@ -1112,3 +1112,156 @@ local bundle adjustment plan section 5.7 step 4 asks for — which it never had,
 while the control re-solves everything — and rerun this exact experiment against
 the same frozen questions. A second P1 builds the capture regime this experiment
 cannot speak for, to separate mechanism from regime.
+
+---
+
+# 2026-09-20 (final) — The local bundle refit: the gap narrows, the verdict holds
+
+## Objective
+
+Retry the F4 gate on equal mechanism. The previous run compared an arm with a
+bundle adjustment against one without: plan section 5.7 step 4 asks for "local
+re-match and refit with a connected boundary to the global model", and that had
+never been built. Until it was, "targeted refinement loses" said more about the
+scope of what existed than about targeting.
+
+## Work Completed
+
+### `RefinementEngine._local_bundle`
+
+Collects the connected neighbourhood — the recovered cameras, the registered
+cameras sharing observations with them, and up to 400 points nearest the
+endpoint — and bundle-adjusts it. `_register` now returns its PnP inliers so a
+recovered camera arrives with real observations of existing geometry rather than
+only a pose.
+
+Three treatments the refit needed to be meaningful, each documented in
+[DEC-014](DECISIONS.md):
+
+**Gauge.** `bundle_adjust` has no fixed-camera mask, so the subproblem is solved
+free and Sim(3)-re-anchored onto its boundary cameras' stored centres, rejected
+if they had to move more than a metre. Measured drift on a representative refit:
+0.054 m at scale 0.9993.
+
+**Boundary uncertainty** (plan section 5.7 step 5). The refit alone reported
+0.006 m on a point the surrounding cloud knows to 0.036 m. Its covariance is now
+combined in quadrature with the neighbourhood's existing `sigma_major`:
+refinement can improve where the endpoint sits *within* its neighbourhood, not
+where the neighbourhood sits.
+
+**Coverage.** Refined endpoints landed in `OCCLUDED` cells, occluded by their own
+stale pre-refinement position still sitting in the grid's z-buffer. The refined
+endpoint's coverage now comes from the frames that measured it; every other
+endpoint is still checked against the grid.
+
+### The refined sigma now reaches the interval
+
+`measurement_value_fn`'s callable takes optional per-endpoint sigma overrides.
+Before the refit existed this was deliberately withheld — a standalone ray
+intersection gave a sigma an order of magnitude worse than the reconstruction's
+— which is why the targeted arm's median interval did not move at all in the
+first run.
+
+### The rerun
+
+Same `questions_frozen.json`, third run.
+
+| Metric | No refit | **With refit** | Uniform |
+|---|---:|---:|---:|
+| Added compute | 210.5 s | 219.8 s | **135.4 s** |
+| Blocked only by calibration, after (from 8) | 7 | **10** | **10** |
+| Regressed | 1 | **0** | 5 |
+| Narrower interval | 1 | 4 | **14** |
+| Median sigma | 0.151 → 0.151 m | 0.151 → 0.128 m | 0.151 → **0.092 m** |
+
+## Files Changed
+
+`drishti3d/reconstruction/drishti_recon/refinement.py`
+`_local_bundle`, `_call_value_fn`, per-call sigma overrides, `_register`
+returning its inliers, `MAX_ENDPOINT_MOVE_M`.
+
+`drishti3d/reconstruction/drishti_recon/evidence.py`
+`for_points(endpoints_within_coverage=...)`; loads the stored `sigma_major` so a
+refit can see the neighbourhood's own uncertainty.
+
+`drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md`
+Rewritten for all three runs; none discarded.
+
+## Important Implementation Details
+
+The refit is rejected outright when it does not lower reprojection RMSE, when
+the boundary drifts more than a metre, or when the endpoint moves more than two
+metres — which is a relocation, not a refinement. On rejection the run falls
+back to the standalone ray intersection and says so in its notes.
+
+## Commands Executed
+
+```bash
+cd drishti3d
+.venv/bin/python -m eval.f4_experiment \
+    --baseline colmap_unc --uniform colmap_quality --n-questions 20
+.venv/bin/python -m pytest tests/ -q          # 314 passed
+```
+
+## Problems Encountered
+
+**Problem** — The first refit reported an endpoint sigma of 0.006 m.
+
+**Cause** — `point_covariances` treats poses as fixed, so a subproblem solved
+against a held boundary comes back knowing the endpoint an order of magnitude
+better than the model it sits in. Precisely what plan section 5.7 step 5 warns
+about.
+
+**Solution** — Quadrature with the neighbourhood's stored `sigma_major`.
+
+---
+
+**Problem** — Refined endpoints were refused as `outside_established_coverage`,
+turning the feature's successes into regressions.
+
+**Cause** — The coverage grid's z-buffer was built from the pre-refinement
+cloud, where the point sat up to a metre nearer along the same ray. It was
+occluding itself.
+
+**Solution** — Take the refined endpoint's coverage from the frames that
+measured it. This loosens a safety gate and is flagged in DEC-014 as the change
+most worth re-examining if refined measurements later prove unreliable.
+
+## Approaches That Did Not Work
+
+**The feature, again, against its own gate** — though much less badly. It now
+ties on answer yield with zero regressions against the control's five, and still
+needs 1.6× the compute to get there. The gate asks for better yield *or* the
+same yield faster; neither holds.
+
+**Adding a fixed-camera mask to `bundle_adjust`** was considered and rejected
+for this change: it means restructuring the parameter packing, sparsity pattern
+and analytic Jacobian of the solver every reconstruction depends on. The Sim(3)
+re-anchor is a workaround and is recorded as such, with the clean fix noted at
+P2.
+
+## Verification
+
+- 314 tests pass, up from 313.
+- The gate was rerun against the same frozen question set. On the 5 questions
+  the targeted arm could reach: 4 of 5 intervals improved, 2 cleared blockers,
+  none regressed, and q004's sigma fell 47% (0.201 → 0.106 m).
+- A representative refit: 21 cameras, 400 points, 3,377 observations,
+  reprojection RMSE 1.31 → 0.77 px.
+
+## Result
+
+**The refit worked and the verdict held.** Median sigma now moves where it did
+not, regressions fell to zero, and answer yield ties the control — at 1.6× the
+compute. DEC-013's demotion to experimental stands.
+
+The binding constraint has moved. It is no longer the refit; it is **reach**.
+Fifteen of twenty questions had no frame recovered at all, because the endpoint
+could not be matched into a recovered frame. On the five it reached, the feature
+works well. Making endpoint location succeed more often is now the top of the
+backlog and the single change most likely to alter this result.
+
+Worth stating on its own: the two arms differ in risk profile, not only in
+throughput. The control clears more (8 against 2) *and* breaks more (5 against
+0). For a product whose whole claim is that it does not overstate what it knows,
+that is not a neutral trade.

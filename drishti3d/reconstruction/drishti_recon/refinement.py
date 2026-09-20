@@ -606,7 +606,10 @@ class RefinementEngine:
         inherit that observation's 3D point, which is what turns a 2D-2D match
         into the 2D-3D correspondence PnP needs.
 
-        Returns ``(R, C, inliers, rmse, kp_new, desc_new)`` or ``None``.
+        Returns ``(R, C, inliers, rmse, kp_new, desc_new, pt_idx, uv)`` or
+        ``None``.  The last two are the model point indices and pixels of the
+        PnP inliers: they are this camera's observations of existing geometry,
+        and the local refit needs them to connect it to the rest of the model.
         """
         import cv2
         src = self._source_for()
@@ -619,7 +622,7 @@ class RefinementEngine:
             return None
 
         obs = self.ev.observations
-        pts3d, pts2d = [], []
+        pts3d, pts2d, pt_ids = [], [], []
         for f, row, _uv in anchors:
             g_a = src.gray(f)
             if g_a is None:
@@ -644,6 +647,7 @@ class RefinementEngine:
             for k in np.flatnonzero(ok):
                 pts3d.append(self.ev.points[a_pi[nn[k]]])
                 pts2d.append(kp_new[m[k][0]])
+                pt_ids.append(int(a_pi[nn[k]]))
         if len(pts3d) < MIN_PNP_INLIERS:
             return None
 
@@ -662,7 +666,10 @@ class RefinementEngine:
             (proj.reshape(-1, 2) - img[inl.ravel()].reshape(-1, 2)) ** 2, 1))))
         R = cv2.Rodrigues(rvec)[0]
         C = (-R.T @ tvec).ravel()
-        return R, C, int(len(inl)), rmse, kp_new, desc_new
+        keep = inl.ravel()
+        return (R, C, int(len(inl)), rmse, kp_new, desc_new,
+                np.asarray(pt_ids, int)[keep],
+                np.asarray(pts2d, float)[keep])
 
     def _endpoint_descriptors(self, anchors):
         """Every descriptor the endpoint's keypoint carries, across anchors.
@@ -741,6 +748,190 @@ class RefinementEngine:
             return None            # ambiguous: two candidates fit equally well
         return kp[near[order[0]]]
 
+    #: Cap on the points entering a local refit. Large enough that the
+    #: endpoint's neighbourhood is genuinely connected to the boundary, small
+    #: enough that the solve stays inside an interactive budget.
+    MAX_REFIT_POINTS = 400
+
+    #: A refit whose boundary cameras have to move further than this to be
+    #: re-anchored has not stayed local, and its geometry is not comparable with
+    #: the model it came from.
+    MAX_BOUNDARY_DRIFT_M = 1.0
+
+    #: How far a refit may move the endpoint before it stops being a refinement
+    #: of that endpoint and becomes a relocation to somewhere else.
+    MAX_ENDPOINT_MOVE_M = 2.0
+
+    def _local_bundle(self, endpoint, recovered) -> dict | None:
+        """Refit the endpoint's connected neighbourhood (plan section 5.7 step 4).
+
+        The subproblem is the recovered cameras, the registered cameras that
+        share observations with them, and the points those cameras see -- then
+        bundle adjustment over all of it.
+
+        **Gauge.** ``bundle.bundle_adjust`` has no fixed-camera mask, so a
+        subproblem solved in isolation is free to drift in all seven similarity
+        degrees of freedom and would come back in a frame of its own. Rather
+        than restructure a well-tested solver, the refit is re-anchored
+        afterwards by a Sim(3) fit of its boundary camera centres onto their
+        stored ones, and rejected if they had to move further than
+        :data:`MAX_BOUNDARY_DRIFT_M` -- which means the solve did not stay local
+        and its geometry cannot be compared with the model it came from.
+
+        **Uncertainty at the boundary** (plan section 5.7 step 5). The refit
+        solves the endpoint *relative to a neighbourhood whose own position in
+        the global model is uncertain*, and holding that neighbourhood fixed is
+        what would make the interval artificially certain. Measured here: the
+        refit alone reported 0.006 m on a point the surrounding cloud knows to
+        about 0.036 m, an order of magnitude better than the model it sits in.
+
+        So the returned sigma is the refit's own
+        :func:`uncertainty.point_covariances` value -- with ``sigma_px`` from
+        the refit's residuals, the same estimator the reconstruction used --
+        combined in quadrature with the neighbourhood's existing uncertainty,
+        taken as the median ``sigma_major`` of the refit's points in the stored
+        cloud. Refinement can improve where the endpoint sits within its
+        neighbourhood; it cannot improve where the neighbourhood sits.
+
+        Returns a dict with the refined point, its sigma and diagnostics, or
+        ``None`` when a refit is not possible or was rejected.
+        """
+        import cv2
+        from . import bundle as _bundle
+        from . import uncertainty as _unc
+        from .geo import umeyama_sim3
+
+        if (not recovered or self.ev.observations is None
+                or self.ev.points is None or self.ev.rotations is None):
+            return None
+        ep = self.ev.lineage_point(endpoint)
+        if ep < 0:
+            return None
+
+        obs = self.ev.observations
+        # 1) Points: what the recovered cameras saw, plus the endpoint itself,
+        #    nearest to the endpoint first so the cap keeps the neighbourhood
+        #    rather than an arbitrary slice of the scene.
+        cand = {int(ep)}
+        for r in recovered:
+            cand.update(int(x) for x in r["pt_idx"])
+        cand = np.array(sorted(cand), int)
+        if len(cand) > self.MAX_REFIT_POINTS:
+            d = np.linalg.norm(self.ev.points[cand]
+                               - np.asarray(endpoint, float), axis=1)
+            cand = cand[np.argsort(d)[:self.MAX_REFIT_POINTS]]
+            if ep not in set(cand.tolist()):
+                cand = np.append(cand, ep)
+        pt_row = {int(p): i for i, p in enumerate(cand)}
+
+        # 2) Observations from the existing model, over those points only.
+        keep = np.isin(obs["point_index"], cand)
+        if keep.sum() < 20:
+            return None
+        frames = sorted({int(f) for f in obs["frame_index"][keep]})
+        boundary = [f for f in frames if f in self.ev._camera_of_frame]
+        if len(boundary) < 3:
+            return None
+
+        cam_row = {int(f): i for i, f in enumerate(boundary)}
+        rvecs, tvecs = [], []
+        for f in boundary:
+            row = self.ev._camera_of_frame[int(f)]
+            R = np.asarray(self.ev.rotations[row], float)
+            rvecs.append(cv2.Rodrigues(R)[0].ravel())
+            tvecs.append(-R @ np.asarray(self.ev.centres[row], float))
+        n_boundary = len(boundary)
+
+        cam_idx = [cam_row[int(f)] for f in obs["frame_index"][keep]]
+        pt_idx = [pt_row[int(p)] for p in obs["point_index"][keep]]
+        uv = [np.asarray(x, float) for x in obs["uv"][keep]]
+
+        # 3) The recovered cameras, free, with their PnP inliers and their
+        #    measurement of the endpoint.
+        for r in recovered:
+            row = len(rvecs)
+            rvecs.append(cv2.Rodrigues(np.asarray(r["R"], float))[0].ravel())
+            tvecs.append(-np.asarray(r["R"], float) @ np.asarray(r["C"], float))
+            for pi, xy in zip(r["pt_idx"], r["uv"]):
+                if int(pi) in pt_row:
+                    cam_idx.append(row)
+                    pt_idx.append(pt_row[int(pi)])
+                    uv.append(np.asarray(xy, float))
+            cam_idx.append(row)
+            pt_idx.append(pt_row[int(ep)])
+            uv.append(np.asarray(r["endpoint_uv"], float))
+
+        try:
+            ba = _bundle.bundle_adjust(
+                np.asarray(rvecs, float), np.asarray(tvecs, float),
+                self.ev.points[cand].copy(), np.asarray(cam_idx, int),
+                np.asarray(pt_idx, int), np.asarray(uv, float), self.ev.K,
+                max_nfev=300)
+        except Exception:                      # noqa: BLE001 - never fatal
+            return None
+        if not np.isfinite(ba.rmse_after) or ba.rmse_after > ba.rmse_before:
+            return None                        # the refit did not help
+
+        # 4) Re-anchor onto the boundary cameras' stored poses.
+        centres_after = np.array(
+            [(-cv2.Rodrigues(ba.rvecs[i])[0].T @ ba.tvecs[i]).ravel()
+             for i in range(n_boundary)])
+        centres_before = np.array(
+            [self.ev.centres[self.ev._camera_of_frame[int(f)]]
+             for f in boundary])
+        sim = umeyama_sim3(centres_after, centres_before, with_scale=True)
+        drift = float(np.median(np.linalg.norm(
+            sim.apply(centres_after) - centres_before, axis=1)))
+        if not np.isfinite(drift) or drift > self.MAX_BOUNDARY_DRIFT_M:
+            return None
+        points_anchored = sim.apply(ba.points)
+
+        # 5) Uncertainty over the refit, with sigma_px from its own residuals.
+        res = _bundle.reprojection_errors(ba.rvecs, ba.tvecs, ba.points,
+                                          np.asarray(cam_idx, int),
+                                          np.asarray(pt_idx, int),
+                                          np.asarray(uv, float), self.ev.K)
+        res = res[np.isfinite(res)]
+        sigma_px = (max(1.4826 * float(np.median(np.abs(res - np.median(res)))),
+                        0.05) if len(res) >= 20 else _unc.DEFAULT_SIGMA_PX)
+        pu = _unc.point_covariances(ba.points, np.asarray(cam_idx, int),
+                                    np.asarray(pt_idx, int),
+                                    np.asarray(uv, float), ba.rvecs, ba.tvecs,
+                                    self.ev.K, sigma_px=sigma_px)
+        row = pt_row[int(ep)]
+        sig_local = float(pu.sigma_major[row]) * float(sim.scale)
+
+        # The neighbourhood's own uncertainty in the global model.
+        sig_nb = float("nan")
+        stored = getattr(self.ev, "sigma_major", None)
+        if stored is not None and len(stored) > max(cand):
+            vals = np.asarray(stored, float)[cand]
+            vals = vals[np.isfinite(vals)]
+            if len(vals):
+                sig_nb = float(np.median(vals))
+        sig = (float(np.hypot(sig_local, sig_nb)) if np.isfinite(sig_nb)
+               else sig_local)
+
+        moved_m = float(np.linalg.norm(points_anchored[row]
+                                       - np.asarray(endpoint, float)))
+        if moved_m > self.MAX_ENDPOINT_MOVE_M:
+            return None                        # a relocation, not a refinement
+        return {
+            "point": points_anchored[row],
+            "sigma": sig if np.isfinite(sig) else None,
+            "sigma_local": sig_local if np.isfinite(sig_local) else None,
+            "sigma_neighbourhood": sig_nb if np.isfinite(sig_nb) else None,
+            "n_cameras": len(rvecs), "n_boundary_cameras": n_boundary,
+            "n_recovered_cameras": len(recovered),
+            "n_points": len(cand), "n_observations": len(cam_idx),
+            "rmse_before": float(ba.rmse_before),
+            "rmse_after": float(ba.rmse_after),
+            "converged": bool(ba.converged),
+            "sigma_px": float(sigma_px),
+            "boundary_drift_m": round(drift, 4),
+            "anchor_scale": float(sim.scale),
+        }
+
     def refine(self, question, points_enu, *, value_fn, budget_frames: int = 6,
                max_decode: int = 24, provenances=None) -> RefinementRun:
         """Recover evidence for one measurement and re-decide it.
@@ -763,7 +954,7 @@ class RefinementEngine:
                             tolerance_m=question.tolerance_m,
                             budget_frames=int(budget_frames))
 
-        v0, s0 = value_fn(pts)
+        v0, s0 = _call_value_fn(value_fn, pts, None)
         ev0 = self.ev.for_points(pts, provenances=provenances)
         run.before = _snapshot(question, v0, s0, ev0)
         run.refined_points_enu = [np.asarray(p, float) for p in pts]
@@ -817,6 +1008,7 @@ class RefinementEngine:
             sigmas.append(BASE_PIXEL_SIGMA)
 
         added_rays = 0
+        recovered: list = []
         for c in usable[:max_decode]:
             if len(run.added_frames) >= budget_frames:
                 run.termination_reason = "budget_exhausted"
@@ -828,7 +1020,7 @@ class RefinementEngine:
                                      "reason": REJECT_PNP_FAILED,
                                      "explanation": REJECT_GUIDANCE[REJECT_PNP_FAILED]})
                 continue
-            R, C, inl, rmse, kp_new, desc_new = reg
+            R, C, inl, rmse, kp_new, desc_new, in_pts, in_uv = reg
             uv = self._locate(pts[target], R, C, anchors, kp_new, desc_new)
             if uv is None:
                 run.rejected.append({"frame_index": c.frame_index,
@@ -845,6 +1037,9 @@ class RefinementEngine:
             # otherwise here is what would make the interval artificially tight.
             sigmas.append(BASE_PIXEL_SIGMA * POSE_UNCERTAINTY_INFLATION
                           * max(1.0, rmse / PNP_REPROJ_PX))
+            recovered.append({"frame_index": c.frame_index, "R": R, "C": C,
+                              "pt_idx": in_pts, "uv": in_uv,
+                              "endpoint_uv": np.asarray(uv, float)})
             added_rays += 1
             run.added_frames.append(AddedFrame(
                 frame_index=c.frame_index, pnp_inliers=inl,
@@ -863,28 +1058,76 @@ class RefinementEngine:
             run.wall_seconds = time.time() - t0
             return run
 
-        moved, sig_pt = _triangulate(rays, sigmas, self.ev.K, pts[target])
+        # Refit the connected neighbourhood (plan section 5.7 step 4) rather
+        # than intersecting rays at one point in isolation. The first run of the
+        # F4 gate lost to a uniform budget largely because the control re-solved
+        # every pose while this arm could not touch any of them, so the whole
+        # 39% interval improvement the control achieved was out of reach here.
+        refit = self._local_bundle(pts[target], recovered)
+        if refit is not None:
+            moved, sig_pt = refit["point"], refit["sigma"]
+            run.notes.append(
+                f"local refit: {refit['n_cameras']} cameras, "
+                f"{refit['n_points']} points, {refit['n_observations']} "
+                f"observations, reprojection RMSE {refit['rmse_before']:.2f} -> "
+                f"{refit['rmse_after']:.2f} px")
+        else:
+            moved, sig_pt = _triangulate(rays, sigmas, self.ev.K, pts[target])
+            run.notes.append("local refit unavailable; fell back to a "
+                             "standalone ray intersection")
         if moved is not None:
             pts[target] = moved
         run.notes.append(
             f"endpoint moved {float(np.linalg.norm(moved - np.asarray(points_enu[target], float))):.3f} m"
             if moved is not None else "re-triangulation did not converge")
 
-        # The measurement is recomputed from the moved endpoint by the caller's
-        # `value_fn`, which re-snaps to the cloud and re-propagates through
-        # `uncertainty`. The refined endpoint's own sigma is reported alongside
-        # rather than substituted into it: the measurement's sigma also carries
-        # the other endpoint and the metric scale, and overwriting it with a
-        # single point's covariance would drop both.
-        v1, s1 = value_fn(pts)
+        # The refined endpoint's own uncertainty is handed to `value_fn` so it
+        # reaches the reported interval. Before the local refit existed this was
+        # deliberately withheld: a standalone ray intersection produced a sigma
+        # an order of magnitude *worse* than the reconstruction's bundle-adjusted
+        # one, so substituting it would have widened every interval and called
+        # that refinement. A sigma that came out of a refit of the same kind is
+        # comparable, and withholding it was why the targeted arm's median
+        # interval did not move at all in the first F4 run.
+        #
+        # It is passed, not forced: a refit that made the endpoint *less*
+        # certain widens the interval, and that is the honest report.
+        sig_out = None
+        if (refit is not None and sig_pt is not None and np.isfinite(sig_pt)):
+            sig_out = [None] * len(pts)
+            sig_out[target] = float(sig_pt)
+        v1, s1 = _call_value_fn(value_fn, pts, sig_out)
         # The refined endpoint is a position triangulated from real image
         # measurements -- the ones this run just recovered -- so it is observed
         # geometry by construction, whether or not it still lands within
         # snapping distance of a lineage-carrying cloud point. Deciding
         # otherwise would let a successful refinement report its own result as
         # unobserved.
+        # The coverage grid was built from the pre-refinement cloud, and the
+        # refined endpoint has moved within it. Measured on the AGZ mission,
+        # refined endpoints landed in OCCLUDED cells -- occluded by their own
+        # stale position, which is still in the grid's z-buffer sitting in front
+        # of the corrected one along the same ray. A grid formed before the
+        # point moved cannot judge where it moved to.
+        #
+        # What supersedes it is direct measurement: this run located the point
+        # in each recovered image and re-triangulated it from those rays, so
+        # cameras demonstrably see it. The other endpoints are still checked
+        # against the grid as usual.
+        others = [p for i, p in enumerate(pts) if i != target]
+        within = all(self.ev.within_coverage(p) for p in others)
         ev1 = self.ev.for_points(pts, provenances=provenances,
-                                 endpoints_observed=True)
+                                 endpoints_observed=True,
+                                 endpoints_within_coverage=within)
+        # The refined endpoint came out of real image measurements, so its
+        # support is triangulated even though it may no longer sit within
+        # snapping distance of a lineage-carrying cloud point. Letting it fall
+        # back to the frustum basis would have a successful refinement downgrade
+        # its own evidence.
+        ev1.view_support_basis = "triangulated_observations"
+        run.notes.append(
+            "coverage for the refined endpoint comes from the frames that "
+            "measured it, not from the grid, which predates the refit")
         # Support now includes the recovered views, which lineage on disk does
         # not yet know about. Reporting the stale count would understate what
         # the refinement achieved, while claiming the on-disk lineage contains
@@ -898,6 +1141,10 @@ class RefinementEngine:
         run.after["endpoint_sigma"] = (None if sig_pt is None
                                        or not np.isfinite(sig_pt)
                                        else float(sig_pt))
+        run.after["endpoint_sigma_applied"] = sig_out is not None
+        if refit is not None:
+            run.after["local_refit"] = {k: v for k, v in refit.items()
+                                        if k not in ("point", "sigma")}
         run.after["endpoint_moved_m"] = (
             None if moved is None
             else float(np.linalg.norm(moved - np.asarray(points_enu[target], float))))
@@ -905,6 +1152,22 @@ class RefinementEngine:
             run.termination_reason = "budget_exhausted"
         run.wall_seconds = time.time() - t0
         return run
+
+
+def _call_value_fn(fn, points, sigmas):
+    """Call a value function that may or may not accept per-call sigmas.
+
+    Refinement produces a new uncertainty for the endpoint it refined, and that
+    has to reach the reported interval or the whole exercise cannot move it.
+    Callers written before this existed take one argument, so both shapes work
+    rather than one of them breaking.
+    """
+    if sigmas is None:
+        return fn(points)
+    try:
+        return fn(points, sigmas)
+    except TypeError:
+        return fn(points)
 
 
 def measurement_value_fn(kind: str, endpoint_sigmas, *,
@@ -920,19 +1183,27 @@ def measurement_value_fn(kind: str, endpoint_sigmas, *,
 
     So this computes from the given positions directly, with the same
     uncertainty propagation :mod:`measure` uses.  ``endpoint_sigmas`` are the
-    per-endpoint worst-axis 1-sigmas; pass the refined one for an endpoint that
-    was re-triangulated.
+    per-endpoint worst-axis 1-sigmas as the measurement layer resolved them.
+
+    The returned callable also accepts an optional second argument: a
+    per-endpoint list whose non-``None`` entries override the stored sigma. That
+    is how a refined endpoint's new uncertainty reaches the reported interval
+    instead of only being printed beside it.
     """
     sig = [float(x) for x in endpoint_sigmas]
 
-    def cov(i):
-        s = sig[i] if i < len(sig) else float("inf")
-        if not np.isfinite(s):
-            return np.full((3, 3), np.nan)
-        return np.eye(3) * s ** 2
-
-    def fn(points):
+    def fn(points, overrides=None):
         P = [np.asarray(p, float).reshape(3) for p in points]
+
+        def cov(i):
+            s = sig[i] if i < len(sig) else float("inf")
+            if (overrides is not None and i < len(overrides)
+                    and overrides[i] is not None):
+                s = float(overrides[i])
+            if not np.isfinite(s):
+                return np.full((3, 3), np.nan)
+            return np.eye(3) * s ** 2
+
         if kind == "distance" and len(P) >= 2:
             total, var = 0.0, 0.0
             for i in range(len(P) - 1):

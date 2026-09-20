@@ -246,3 +246,21 @@ def test_supporting_frames_carry_the_measured_pixel(tmp_path):
     assert all(f["measured"] for f in frames)
     pixels = {f["frame_index"]: f["pixel"] for f in frames}
     assert pixels[cams[0]["frame_index"]] == (11.0, 12.0)
+
+
+def test_coverage_can_be_overridden_for_a_point_the_grid_predates(tmp_path):
+    """A refined endpoint moves after the coverage grid was built.
+
+    Measured on the AGZ mission, refined endpoints landed in OCCLUDED cells --
+    occluded by their own stale position, still in the grid's z-buffer in front
+    of the corrected one. The override exists for that case and for no other.
+    """
+    cams = _arc(n=9, radius=10.0)
+    rec = _write(tmp_path / "cov", cams,
+                 alignment={"scale_source": "gps", "scale": 10.0,
+                            "scale_sigma": 0.05})
+    ev_default = rec.for_points([[0.0, 0.0, 0.0]], provenances=[0])
+    ev_forced = rec.for_points([[0.0, 0.0, 0.0]], provenances=[0],
+                               endpoints_within_coverage=False)
+    assert ev_default.endpoints_within_coverage is True
+    assert ev_forced.endpoints_within_coverage is False
