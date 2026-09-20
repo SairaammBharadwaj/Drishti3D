@@ -234,6 +234,45 @@ even at 13.1 questions.
 experimental on one mission's evidence. Recorded as
 [DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md), [DEC-015](DECISIONS.md).
 
+#### The same gate on two further test beds
+
+Full write-up:
+[`docs/benchmarks/2026-09-20_f4_second_capture/RESULTS.md`](drishti3d/docs/benchmarks/2026-09-20_f4_second_capture/RESULTS.md).
+
+The one genuinely separate AGZ segment, `agz_segment_two`, **cannot run this
+experiment**: at a 2.8 m median baseline `keyframes.select` keeps all 62 frames
+at every preset, so the targeted arm has no candidate pool and the uniform arm
+has nowhere to go. 19 of 62 frames register there, against 80 of 184 on the
+dense pass. The fallback was `agz_dense_pass` split into two halves by image id
+— different scene content, same flight.
+
+Answer yield (measurements blocked only by calibration), 20 frozen questions each:
+
+| Test bed | Baseline | **Targeted** | Uniform | Targeted regressions | Uniform regressions |
+|---|---:|---:|---:|---:|---:|
+| `agz_dense_pass` (full) | 8 | **14** | 10 | **0** | 5 |
+| `agz_dense_firsthalf` | 7 | **13** | 5 | **0** | 7 |
+| `agz_dense_secondhalf` | 9 | **15** | 9 | **0** | 4 |
+
+| Test bed | Targeted compute | Uniform compute | Break-even questions |
+|---|---:|---:|---:|
+| `agz_dense_pass` | 206.7 s | 135.4 s | 13.1 |
+| `agz_dense_firsthalf` | 239.3 s | 57.2 s | 4.8 |
+| `agz_dense_secondhalf` | 223.9 s | 58.2 s | 5.2 |
+
+Supporting views went 3 → 7.0 on both halves against the control's 3 → 3;
+measured parallax 8.18° → 27.58° and 9.08° → 26.74° against 4.93° and 7.48°.
+
+**The uniform arm made measurements worse**, which did not appear on the full
+pass. On the first half it took yield from 7 to 5, regressed seven measurements
+(four newly `outside_established_coverage`) and raised median measurement sigma
+from 0.183 m to 0.260 m. A denser reconstruction is a different cloud, not a
+strictly better one.
+
+**Result: PASS for reproducibility of direction, NOT ESTABLISHED for
+generalisation.** All three test beds are partitions of one flight. Recorded as
+[DEC-016](DECISIONS.md).
+
 #### Endpoint location, measured on 75 candidates from 25 weak endpoints
 
 | Locator | Endpoint located | Refit accepted |

@@ -144,17 +144,21 @@ acceptance — on the AGZ mission the frustum figures overstate view count by 3.
 and parallax by 3.7× against what the measurements actually provided.
 
 ### Same-pass evidence recovery — **experimental**
-**Status: experimental, with a measured advantage and a measured cost.** On the
-one mission where it has been tested, targeted refinement produces a **higher
-answer yield than a uniform budget** — 14 of 20 measurements blocked only by
-calibration against 10, with **zero regressions against the control's five** —
-on 1.53× the compute. At matched budget the two are level. The control's price
-is fixed; this one's is 10.3 s per question, so they break even at about 13
-questions ([DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md),
-[DEC-015](DECISIONS.md),
-[full results](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md)).
-One mission is not enough to retire the caveat: do not describe it as a proven
-advantage.
+**Status: experimental, with a measured advantage and a measured cost.**
+Targeted refinement produces a **higher answer yield than a uniform budget on
+all three test beds tried** — 14 against 10, 13 against 5, and 15 against 9
+measurements blocked only by calibration — with **zero regressions in every one,
+against the control's four to seven**. It costs 2–4× more compute, and the two
+break even at 5–13 questions depending on the test bed.
+
+**All three test beds are partitions of one flight.** The only genuinely
+separate AGZ segment cannot run the comparison at all: at a 2.8 m baseline
+keyframe selection correctly declines to thin it, so there is no unused frame
+pool and no denser arm. Do not describe this as a proven advantage
+([DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md), [DEC-015](DECISIONS.md),
+[DEC-016](DECISIONS.md),
+[results](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md),
+[second test beds](drishti3d/docs/benchmarks/2026-09-20_f4_second_capture/RESULTS.md)).
 
 **What:** "Improve this measurement" — frames of the pass that the
 reconstruction never processed are ranked by the parallax they would add at the
@@ -478,11 +482,15 @@ cd drishti3d
   `estimated_only`. This is deliberate, not a defect ([DEC-003](DECISIONS.md)),
   and since observation lineage landed it is the *only* remaining blocker on
   real data.
-- **Same-pass refinement is unproven, not disproven.** Across five runs of its
-  own gate it went from losing outright to producing a higher answer yield than
-  the control with zero regressions — on 1.53× the compute, level at matched
-  budget. It stays experimental on one mission's evidence
-  ([DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md), [DEC-015](DECISIONS.md)).
+- **Same-pass refinement is unproven, not disproven.** It now beats the uniform
+  control on answer yield across three test beds with zero regressions, at 2–4×
+  the compute — but all three are partitions of one flight, and the one
+  genuinely separate segment cannot run the comparison. It stays experimental
+  ([DEC-013](DECISIONS.md) … [DEC-016](DECISIONS.md)).
+- **A denser reconstruction is not strictly better for measurement.** On one
+  test bed, doubling the keyframes took answer yield from 7 down to 5 and raised
+  median measurement sigma from 0.183 m to 0.260 m: endpoints re-snap elsewhere
+  and the coverage grid's boundaries move.
 - **A learned matcher is now on the refinement path.** LightGlue/DISK
   (Apache-2.0 via kornia) is what made endpoint location work, and it wants a
   GPU. The classical fallback exists but is untested at scale.

@@ -1,0 +1,863 @@
+{
+  "generated_utc": "2026-09-20T12:34:06Z",
+  "mission": "agz_dense_firsthalf",
+  "baseline_run": "balanced",
+  "uniform_run": "quality",
+  "questions_file": "drishti3d/docs/benchmarks/2026-09-20_f4_second_capture/firsthalf/questions_frozen.json",
+  "n_questions": 20,
+  "tolerance_m": 0.3,
+  "budget_frames": 4,
+  "baseline_sfm_s": 43.585,
+  "uniform_sfm_s": 100.774,
+  "equal_budget": {
+    "budget_s": 57.2,
+    "targeted_questions_within_budget": 5,
+    "targeted_spend_s": 50.9,
+    "targeted_cleared_within_budget": 2,
+    "uniform_cleared_same_questions": 0,
+    "uniform_cleared_all_questions": 2,
+    "crossover_questions": 4.8,
+    "note": "The uniform arm's spend buys a new reconstruction that answers every question at once; the targeted arm's buys attention for one question at a time. Within the same seconds, the targeted arm reaches the first 5 of 20 questions."
+  },
+  "arms": [
+    {
+      "arm": "targeted",
+      "n_questions": 20,
+      "added_compute_s": 239.3,
+      "added_compute_per_question_s": 12.0,
+      "measurements_with_fewer_blockers": 9,
+      "measurements_regressed": 0,
+      "measurements_with_narrower_interval": 15,
+      "status_moved_up": 5,
+      "blocked_only_by_calibration_before": 7,
+      "blocked_only_by_calibration_after": 13,
+      "median_sigma_before": 0.183,
+      "median_sigma_after": 0.126,
+      "median_views_before": 3.0,
+      "median_views_after": 7.0,
+      "median_parallax_before": 8.175,
+      "median_parallax_after": 27.575,
+      "cleared_per_added_minute": 2.26
+    },
+    {
+      "arm": "uniform",
+      "n_questions": 20,
+      "added_compute_s": 57.2,
+      "added_compute_per_question_s": 2.9,
+      "measurements_with_fewer_blockers": 2,
+      "measurements_regressed": 7,
+      "measurements_with_narrower_interval": 7,
+      "status_moved_up": 1,
+      "blocked_only_by_calibration_before": 7,
+      "blocked_only_by_calibration_after": 5,
+      "median_sigma_before": 0.183,
+      "median_sigma_after": 0.26,
+      "median_views_before": 3.0,
+      "median_views_after": 3.0,
+      "median_parallax_before": 8.175,
+      "median_parallax_after": 4.925,
+      "cleared_per_added_minute": 2.1
+    }
+  ],
+  "per_question": [
+    {
+      "id": "q000",
+      "baseline": {
+        "value": 3.004208960888781,
+        "sigma": 0.24140098736991186,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 5.38
+      },
+      "targeted": {
+        "value": 3.0743389497750107,
+        "sigma": 0.2417488804004785,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 7,
+        "max_ray_separation_deg": 25.28
+      },
+      "uniform": {
+        "value": 2.9099992940376938,
+        "sigma": 0.6760355703964923,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 2.72
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 10.25
+    },
+    {
+      "id": "q001",
+      "baseline": {
+        "value": 3.0111295710547723,
+        "sigma": 0.3235815529256467,
+        "status": "needs_refinement",
+        "reasons": [
+          "insufficient_views",
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "insufficient_views",
+        "n_supporting_views": 2,
+        "max_ray_separation_deg": 2.67
+      },
+      "targeted": {
+        "value": 2.860636224622629,
+        "sigma": 0.3230427151884706,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 6,
+        "max_ray_separation_deg": 32.87
+      },
+      "uniform": {
+        "value": 2.3220386798765724,
+        "sigma": 0.26538130082176625,
+        "status": "needs_refinement",
+        "reasons": [
+          "insufficient_views",
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "insufficient_views",
+        "n_supporting_views": 2,
+        "max_ray_separation_deg": 4.01
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 7.13
+    },
+    {
+      "id": "q002",
+      "baseline": {
+        "value": 3.0055562851398174,
+        "sigma": 0.08993065519050361,
+        "status": "estimated_only",
+        "reasons": [
+          "insufficient_views",
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "insufficient_views",
+        "n_supporting_views": 2,
+        "max_ray_separation_deg": 12.09
+      },
+      "targeted": {
+        "value": 2.846096389486754,
+        "sigma": 0.08100549479808852,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 9,
+        "max_ray_separation_deg": 39.18
+      },
+      "uniform": {
+        "value": 3.2565150267188594,
+        "sigma": 0.09303620371715607,
+        "status": "not_observable",
+        "reasons": [
+          "outside_established_coverage"
+        ],
+        "dominant_limitation": "outside_established_coverage",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 11.88
+      },
+      "targeted_frames_added": 3,
+      "targeted_wall_s": 14.66
+    },
+    {
+      "id": "q003",
+      "baseline": {
+        "value": 3.001380836713222,
+        "sigma": 0.2600008123449724,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 5.45
+      },
+      "targeted": {
+        "value": 2.9754977368350235,
+        "sigma": 0.25988348263365046,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 7,
+        "max_ray_separation_deg": 28.82
+      },
+      "uniform": {
+        "value": 3.587412555314572,
+        "sigma": 0.47847121383634944,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 4.11
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 9.99
+    },
+    {
+      "id": "q004",
+      "baseline": {
+        "value": 3.0138325578562055,
+        "sigma": 0.11270834282978236,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 8.14
+      },
+      "targeted": {
+        "value": 3.1115281392714444,
+        "sigma": 0.0712804164966455,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 7,
+        "max_ray_separation_deg": 28.01
+      },
+      "uniform": {
+        "value": 2.923518739661724,
+        "sigma": 0.24178415806904988,
+        "status": "needs_refinement",
+        "reasons": [
+          "insufficient_views",
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "insufficient_views",
+        "n_supporting_views": 2,
+        "max_ray_separation_deg": 3.46
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 8.84
+    },
+    {
+      "id": "q005",
+      "baseline": {
+        "value": 3.0008575561999913,
+        "sigma": 0.2293867910437803,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 8.21
+      },
+      "targeted": {
+        "value": 3.1640664339097273,
+        "sigma": 0.2302499300954712,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 7,
+        "max_ray_separation_deg": 28.26
+      },
+      "uniform": {
+        "value": 3.0031586914758357,
+        "sigma": 0.39536810638033487,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 5.66
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 7.05
+    },
+    {
+      "id": "q006",
+      "baseline": {
+        "value": 3.070032353725671,
+        "sigma": 0.13174592978423605,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 11.89
+      },
+      "targeted": {
+        "value": 2.8874581050727874,
+        "sigma": 0.1301081044384062,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 6,
+        "max_ray_separation_deg": 26.25
+      },
+      "uniform": {
+        "value": 2.9113917043696884,
+        "sigma": 0.2549725386239945,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 5.86
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 15.12
+    },
+    {
+      "id": "q007",
+      "baseline": {
+        "value": 3.0165253229665856,
+        "sigma": 0.3248545652966799,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 3.45
+      },
+      "targeted": {
+        "value": 3.350735857839894,
+        "sigma": 0.0804727028470245,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 5,
+        "max_ray_separation_deg": 20.15
+      },
+      "uniform": {
+        "value": 2.743094833499547,
+        "sigma": 0.2711071774948298,
+        "status": "not_observable",
+        "reasons": [
+          "outside_established_coverage"
+        ],
+        "dominant_limitation": "outside_established_coverage",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 5.02
+      },
+      "targeted_frames_added": 2,
+      "targeted_wall_s": 17.0
+    },
+    {
+      "id": "q008",
+      "baseline": {
+        "value": 3.0126929479687203,
+        "sigma": 0.11113652646022609,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 9.23
+      },
+      "targeted": {
+        "value": 3.101596935941026,
+        "sigma": 0.07192137017011344,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 7,
+        "max_ray_separation_deg": 30.08
+      },
+      "uniform": {
+        "value": 2.635424270106941,
+        "sigma": 0.2654356881251484,
+        "status": "needs_refinement",
+        "reasons": [
+          "insufficient_views",
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "insufficient_views",
+        "n_supporting_views": 2,
+        "max_ray_separation_deg": 4.01
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 6.44
+    },
+    {
+      "id": "q009",
+      "baseline": {
+        "value": 3.0015550726687676,
+        "sigma": 0.11025386362748607,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 9.69
+      },
+      "targeted": {
+        "value": 3.259052127017752,
+        "sigma": 0.0683757534698271,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 9,
+        "max_ray_separation_deg": 72.71
+      },
+      "uniform": {
+        "value": 2.6953948946906334,
+        "sigma": 0.05725028901043991,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 5,
+        "max_ray_separation_deg": 20.7
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 7.22
+    },
+    {
+      "id": "q010",
+      "baseline": {
+        "value": 3.137077390080452,
+        "sigma": 0.15322354554559142,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 9.58
+      },
+      "targeted": {
+        "value": 3.1019882270342998,
+        "sigma": 0.1529416028876352,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 6,
+        "max_ray_separation_deg": 27.23
+      },
+      "uniform": {
+        "value": 2.68682891158082,
+        "sigma": 0.321159519400292,
+        "status": "not_observable",
+        "reasons": [
+          "outside_established_coverage"
+        ],
+        "dominant_limitation": "outside_established_coverage",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 4.83
+      },
+      "targeted_frames_added": 3,
+      "targeted_wall_s": 22.13
+    },
+    {
+      "id": "q011",
+      "baseline": {
+        "value": 3.021990147274004,
+        "sigma": 0.19602619357701995,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 9.35
+      },
+      "targeted": {
+        "value": 3.050187905648673,
+        "sigma": 0.12105999985042157,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 7,
+        "max_ray_separation_deg": 26.2
+      },
+      "uniform": {
+        "value": 2.2896464864393913,
+        "sigma": 0.12649427443432407,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 4,
+        "max_ray_separation_deg": 9.35
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 16.65
+    },
+    {
+      "id": "q012",
+      "baseline": {
+        "value": 3.000962033045396,
+        "sigma": 0.22219200201652742,
+        "status": "needs_refinement",
+        "reasons": [
+          "insufficient_views",
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "insufficient_views",
+        "n_supporting_views": 2,
+        "max_ray_separation_deg": 3.59
+      },
+      "targeted": {
+        "value": 3.245976132739751,
+        "sigma": 0.22354595208429714,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 7,
+        "max_ray_separation_deg": 24.57
+      },
+      "uniform": {
+        "value": 3.1271031058547147,
+        "sigma": 0.16254051818233553,
+        "status": "needs_refinement",
+        "reasons": [
+          "insufficient_views",
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "insufficient_views",
+        "n_supporting_views": 2,
+        "max_ray_separation_deg": 4.43
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 11.32
+    },
+    {
+      "id": "q013",
+      "baseline": {
+        "value": 3.0007879203516126,
+        "sigma": 0.09354299475085237,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 4,
+        "max_ray_separation_deg": 11.63
+      },
+      "targeted": {
+        "value": 3.4920926834212196,
+        "sigma": 0.08782828597199109,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 9,
+        "max_ray_separation_deg": 27.18
+      },
+      "uniform": {
+        "value": 2.8222809615714977,
+        "sigma": 0.10298048150795389,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 8.19
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 9.53
+    },
+    {
+      "id": "q014",
+      "baseline": {
+        "value": 3.003858135266302,
+        "sigma": 0.2019745402840486,
+        "status": "needs_refinement",
+        "reasons": [
+          "insufficient_views",
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "insufficient_views",
+        "n_supporting_views": 2,
+        "max_ray_separation_deg": 5.2
+      },
+      "targeted": {
+        "value": 3.008022585961264,
+        "sigma": 0.2019989767931178,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 6,
+        "max_ray_separation_deg": 30.02
+      },
+      "uniform": {
+        "value": 3.1807762042539816,
+        "sigma": 0.381477443964859,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 3.08
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 10.65
+    },
+    {
+      "id": "q015",
+      "baseline": {
+        "value": 3.004084979309672,
+        "sigma": 0.08613996107211895,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 4,
+        "max_ray_separation_deg": 13.59
+      },
+      "targeted": {
+        "value": 3.469018253924705,
+        "sigma": 0.09268622493673119,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 8,
+        "max_ray_separation_deg": 15.88
+      },
+      "uniform": {
+        "value": 3.0949052095071865,
+        "sigma": 0.05637703627958983,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 4,
+        "max_ray_separation_deg": 19.44
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 9.67
+    },
+    {
+      "id": "q016",
+      "baseline": {
+        "value": 3.0019264885268995,
+        "sigma": 0.10044233093514202,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 13.63
+      },
+      "targeted": {
+        "value": 2.656959437783122,
+        "sigma": 0.0746329720071804,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 7,
+        "max_ray_separation_deg": 22.12
+      },
+      "uniform": {
+        "value": 1.5434732371421016,
+        "sigma": 0.11059584388776829,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 4,
+        "max_ray_separation_deg": 9.8
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 15.88
+    },
+    {
+      "id": "q017",
+      "baseline": {
+        "value": 3.004403693978584,
+        "sigma": 0.2018110470471307,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 5.06
+      },
+      "targeted": {
+        "value": 2.534923431264311,
+        "sigma": 0.19925432708362525,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 10,
+        "max_ray_separation_deg": 34.43
+      },
+      "uniform": {
+        "value": 2.7358726677488594,
+        "sigma": 0.48131901636632823,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 2.17
+      },
+      "targeted_frames_added": 1,
+      "targeted_wall_s": 15.9
+    },
+    {
+      "id": "q018",
+      "baseline": {
+        "value": 3.007357896592852,
+        "sigma": 0.17096754562212985,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 5.18
+      },
+      "targeted": {
+        "value": 3.2814685418972553,
+        "sigma": 0.07081632925118579,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 8,
+        "max_ray_separation_deg": 27.92
+      },
+      "uniform": {
+        "value": 3.2836109125037924,
+        "sigma": 0.34682603669785433,
+        "status": "needs_refinement",
+        "reasons": [
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "interval_exceeds_tolerance",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 2.93
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 6.7
+    },
+    {
+      "id": "q019",
+      "baseline": {
+        "value": 3.004915099706392,
+        "sigma": 0.2871525619362214,
+        "status": "needs_refinement",
+        "reasons": [
+          "insufficient_views",
+          "interval_not_calibrated",
+          "interval_exceeds_tolerance"
+        ],
+        "dominant_limitation": "insufficient_views",
+        "n_supporting_views": 2,
+        "max_ray_separation_deg": 5.55
+      },
+      "targeted": {
+        "value": 3.6920755459906833,
+        "sigma": 0.13431856515476118,
+        "status": "estimated_only",
+        "reasons": [
+          "interval_not_calibrated"
+        ],
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 7,
+        "max_ray_separation_deg": 26.06
+      },
+      "uniform": {
+        "value": 2.9674147337485857,
+        "sigma": 0.18075953821245785,
+        "status": "not_observable",
+        "reasons": [
+          "outside_established_coverage"
+        ],
+        "dominant_limitation": "outside_established_coverage",
+        "n_supporting_views": 3,
+        "max_ray_separation_deg": 7.08
+      },
+      "targeted_frames_added": 4,
+      "targeted_wall_s": 17.13
+    }
+  ]
+}

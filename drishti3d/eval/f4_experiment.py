@@ -74,8 +74,14 @@ STATUS_ORDER = ["not_observable", "needs_refinement", "estimated_only",
                 "meets_requirement"]
 
 
+#: Set by ``main`` so the run-directory and video helpers below resolve against
+#: the mission under test rather than the one the experiment was first written
+#: for. A module-level default keeps the helpers' signatures unchanged.
+MISSION = "agz_dense_pass"
+
+
 def _run_dir(tag: str) -> Path:
-    return APP / "data/runs" / f"agz_dense_pass__{tag}"
+    return APP / "data/runs" / f"{MISSION}__{tag}"
 
 
 def _load(tag: str):
@@ -212,11 +218,13 @@ def summarise(name: str, before: list, after: list, added_s: float) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--mission", default="agz_dense_pass",
+                    help="mission whose runs the two arms come from")
+    ap.add_argument("--set", default="zurich_mav")
     ap.add_argument("--baseline", default="colmap_unc")
     ap.add_argument("--uniform", default="colmap_quality")
-    ap.add_argument("--video",
-                    default=str(REPO / "datasets/public/zurich_mav/"
-                                       "agz_dense_pass/raw/video.mp4"))
+    ap.add_argument("--video", default=None,
+                    help="defaults to the mission's own raw/video.mp4")
     ap.add_argument("--n-questions", type=int, default=20)
     ap.add_argument("--tolerance", type=float, default=0.30)
     ap.add_argument("--budget-frames", type=int, default=4)
@@ -226,7 +234,16 @@ def main() -> int:
                                                "2026-09-20_f4_targeted_vs_uniform"))
     a = ap.parse_args()
 
-    out_dir = Path(a.out)
+    global MISSION
+    MISSION = a.mission
+    if a.video is None:
+        a.video = str(REPO / "datasets/public" / a.set / a.mission
+                      / "raw/video.mp4")
+
+    # Resolved, because the result record stores paths relative to the
+    # repository root and a relative --out makes that computation throw --
+    # at the very end, after both arms have already been run.
+    out_dir = Path(a.out).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     ev_b, cloud_b, art_b = _load(a.baseline)
@@ -241,7 +258,8 @@ def main() -> int:
                                      a.tolerance, a.seed)
         payload = {"frozen_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                                time.gmtime()),
-                   "baseline_run": a.baseline, "seed": a.seed,
+                   "mission": a.mission, "baseline_run": a.baseline,
+                   "seed": a.seed,
                    "tolerance_m": a.tolerance, "questions": questions}
         blob = json.dumps(payload, sort_keys=True).encode()
         payload["sha256"] = hashlib.sha256(blob).hexdigest()
@@ -347,8 +365,10 @@ def main() -> int:
 
     result = {
         "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "mission": a.mission,
         "baseline_run": a.baseline, "uniform_run": a.uniform,
-        "questions_file": str(qfile.relative_to(REPO)),
+        "questions_file": (str(qfile.relative_to(REPO))
+                           if REPO in qfile.parents else str(qfile)),
         "n_questions": len(questions),
         "tolerance_m": a.tolerance,
         "budget_frames": a.budget_frames,

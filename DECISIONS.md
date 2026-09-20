@@ -1370,3 +1370,104 @@ guarding against since [DEC-010](#dec-010--same-pass-refinement-recovers-frames-
 (`_locate_by_transfer`, `_transfer_backend`, `_detect_cached`,
 `_chained_descriptors`), `features.py`,
 `drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/`
+
+---
+
+## DEC-016 — The F4 advantage reproduces on further test beds, but they are one flight
+
+**Date:** 2026-09-20
+
+**Status:** Accepted
+
+### Context
+
+[DEC-015](#dec-015--endpoints-are-located-by-transferring-through-dense-correspondences-not-by-re-identifying-a-keypoint)
+left the targeted arm beating the uniform control on answer yield for the first
+time — on one mission, twenty questions. The top of the backlog was a second
+capture, to find out whether that was a property of the method or of that
+particular imagery.
+
+### What happened
+
+**The genuine second capture could not run the experiment.**
+`agz_segment_two` (62 frames, 2.8 m median baseline) keeps all 62 frames at
+every keyframe preset: `keyframes.select` declines to thin a capture whose
+inter-frame image shift already exceeds its sparse-capture guard, which exists
+because thinning a photo-survey-like capture destroys it. So the targeted arm
+has no candidate pool and the uniform arm has nowhere to go. No denser frame set
+for those image ids exists on disk.
+
+That is a finding in itself: **the F4 comparison only means anything on a
+capture that is over-sampled relative to what reconstruction needs.**
+
+The fallback was `agz_dense_pass` split into two halves by image id — different
+scene content, same flight, and their georeferencing differs sharply (0.41 m
+against 4.73 m median as-georeferenced error), so they are not the same scene
+twice.
+
+| Test bed | Baseline | Targeted | Uniform | Targeted regressions | Uniform regressions |
+|---|---:|---:|---:|---:|---:|
+| `agz_dense_pass` (full) | 8 | **14** | 10 | **0** | 5 |
+| `agz_dense_firsthalf` | 7 | **13** | 5 | **0** | 7 |
+| `agz_dense_secondhalf` | 9 | **15** | 9 | **0** | 4 |
+
+### Options Considered
+
+#### Treat this as confirmation and drop the experimental label
+
+Three test beds, consistent direction, a larger margin than the original, zero
+regressions throughout.
+
+Rejected: all three are partitions of **one flight**. Splitting a capture and
+calling the pieces independent evidence is the kind of move this project has
+spent its whole documentation trail refusing. The most informative test — the
+one genuinely separate segment — could not be run.
+
+#### Treat the failure on `agz_segment_two` as a null result and stop
+
+Rejected in the other direction: it is not a null result, it is an
+inapplicable one, and the reason is specific and recordable.
+
+#### Report both, name the regime, keep the label
+
+### Decision
+
+The third. Same-pass refinement stays experimental. The benchmark write-up
+states what the halves establish and what they cannot, and names the regime the
+comparison requires.
+
+### Why
+
+The direction reproduced on two disjoint halves with markedly different
+reconstruction quality, which rules out the original result being an artefact of
+one question set or one part of the scene. It cannot rule out a property of this
+flight, this camera, or this site, and no data in this checkout can.
+
+### Consequences
+
+- **A finding that did not appear on the full pass: the uniform arm made
+  measurements worse.** On the first half, doubling the keyframes took answer
+  yield from 7 down to 5 and regressed seven measurements — four of them newly
+  `outside_established_coverage` — while its median measurement sigma rose from
+  0.183 m to 0.260 m. A denser reconstruction is a different cloud, not a
+  strictly better one: endpoints re-snap elsewhere and the coverage grid's
+  boundaries move. "More frames is better" is not monotone in measurement
+  standing.
+- The targeted arm regressed nothing on any test bed. It does not rebuild the
+  cloud, so it cannot move anything it was not asked about. For a product whose
+  claim is that it does not overstate what it knows, that asymmetry is the more
+  important half of this result.
+- **The compute gap is now the clearer finding.** Break-even falls to about five
+  questions on the halves against thirteen on the full pass, because the uniform
+  arm's fixed cost is smaller there while the targeted arm's per-question cost
+  is unchanged. Reducing that cost is what turns a split result into an
+  unambiguous one, and it is P1.
+- `scripts/build_agz_mission.py` gained `--imgid-min/--imgid-max`, so one flight
+  can be cut into separate missions. Useful, and a tool that makes it easy to
+  manufacture test beds that look independent and are not.
+
+### Related Files
+
+`drishti3d/eval/f4_experiment.py`, `drishti3d/scripts/build_agz_mission.py`,
+`drishti3d/docs/benchmarks/2026-09-20_f4_second_capture/`,
+`drishti3d/reconstruction/drishti_recon/keyframes.py`
