@@ -954,3 +954,161 @@ left.
 
 P0 in [NEXT_STEPS.md](NEXT_STEPS.md) is empty again. Interval calibration
 remains the only thing between this system and an accepted measurement.
+
+---
+
+# 2026-09-20 (later still) — The F4 gate: targeted refinement loses to a uniform budget
+
+## Objective
+
+Run the comparison plan feature F4 actually asks for. Everything built so far is
+the targeted arm; the control had never existed, so the project's central
+innovation hypothesis was being claimed on a demonstration rather than a test.
+
+Interval calibration, nominally the next item, stays blocked: no dataset in this
+repository has independently measured reference dimensions, and producing them
+needs a site visit rather than code.
+
+## Work Completed
+
+### `eval/f4_experiment.py`
+
+A paired A/B harness. Freezes a question set to disk with a hash **before**
+either arm runs and reuses it on re-runs, measures both arms from the same
+stored ENU endpoints, reports each arm's *measured* added compute rather than
+assuming they match, and adds an equal-budget view that truncates the targeted
+arm at the control's exact spend.
+
+`scripts/run_mission.py` gained `--preset` so the uniform arm is the same
+pipeline at a denser keyframe setting rather than a different code path.
+
+### The experiment
+
+20 distance questions, ±0.30 m, chosen from the baseline as the ones refinement
+exists for: both endpoints on established coverage, with lineage, weaker
+endpoint under 15° of parallax.
+
+| Metric | Targeted | Uniform |
+|---|---:|---:|
+| Added compute | 210.5 s | **135.4 s** |
+| Measurements with fewer blockers | 2 / 20 | **8 / 20** |
+| Measurements regressed | **1 / 20** | 5 / 20 |
+| Narrower interval | 1 / 20 | **14 / 20** |
+| Verdict moved up | 0 / 20 | **4 / 20** |
+| Median sigma | 0.151 → 0.151 m | 0.151 → **0.092 m** |
+| Blockers cleared per added minute | 0.57 | **3.55** |
+
+At the control's exact budget the targeted arm reached 12 of 20 questions and
+cleared 1 blocker against the control's 8.
+
+### Consequence
+
+Same-pass refinement demoted to **experimental** across the documentation, per
+the plan's own stop/go rule. Its observed benefits are kept and still claimable;
+the hypothesis is not.
+
+## Files Changed
+
+`drishti3d/eval/f4_experiment.py` (new) — the harness.
+
+`drishti3d/scripts/run_mission.py` — `--preset`, recorded in the run JSON.
+
+`drishti3d/reconstruction/drishti_recon/refinement.py` — `refine()` takes
+`provenances`; `RefinementRun.refined_points_enu` exposes the moved endpoints.
+
+`drishti3d/backend/app/routers/questions.py` — passes provenances through.
+
+`drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/` — `RESULTS.md`,
+`result.json`, `questions_frozen.json`.
+
+## Important Implementation Details
+
+**The question set is frozen and hashed before either arm runs**, and reused on
+re-run. A question set chosen after seeing a result is not a test.
+
+**One asymmetry cannot be designed away and is stated instead.** The targeted
+arm moves an endpoint off the cloud; the uniform arm rebuilds the cloud under
+it. Re-snapping the targeted arm's endpoint would pull it back to where it
+started, so the two after-states are not produced by identical code. What is
+compared is what both genuinely produce: verdict, reason codes, propagated
+sigma, supporting views, measured parallax — all through the same
+`questions.evaluate` and `uncertainty` paths.
+
+**Added compute is reported as measured, never assumed equal**, with the
+equal-budget truncation alongside. Declaring a winner on unequal budgets without
+saying so would have handed the targeted arm a 55% compute advantage and still
+lost.
+
+## Commands Executed
+
+```bash
+cd drishti3d
+.venv/bin/python scripts/run_mission.py --mission agz_dense_pass \
+    --max-frames 184 --engine colmap --preset quality --tag colmap_quality
+.venv/bin/python -m eval.f4_experiment \
+    --baseline colmap_unc --uniform colmap_quality --n-questions 20
+.venv/bin/python -m pytest tests/ -q          # 313 passed
+```
+
+## Problems Encountered
+
+**Problem** — The first run showed the targeted arm regressing two measurements
+to `not_observable` with zero frames recovered and 0.02 s of work — it had not
+touched them.
+
+**Cause** — `RefinementEngine.refine` built its before/after evidence with
+`for_points(pts)` and no provenances. When an endpoint does not snap to
+observation lineage, that falls back to the pessimistic default and reports it
+unobserved — disagreeing with the verdict the same measurement gets everywhere
+else, where the measurement layer supplies provenance.
+
+**Solution** — `refine()` now takes `provenances` and the backend passes them. A
+refined endpoint is additionally marked observed by construction: it is a
+position triangulated from image measurements this run just recovered, whether
+or not it still lands within snapping distance of a lineage-carrying point.
+Targeted regressions fell from 2 to 1 on the re-run against the same frozen
+questions. **No other figure changed and the conclusion did not.**
+
+## Approaches That Did Not Work
+
+**The feature itself, against its own gate.** Recorded in full in
+[DEC-013](DECISIONS.md) and the benchmark write-up rather than summarised away.
+Three reasons uniform wins, only the third specific to this mission:
+
+- A re-reconstruction runs full bundle adjustment. Targeted refinement adds rays
+  to one point in isolation and cannot touch poses. The control's 39% median
+  sigma reduction is that — median supporting views was 3 in *both* arms.
+- More keyframes is also a denser cloud: 52,005 points against 17,898, mean
+  track 4.93 against 3.91. Every endpoint snaps to a better-observed point.
+- This pass is uniformly under-sampled, so spreading the budget hits something
+  useful wherever it lands.
+
+**Tuning the targeted arm until it won was considered and rejected.** The gap is
+not marginal — 8 against 2 on 64% of the compute — and two of the three reasons
+are structural, not parametric.
+
+## Verification
+
+- 313 tests pass, up from 312.
+- The experiment was run twice against the same frozen questions, before and
+  after the provenance fix. Both runs reach the same conclusion.
+- Both reconstructions are recorded with their own scoring: baseline 81.9 s SfM,
+  3.764 m median as-georeferenced; uniform 217.3 s SfM, 4.00 m over 160 scored
+  cameras rather than 80.
+
+## Result
+
+**The plan's central innovation hypothesis is not supported on the one mission
+where it has been tested.** Targeted same-pass refinement lost to a uniform
+budget on every metric, on more compute.
+
+It is now an experimental feature with stated, measured benefits: it recovers
+frames for roughly a quarter to a third of weak measurements and raises their
+supporting views and parallax when it does. It is not a proven advantage and the
+documentation no longer says otherwise.
+
+The retry is specified and is the top of the backlog: give the targeted arm the
+local bundle adjustment plan section 5.7 step 4 asks for — which it never had,
+while the control re-solves everything — and rerun this exact experiment against
+the same frozen questions. A second P1 builds the capture regime this experiment
+cannot speak for, to separate mechanism from regime.

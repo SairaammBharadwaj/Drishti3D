@@ -159,6 +159,10 @@ def main() -> int:
                     choices=["opencv", "colmap", "auto"])
     ap.add_argument("--max-frames", type=int, default=240)
     ap.add_argument("--proc-width", type=int, default=1280)
+    ap.add_argument("--preset", default="balanced",
+                    choices=["fast", "balanced", "quality"],
+                    help="keyframe density; 'quality' keeps far more frames and "
+                         "is the uniform-budget arm of the F4 experiment")
     ap.add_argument("--tag", default="baseline")
     ap.add_argument("--no-mesh", action="store_true")
     ap.add_argument("--densify", default="none", choices=["none", "depth"])
@@ -176,6 +180,7 @@ def main() -> int:
 
     params = pipeline.PipelineParams(
         engine=a.engine,
+        preset=a.preset,
         max_analyze_frames=a.max_frames,
         proc_max_width=a.proc_width,
         do_mesh=not a.no_mesh,
@@ -222,7 +227,8 @@ def main() -> int:
         "platform": platform.platform(),
         "python": platform.python_version(),
         "engine": a.engine,
-        "params": {"max_analyze_frames": a.max_frames,
+        "params": {"preset": a.preset,
+                   "max_analyze_frames": a.max_frames,
                    "proc_max_width": a.proc_width,
                    "densify": a.densify, "do_mesh": not a.no_mesh,
                    "e_ransac_px": params.e_ransac_px},

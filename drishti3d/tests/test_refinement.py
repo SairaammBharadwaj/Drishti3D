@@ -389,3 +389,23 @@ def test_an_unknown_status_does_not_silently_read_as_a_regression():
     run.after = {"value": 3.0, "sigma": 0.1, "reasons": []}
     assert run.status_regressed is False
     assert run.improved is True
+
+
+def test_endpoint_provenance_reaches_the_before_and_after_snapshots(tmp_path):
+    """Without provenances the snapshots disagree with the measurement layer.
+
+    `for_points` falls back to a pessimistic default when an endpoint does not
+    snap to observation lineage. In the F4 experiment that made two unchanged
+    measurements read as regressions to `not_observable`.
+    """
+    ev, art = _fixture(tmp_path / "prov")
+    eng = rf.RefinementEngine(ev, art)
+    q = qmod.MeasurementQuestion("distance", tolerance_m=0.2)
+    far = [[40.0, 40.0, 40.0], [45.0, 40.0, 40.0]]      # no lineage out here
+    vf = rf.measurement_value_fn("distance", [0.05, 0.05])
+
+    without = eng.refine(q, far, value_fn=vf, budget_frames=1, max_decode=1)
+    with_prov = eng.refine(q, far, value_fn=vf, budget_frames=1, max_decode=1,
+                           provenances=[0, 0])          # OBSERVED_HIGH_CONF
+    assert "endpoint_not_observed" in without.before["reasons"]
+    assert "endpoint_not_observed" not in with_prov.before["reasons"]

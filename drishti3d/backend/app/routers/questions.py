@@ -414,7 +414,8 @@ def refine_question(project_id: str, question_id: str,
             value_fn=refmod.measurement_value_fn(
                 row.kind, sigmas, scale_sigma_rel=scale_sigma_rel),
             budget_frames=int(body.budget_frames),
-            max_decode=int(body.max_decode))
+            max_decode=int(body.max_decode),
+            provenances=_snapped_provenance(cloud, pts, row.allow_inferred))
     finally:
         if engine._source is not None:
             engine._source.close()

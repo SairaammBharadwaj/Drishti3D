@@ -195,6 +195,10 @@ class RefinementRun:
     added_frames: list = field(default_factory=list)
     rejected: list = field(default_factory=list)
     considered: int = 0
+    #: The endpoint positions after refinement, in ENU. Identical to the input
+    #: when nothing was recovered. Needed by anything that wants to re-measure,
+    #: display or export the refined geometry rather than only its verdict.
+    refined_points_enu: list = field(default_factory=list)
     termination_reason: str = ""
     wall_seconds: float = 0.0
     notes: list = field(default_factory=list)
@@ -209,6 +213,8 @@ class RefinementRun:
             "added_frames": [a.to_dict() for a in self.added_frames],
             "rejected": self.rejected,
             "n_considered": self.considered,
+            "refined_points_enu": [list(map(float, p))
+                                   for p in self.refined_points_enu],
             "n_added": len(self.added_frames),
             "termination_reason": self.termination_reason,
             "wall_seconds": round(self.wall_seconds, 2),
@@ -736,12 +742,20 @@ class RefinementEngine:
         return kp[near[order[0]]]
 
     def refine(self, question, points_enu, *, value_fn, budget_frames: int = 6,
-               max_decode: int = 24) -> RefinementRun:
+               max_decode: int = 24, provenances=None) -> RefinementRun:
         """Recover evidence for one measurement and re-decide it.
 
         ``value_fn(points) -> (value, sigma)`` recomputes the measurement from
         (possibly moved) endpoints, so this module stays ignorant of whether it
         is refining a width, a height or an area.
+
+        ``provenances`` are the provenance classes of the endpoints as the
+        measurement layer resolved them.  Pass them.  Without them the evidence
+        built here falls back to the pessimistic default whenever an endpoint
+        does not snap to observation lineage, and the before/after snapshots
+        then disagree with the verdict the same measurement gets everywhere
+        else -- which showed up in the F4 experiment as two measurements
+        "regressing" to ``not_observable`` that had not changed at all.
         """
         t0 = time.time()
         pts = [np.asarray(p, float).reshape(3) for p in points_enu]
@@ -750,8 +764,9 @@ class RefinementEngine:
                             budget_frames=int(budget_frames))
 
         v0, s0 = value_fn(pts)
-        ev0 = self.ev.for_points(pts)
+        ev0 = self.ev.for_points(pts, provenances=provenances)
         run.before = _snapshot(question, v0, s0, ev0)
+        run.refined_points_enu = [np.asarray(p, float) for p in pts]
 
         if self.ev.K is None or self.ev.rotations is None:
             run.termination_reason = "no camera intrinsics or poses in artifacts"
@@ -862,7 +877,14 @@ class RefinementEngine:
         # the other endpoint and the metric scale, and overwriting it with a
         # single point's covariance would drop both.
         v1, s1 = value_fn(pts)
-        ev1 = self.ev.for_points(pts)
+        # The refined endpoint is a position triangulated from real image
+        # measurements -- the ones this run just recovered -- so it is observed
+        # geometry by construction, whether or not it still lands within
+        # snapping distance of a lineage-carrying cloud point. Deciding
+        # otherwise would let a successful refinement report its own result as
+        # unobserved.
+        ev1 = self.ev.for_points(pts, provenances=provenances,
+                                 endpoints_observed=True)
         # Support now includes the recovered views, which lineage on disk does
         # not yet know about. Reporting the stale count would understate what
         # the refinement achieved, while claiming the on-disk lineage contains
@@ -871,6 +893,7 @@ class RefinementEngine:
         ev1.max_ray_separation_deg = max(
             ev1.max_ray_separation_deg,
             float(max(a.parallax_gain_deg for a in run.added_frames)))
+        run.refined_points_enu = [np.asarray(p, float) for p in pts]
         run.after = _snapshot(question, v1, s1, ev1)
         run.after["endpoint_sigma"] = (None if sig_pt is None
                                        or not np.isfinite(sig_pt)

@@ -1022,3 +1022,112 @@ something that cannot improve when the answer gets worse.
 `drishti3d/reconstruction/drishti_recon/refinement.py` (`RefinementRun`),
 `colmap_adapter.py` (`_point_uncertainty`),
 `drishti3d/tests/test_refinement.py`, `drishti3d/tests/test_colmap_uncertainty.py`
+
+---
+
+## DEC-013 — Same-pass refinement is demoted to an experimental feature: the F4 hypothesis is not supported
+
+**Date:** 2026-09-20
+
+**Status:** Accepted
+
+### Context
+
+Plan feature F4 is described as the project's "principal engineering
+contribution", and its gate is a comparison, not a demonstration: *"on frozen
+questions and equal added compute budgets, targeted refinement improves correct
+accepted-answer yield or reaches the same quality faster than uniform
+refinement."* The targeted arm was built, measured and shipped
+([DEC-010](#dec-010--same-pass-refinement-recovers-frames-by-pnp-against-the-existing-model-and-is-judged-on-what-it-unblocks)).
+The control had never been run.
+
+It has now been, on 20 questions frozen before either arm executed
+(`docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/`).
+
+| Metric | Targeted | Uniform |
+|---|---:|---:|
+| Added compute | 210.5 s | **135.4 s** |
+| Measurements with fewer blockers | 2 / 20 | **8 / 20** |
+| Measurements with a narrower interval | 1 / 20 | **14 / 20** |
+| Verdict moved up | 0 / 20 | **4 / 20** |
+| Median sigma | 0.151 → 0.151 m | 0.151 → **0.092 m** |
+| Blockers cleared per added minute | 0.57 | **3.55** |
+
+Truncated to the uniform arm's exact budget, the targeted arm reached 12 of 20
+questions and cleared 1 blocker against the uniform arm's 8.
+
+### Options Considered
+
+#### Keep the feature's billing and attribute the loss to tuning
+
+The ranking discount, the budget, the decode cap and the match ratio are all
+adjustable, and the endpoint-location failure rate is the obvious lever.
+
+Advantages: the headline claim survives while the parameters are explored.
+
+Disadvantages: the gap is not marginal — 8 against 2 on 64% of the compute —
+and three of the reasons uniform wins are structural, not parametric. A global
+solve improves every point's covariance at once, a denser cloud gives every
+endpoint a better point to snap to, and neither is something the targeted arm
+can reach by tuning. Continuing to bill an unproven mechanism as the principal
+contribution while searching for a configuration that wins is how a result gets
+manufactured.
+
+#### Remove the feature
+
+Advantages: the honest response to a failed hypothesis, if the feature did
+nothing.
+
+Disadvantages: it does something measurable. It recovers frames for roughly a
+quarter to a third of weak measurements, and when it does it raises supporting
+views and measured parallax and clears `insufficient_views`. Removing a working
+mechanism because it lost one comparison on one mission overcorrects, and
+throws away the infrastructure — full-clip candidate indexing, PnP
+re-registration, pose-guided location — that the retry needs.
+
+#### Demote it to experimental, publish the loss, and name the retry
+
+Keep the code and the API. Stop claiming the hypothesis holds. State the
+observed benefits and the comparison it lost.
+
+### Decision
+
+The third, which is what the plan's own stop/go rule prescribes: *"If same-pass
+refinement does not beat uniform processing, retain it as an experimental
+feature and demonstrate only its observed benefits. Do not claim the main
+hypothesis succeeded."*
+
+### Why
+
+The result is clear enough not to be explained away and narrow enough not to be
+generalised. One mission, one scene, 20 questions, no truth to score error
+against — so it does not establish that targeted refinement cannot work. It does
+establish that on the one capture where it has been tested, it loses, and that
+is the claim the product had been making.
+
+The most likely reason is also the most actionable: the targeted arm was
+deliberately denied a local bundle adjustment (DEC-010, scope), so it adds rays
+to a single point in isolation while the control re-solves everything. That is a
+fair fight only if the targeted arm gets to refine the connected neighbourhood,
+which plan section 5.7 step 4 actually calls for and which was not built.
+
+### Consequences
+
+- `PROJECT_OVERVIEW.md` lists same-pass refinement as **experimental**, with the
+  loss stated where the feature is described.
+- No claim that the innovation hypothesis is supported may be made anywhere,
+  including in demonstrations, until the retry below wins a rerun of this gate.
+- The retry is specified in `NEXT_STEPS.md`: give the targeted arm the local
+  bundle adjustment of plan section 5.7 step 4, and rerun this exact experiment
+  against the same frozen questions.
+- The regime this experiment cannot speak for is named: a capture where most of
+  the scene is adequately covered and a few measurements are not. Building one
+  is a separate task.
+- `eval/f4_experiment.py` and its frozen question set are kept so the rerun is a
+  rerun and not a new experiment.
+
+### Related Files
+
+`drishti3d/eval/f4_experiment.py`,
+`drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/`,
+`drishti3d/reconstruction/drishti_recon/refinement.py`
