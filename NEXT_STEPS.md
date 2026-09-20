@@ -28,6 +28,51 @@ code.
 
 ## P0 — Critical
 
+### Verify dense multi-view stereo end to end
+
+**Status:** BLOCKED — needs a CUDA-enabled `colmap` executable
+**Priority:** P0
+
+**Why it matters**
+
+The clouds are sparse enough to look broken: 17,898 points for a 233 m flight at
+0.167 m spacing. Plan section 5.3 asks for dense observed geometry and it was
+never built. It is built now behind `densify="mvs"` — and **has never run**,
+because dense stereo needs CUDA and the PyPI `pycolmap` wheels are CPU-only.
+
+**Current state**
+
+`reconstruction/drishti_recon/mvs.py` shells out to a `colmap` binary for
+`image_undistorter` → `patch_match_stereo` → `stereo_fusion`, reads the fused
+PLY and its visibility sidecar, and returns points with a geometric uncertainty.
+`colmap_adapter` keeps its workspace when dense is requested; the pipeline fuses
+the result into the same cloud as the sparse points, as observed geometry.
+`/api/capabilities` reports why it is unavailable. Ten tests cover the module,
+none of them the subprocess path.
+
+**Recommended implementation**
+
+1. Install it: `BUILD_CUDA=ON CUDA_ARCH=native yay -S colmap`. `onnxruntime-cuda`,
+   `cgal`, `metis` and `flann` build from source first, so allow hours.
+   COLMAP 4.1.0 against CUDA 13.4 is a new combination and may not compile.
+2. Run `scripts/run_mission.py --mission agz_dense_pass --engine colmap
+   --densify mvs` and check point count, spacing, and that the class counts
+   stay `AI_ASSISTED: 0`.
+3. Check the dense sigma against the sparse one at similar range. If dense
+   points come out *more* certain than bundle-adjusted sparse points, the
+   estimate in `mvs.depth_uncertainty` is wrong and must be made conservative.
+4. Re-run a measurement survey: dense geometry should raise the share of
+   endpoints that snap to well-supported points.
+
+**If the build fails**, put a torch GPU plane-sweep behind the same `mvs`
+interface — `torch` cu128 already works on this card. Worse output, no install.
+
+**Relevant files**
+
+`reconstruction/drishti_recon/mvs.py`, `pipeline.py`, `colmap_adapter.py`
+
+---
+
 Nothing. Per-point uncertainty on the COLMAP path, the previous P0, landed on
 2026-09-20 — see [DEC-012](DECISIONS.md) and the
 [WORKLOG entry](WORKLOG.md). The top of the backlog is now P1.

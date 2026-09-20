@@ -52,8 +52,21 @@ def capabilities():
             "mesh_open3d": meshmod.available(),
             "las_export": _has("laspy"),
             "torch": _has("torch"),
+            # Reported as a dict, not a bool: "dense stereo is unavailable" is
+            # not actionable, and the reason is always one of two very
+            # different things -- no colmap at all, or a colmap built without
+            # CUDA, which no amount of reinstalling pycolmap will fix.
+            "dense_mvs": _mvs_status(),
         },
     )
+
+
+def _mvs_status() -> dict:
+    try:
+        from drishti_recon import mvs
+        return mvs.available()["colmap"]
+    except Exception as exc:              # noqa: BLE001 - never fatal
+        return {"available": False, "detail": f"{type(exc).__name__}: {exc}"}
 
 
 def _has(mod: str) -> bool:

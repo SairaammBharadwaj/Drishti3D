@@ -195,6 +195,132 @@ export const api = {
     fetch(`${BASE}/api/projects/${id}/measurements`).then(j<Measurement[]>),
   deleteMeasurement: (id: string, mid: string) =>
     fetch(`${BASE}/api/projects/${id}/measurements/${mid}`, { method: 'DELETE' }).then(j),
+
+  // --- measurement questions ---------------------------------------------- //
+  listQuestions: (id: string) =>
+    fetch(`${BASE}/api/projects/${id}/questions`).then(j<Question[]>),
+  createQuestion: (id: string, body: {
+    kind: MeasurementKind; points: Vec3[]; tolerance_m: number | null
+    label?: string; threshold_m?: number | null; allow_inferred?: boolean
+  }) => fetch(`${BASE}/api/projects/${id}/questions`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(j<Question>),
+  /** Changes only the requirement. The measurement is re-decided, not re-measured. */
+  setTolerance: (id: string, qid: string, tolerance_m: number) =>
+    fetch(`${BASE}/api/projects/${id}/questions/${qid}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tolerance_m }),
+    }).then(j<Question>),
+  deleteQuestion: (id: string, qid: string) =>
+    fetch(`${BASE}/api/projects/${id}/questions/${qid}`, { method: 'DELETE' }).then(j),
+  questionEvidence: (id: string, qid: string) =>
+    fetch(`${BASE}/api/projects/${id}/questions/${qid}/evidence`).then(j<QuestionEvidence>),
+  refineQuestion: (id: string, qid: string, budget_frames = 4) =>
+    fetch(`${BASE}/api/projects/${id}/questions/${qid}/refine`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ budget_frames }),
+    }).then(j<Refinement>),
+  listRefinements: (id: string, qid: string) =>
+    fetch(`${BASE}/api/projects/${id}/questions/${qid}/refinements`).then(j<Refinement[]>),
+}
+
+
+// --- Measurement questions (the Tolerance Lens) ---------------------------- //
+// A question is what the operator asked; a result is what the backend decided
+// about it. They are separate because changing the tolerance re-decides the
+// same measurement rather than making a new one.
+
+export type QuestionStatus =
+  | 'meets_requirement' | 'estimated_only' | 'needs_refinement' | 'not_observable'
+
+export interface QuestionResult {
+  id: string
+  value: number | null
+  unit: string
+  sigma: number | null
+  interval_half_width: number | null
+  interval_level: number
+  /** 'calibrated' or 'uncalibrated_sensitivity' — what the interval means. */
+  interval_basis: string
+  status: QuestionStatus
+  status_reasons: string[]
+  dominant_limitation: string | null
+  threshold_result: 'above' | 'below' | 'indeterminate' | null
+  evidence: Record<string, unknown>
+  artifact_version: string | null
+  warnings: string[]
+  created_at: string
+}
+
+export interface Guidance {
+  reason: string
+  explanation: string
+  next_action: string
+}
+
+export interface Question {
+  id: string
+  project_id: string
+  kind: MeasurementKind
+  label: string
+  points_enu: Vec3[]
+  tolerance_m: number | null
+  interval_level: number
+  threshold_m: number | null
+  threshold_direction: string
+  allow_inferred: boolean
+  notes: string
+  created_at: string
+  updated_at: string
+  result: QuestionResult | null
+  guidance: Guidance[]
+}
+
+export interface EvidenceFrame {
+  camera_index: number
+  frame_index: number | null
+  /** True when this frame measured the point, rather than merely seeing it. */
+  measured: boolean
+  pixel: [number, number] | null
+  distance_m: number
+  min_separation_from_selected_deg: number
+}
+
+export interface QuestionEvidence {
+  question_id: string
+  /** 'triangulated_observations' can license acceptance; 'frustum_upper_bound' cannot. */
+  support_basis: string
+  endpoints: {
+    index: number
+    point_enu: Vec3
+    basis: string
+    n_measuring_views: number
+    n_candidate_views: number
+    measured_ray_separation_deg: number | null
+    max_ray_separation_deg: number
+    within_established_coverage: boolean
+    frames: EvidenceFrame[]
+  }[]
+  note: string
+}
+
+export interface Refinement {
+  id: string
+  question_id: string
+  parent_measurement_id: string | null
+  result_measurement_id: string | null
+  improved: boolean
+  n_considered: number
+  n_added: number
+  termination_reason: string
+  wall_seconds: number
+  before: Record<string, unknown>
+  after: Record<string, unknown>
+  added_frames: { frame_index: number; pnp_inliers: number; pixel: number[] }[]
+  rejected: { reason: string; n_frames?: number; explanation: string }[]
+  notes: string[]
+  created_at: string
 }
 
 // Provenance legend shared across the app.

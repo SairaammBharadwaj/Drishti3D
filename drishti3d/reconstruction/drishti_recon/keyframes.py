@@ -24,6 +24,16 @@ PRESETS = {
     "fast": KeyframePreset("fast", 18.0, 3, 25, 40),
     "balanced": KeyframePreset("balanced", 10.0, 2, 18, 80),
     "quality": KeyframePreset("quality", 6.0, 1, 12, 160),
+    # Deliberately below any flow threshold that selects on merit: this keeps
+    # nearly every accepted frame. It exists as the *control* arm of the F4
+    # comparison -- "spend the extra budget uniformly on a denser
+    # reconstruction" -- on footage where `quality` is not actually denser than
+    # `balanced`. Measured on three public clips, the flow-based presets
+    # converge to about the same 40 keyframes whatever the threshold, because
+    # the camera moves far between frames; without this there is no uniform arm
+    # to compare against. Not a recommended production setting: it spends
+    # compute on frames the selector judged redundant.
+    "dense": KeyframePreset("dense", 1.0, 1, 4, 400),
 }
 
 

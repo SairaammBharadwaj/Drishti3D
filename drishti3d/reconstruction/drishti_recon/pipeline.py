@@ -106,7 +106,21 @@ class PipelineParams:
     required_sigma_m: float | None = None
     build_coverage: bool = True
     coverage_voxel: float = 1.0
-    densify: str = "none"               # none | depth
+    #: "none" keeps the sparse cloud only. "mvs" adds COLMAP PatchMatch stereo
+    #: -- observed geometry, measurable, and the answer to a sparse cloud that
+    #: looks like a scattering of corners. Needs a CUDA-enabled `colmap`
+    #: executable; the PyPI pycolmap wheels cannot do dense stereo. "depth"
+    #: adds monocular depth-prior points, which are inferred and excluded from
+    #: measurement.
+    densify: str = "none"               # none | mvs | depth
+    #: Longest image edge the dense stage works at. Dense stereo cost scales
+    #: with pixels, and 1600 keeps an 8 GB card inside its memory on 1080p.
+    mvs_max_image_size: int = 1600
+    #: Geometric consistency doubles the stereo cost and removes most of the
+    #: speckle that makes an unfiltered dense cloud unusable.
+    mvs_geometric: bool = True
+    #: Images that must agree before a fused point is kept.
+    mvs_min_views: int = 5
     depth_stride: int = 8               # pixel grid stride for depth back-projection
 
 
@@ -282,8 +296,13 @@ def run(project_dir, video_path, telemetry_path, *,
         use_colmap = (params.engine == "colmap" or
                       (params.engine == "auto" and colmap_adapter.is_available()))
         if use_colmap:
+            # Dense stereo re-reads the images and the sparse model COLMAP
+            # wrote, so the workspace has to outlive the sparse stage.
+            keep = (project_dir / "colmap_workspace"
+                    if params.densify == "mvs" else None)
             recon = colmap_adapter.reconstruct_frames(
-                kf_frames, K, progress=lambda m, f: _emit(progress, "sfm", f, m))
+                kf_frames, K, keep_workspace=keep,
+                progress=lambda m, f: _emit(progress, "sfm", f, m))
         else:
             recon = sfm.reconstruct(
                 kf_frames, K, masks=masks, positions=kf_gps,
@@ -300,11 +319,59 @@ def run(project_dir, video_path, telemetry_path, *,
         if recon.stats["n_points"] == 0:
             raise RuntimeError("reconstruction produced no 3D points")
 
-    # 8b) DENSIFY (optional monocular depth-prior fusion) --------------------
+    # 8b) DENSIFY -----------------------------------------------------------
+    # Two paths that must not be confused. "mvs" triangulates from photometric
+    # agreement across real images and is *observed* geometry, measurable like
+    # any other point. "depth" predicts depth from a single image with a
+    # learned model and is *inferred*: those points are tagged AI_ASSISTED and
+    # excluded from measurement. Both make the viewer look better; only one may
+    # be measured.
     dense_local = None
     dense_cols_local = None
+    mvs_points = None          # observed: joins the measured cloud
+    mvs_colors = None
+    mvs_sigma = None
+    mvs_conf = None
     with stage_timer("densify"):
-        if params.densify == "depth":
+        if params.densify == "mvs":
+            try:
+                from . import mvs as mvsmod
+                ws = recon.stats.get("workspace")
+                if not ws:
+                    raise RuntimeError(
+                        "dense MVS needs the COLMAP engine; the in-repo engine "
+                        "writes no COLMAP workspace")
+                _emit(progress, "densify", 0.05, "dense stereo")
+                dr = mvsmod.run_colmap(
+                    ws, max_image_size=params.mvs_max_image_size,
+                    geom_consistency=params.mvs_geometric,
+                    min_num_pixels=params.mvs_min_views,
+                    progress=lambda m, f: _emit(progress, "densify", f, m))
+                if len(dr):
+                    mvs_points = dr.points
+                    mvs_colors = dr.colors
+                    centres = np.array([c.center for c in recon.cameras], float)
+                    focal = 0.5 * (float(recon.K[0, 0]) + float(recon.K[1, 1]))
+                    sig_px = (recon.stats.get("uncertainty", {})
+                              .get("sigma_px_estimated") or 1.0)
+                    mvs_sigma = mvsmod.depth_uncertainty(
+                        dr.points, centres, dr.n_views,
+                        sigma_px=float(sig_px), focal=focal)
+                    # Confidence from how many images actually agreed. A point
+                    # two images agree on is real but weakly held; one that
+                    # survives many is the dense equivalent of a long track.
+                    nv = (np.asarray(dr.n_views, float) if dr.n_views is not None
+                          else np.full(len(dr), 3.0))
+                    mvs_conf = np.clip((nv - 2.0) / 4.0, 0.0, 1.0) * 0.4 + 0.45
+                    warnings.append(
+                        f"dense MVS added {len(dr)} observed points; their "
+                        f"uncertainty is a geometric estimate from range and "
+                        f"view count, not a propagated covariance")
+                _emit(progress, "densify", 1.0, f"{len(dr)} dense points")
+            except Exception as e:
+                warnings.append(f"dense MVS skipped: {e}")
+                _emit(progress, "densify", 1.0, "skipped")
+        elif params.densify == "depth":
             try:
                 from . import depth_prior
                 _emit(progress, "densify", 0.1, "loading depth model")
@@ -387,6 +454,7 @@ def run(project_dir, video_path, telemetry_path, *,
         align = None
         scale_source = "relative"
         dense_enu = None
+        mvs_enu = None
         if not no_gps and kf_gps is not None and len(cam_centers) >= 3:
             gps_for_cams = kf_gps[reg_local_idx]
             acc_for_cams = [kf_acc[i] for i in reg_local_idx]
@@ -398,12 +466,15 @@ def run(project_dir, video_path, telemetry_path, *,
             cams_enu = [align.transform.apply(c.center)[0] for c in recon.cameras]
             if dense_local is not None:
                 dense_enu = align.transform.apply(dense_local)
+            if mvs_points is not None:
+                mvs_enu = align.transform.apply(mvs_points)
         else:
             if not no_gps:
                 warnings.append("fewer than 3 registered cameras; metric scale unavailable")
             pts_enu = recon.points
             cams_enu = [c.center for c in recon.cameras]
             dense_enu = dense_local
+            mvs_enu = mvs_points
         # Level the scene: correct residual tilt so the ground is horizontal and
         # "up" is truly up (nadir GPS barely constrains the vertical axis).
         #
@@ -502,7 +573,26 @@ def run(project_dir, video_path, telemetry_path, *,
         _sig = None if recon.point_sigma is None else recon.point_sigma * _s
         _sigmaj = (None if recon.point_sigma_major is None
                    else recon.point_sigma_major * _s)
-        cloud = fusion.fuse(pts_enu, recon.colors, recon.confidence,
+        # Dense stereo points are observed geometry, so they are fused into the
+        # *same* cloud as the sparse ones rather than layered beside them like
+        # the depth prior. They carry their own sigma, which is a geometric
+        # estimate rather than a propagated covariance -- the warning raised in
+        # the densify stage says so, and it is the same number a measurement
+        # would be quoted from.
+        _pts, _cols, _conf = pts_enu, recon.colors, recon.confidence
+        if mvs_enu is not None and len(mvs_enu):
+            _mv_sig = (mvs_sigma * _s) if mvs_sigma is not None else None
+            _pts = np.vstack([_pts, mvs_enu])
+            _cols = np.vstack([_cols, mvs_colors.astype(np.uint8)])
+            _conf = np.concatenate([_conf, mvs_conf])
+            if _sig is not None and _mv_sig is not None:
+                _sig = np.concatenate([_sig, _mv_sig])
+                _sigmaj = np.concatenate([_sigmaj, _mv_sig])
+            else:
+                # Mixing known and unknown uncertainty in one array would let a
+                # dense point inherit a sparse point's sigma through indexing.
+                _sig = _sigmaj = None
+        cloud = fusion.fuse(_pts, _cols, _conf,
                             voxel=params.voxel, sigma=_sig, sigma_major=_sigmaj)
         # Merge depth-prior points as a SEPARATE, measurement-excluded layer so
         # the trust map can show observed (green) vs AI-inferred (purple) geometry.

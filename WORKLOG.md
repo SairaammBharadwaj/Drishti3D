@@ -1699,3 +1699,167 @@ run the comparison at all because keyframe selection correctly declines to thin
 it. A field capture is now the single thing that would settle the hypothesis —
 and it is the same site visit that unblocks interval calibration, which remains
 the only thing between this system and an accepted measurement.
+
+---
+
+# 2026-09-20 (dense + UI) — The clouds look bad because there is no dense stage
+
+## Objective
+
+Two things asked for: the Tolerance Lens as an operator surface, and an F4 gate
+run on a second flight. Then a third, from looking at the result: the point
+clouds are sparse enough to look broken.
+
+## Work Completed
+
+### The Tolerance Lens, on screen
+
+`frontend/src/ToleranceLens.tsx` plus the question endpoints in `api.ts`, wired
+into the Workspace panel. Everything built over the last several sessions was
+reachable only from a command line — the frontend had **zero** references to the
+questions API.
+
+A card shows the value with its interval, a status chip, the dominant limitation
+and every reason's concrete next action, a tolerance slider that re-decides
+without re-measuring, evidence (frames that *measured* the point outlined green,
+mere candidates not), and "Improve this measurement" with before/after.
+
+The refinement panel reports `value`, `interval`, `views` and `parallax` as four
+separate rows on purpose. Collapsing them into one arrow is how a run that made
+things worse reads as a success — the same mistake the metric itself made twice.
+
+`scripts/import_run_as_project.py` registers a benchmark run as an app project,
+copying artifacts and the source clip, so a reconstruction can be opened in the
+UI. Two demos are loaded: the AGZ mission with GNSS, and a gymnasium clip with
+none.
+
+### Second-flight test beds
+
+`scripts/build_clip_mission.py` builds a mission from a bare clip — no
+telemetry, no reference data, relative scale. Three built from the cut-free
+windows a previous session had identified: `gym_pass`, `lambertus`,
+`goetheanum`.
+
+They reconstruct, and the F4 comparison **cannot run fairly on them**: the
+flow-based keyframe selector converges to about 40 keyframes whatever the
+preset, so `quality` adds 0–5 frames over `balanced` and there is no uniform
+arm. A `dense` preset was added as the control for exactly this case.
+
+### The sparse-cloud problem
+
+Measured, because the complaint was that the clouds are full of AI points:
+
+| project | points | spacing | AI-assisted |
+|---|---:|---:|---:|
+| AGZ | 17,898 | 0.167 m | **0** |
+| Gymnasium | 4,037 | 0.092 m | **0** |
+
+Both clouds are 100% observed. The appearance is not inference creeping in — it
+is that **the pipeline only ever runs sparse SfM**. No dense stage existed,
+though plan section 5.3 asks for one by name.
+
+`reconstruction/drishti_recon/mvs.py` adds it behind `densify="mvs"`: COLMAP
+PatchMatch stereo via the `colmap` executable, fused into the same cloud as the
+sparse points because it is the same kind of geometry — observed, measurable.
+Kept strictly distinct from `densify="depth"`, whose points are predicted from
+single images and excluded from measurement.
+
+## Files Changed
+
+`frontend/src/ToleranceLens.tsx` (new), `api.ts`, `views/Workspace.tsx`,
+`styles.css` — the operator surface.
+
+`reconstruction/drishti_recon/mvs.py` (new) — dense stereo, its availability
+reporting, and a geometric uncertainty model for dense points.
+
+`reconstruction/drishti_recon/colmap_adapter.py` — `keep_workspace`, because
+dense stereo needs the images and sparse model COLMAP wrote.
+
+`reconstruction/drishti_recon/pipeline.py` — `densify="mvs"`, its parameters,
+and fusion of dense points as observed geometry.
+
+`reconstruction/drishti_recon/keyframes.py` — a `dense` preset, as the F4
+control arm on footage where `quality` is not denser than `balanced`.
+
+`backend/app/main.py` — `/api/capabilities` reports *why* dense is unavailable.
+
+`scripts/{build_clip_mission,import_run_as_project}.py` (new),
+`run_mission.py` — clip missions have no telemetry and no truth.
+
+`tests/test_mvs.py` (new) — 10 tests.
+
+## Important Implementation Details
+
+Dense points carry a **geometric** uncertainty, not a propagated covariance:
+fusion does not report which images agreed at what disparity, so the Jacobian
+cannot be formed. `range * sigma_px / focal / sqrt(n_views)` is used instead and
+the pipeline warns on every run that uses it, because that number is what a
+measurement on a dense point would be quoted from.
+
+Where sparse points have a propagated sigma and dense points do not, the sigma
+arrays are dropped rather than concatenated — otherwise a dense point would
+inherit a sparse point's sigma through indexing.
+
+## Commands Executed
+
+```bash
+cd drishti3d
+.venv/bin/python scripts/build_clip_mission.py --source data/real_drone/st_lambertus.webm \
+    --name lambertus --start 182 --end 223.5 --overwrite
+.venv/bin/python scripts/run_mission.py --mission gym_pass --set field_clips \
+    --max-frames 184 --engine colmap --preset balanced --tag balanced
+.venv/bin/python scripts/import_run_as_project.py --run agz_dense_pass__colmap_unc \
+    --video datasets/public/zurich_mav/agz_dense_pass/raw/video.mp4 --name "..."
+.venv/bin/uvicorn backend.app.main:app --port 8000
+cd frontend && npm run dev -- --port 5173
+.venv/bin/python -m pytest tests/ -q          # 330 passed
+```
+
+## Problems Encountered
+
+**Problem** — `pycolmap` exposes `patch_match_stereo` but it fails.
+
+**Cause** — `pycolmap.has_cuda` is `False`; COLMAP's dense stereo is CUDA-only,
+and the error is explicit: *"Dense stereo reconstruction requires CUDA or HIP."*
+No CUDA-enabled pycolmap wheel exists on PyPI — 4.2.0 publishes `manylinux` CPU
+wheels only.
+
+**Solution** — Shell out to a separately installed `colmap` binary. Not yet
+installed here, so **the dense path has never run**; that is recorded in
+DEC-018 and as the new P0 rather than implied to work by the code existing.
+
+---
+
+**Problem** — The F4 gate cannot run on the clip missions.
+
+**Cause** — The flow-based keyframe selector converges to ~40 keyframes
+regardless of preset on this footage, so `quality` is not a denser
+reconstruction than `balanced` and there is no uniform arm. A different reason
+from `agz_segment_two`'s, same effect.
+
+**Solution** — A `dense` preset as the control. Runs pending.
+
+## Verification
+
+- 330 tests pass, up from 320.
+- The UI path was checked end to end through the Vite proxy: a question created
+  on the AGZ project returned 3.113 m, `needs_refinement`, dominant limitation
+  `interval_exceeds_tolerance`, evidence basis `triangulated_observations` with
+  4 measuring frames.
+- Dense MVS: module, plumbing, uncertainty model and capability reporting are
+  tested. **The subprocess path is not** — no CUDA COLMAP on this machine.
+
+## Result
+
+Everything built over the previous sessions is now reachable by an operator
+rather than only from a shell.
+
+The sparse-cloud complaint was right and the cause was not what it looked like:
+zero AI-assisted points, and no dense stage at all. One is built and waiting on
+a CUDA-enabled COLMAP; if that install proves impractical a torch plane-sweep
+goes behind the same interface.
+
+The second-flight F4 test remains open for a third distinct reason — first the
+sparse-capture guard on `agz_segment_two`, now keyframe convergence on the
+clips. Both are properties of the comparison needing an over-sampled capture,
+which is the same thing a field capture would supply.

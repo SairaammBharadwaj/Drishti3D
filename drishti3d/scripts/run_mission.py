@@ -92,7 +92,11 @@ def _rigid_and_similarity_error(est: np.ndarray, ref: np.ndarray) -> dict:
 def score(mission_dir: Path, truth_dir: Path, art_dir: Path) -> dict:
     ref_csv = truth_dir / "reference_camera_positions.csv"
     if not ref_csv.exists():
-        return {"status": "no reference data", "path": str(ref_csv)}
+        return {"status": "no reference data", "path": str(ref_csv),
+                "note": "nothing here can be scored against truth"}
+    if not (mission_dir / "raw/frame_index.csv").exists():
+        return {"status": "no frame index; cameras cannot be paired to "
+                          "reference rows"}
     ref = {int(r["imgid"]): (float(r["x_utm32n_m"]), float(r["y_utm32n_m"]),
                              float(r["z_m"]))
            for r in csv.DictReader(open(ref_csv))}
@@ -160,12 +164,17 @@ def main() -> int:
     ap.add_argument("--max-frames", type=int, default=240)
     ap.add_argument("--proc-width", type=int, default=1280)
     ap.add_argument("--preset", default="balanced",
-                    choices=["fast", "balanced", "quality"],
-                    help="keyframe density; 'quality' keeps far more frames and "
-                         "is the uniform-budget arm of the F4 experiment")
+                    choices=["fast", "balanced", "quality", "dense"],
+                    help="keyframe density. 'dense' keeps nearly every frame and is "
+                         "the uniform-budget arm of the F4 experiment where "
+                         "'quality' is not actually denser than 'balanced'.")
     ap.add_argument("--tag", default="baseline")
     ap.add_argument("--no-mesh", action="store_true")
-    ap.add_argument("--densify", default="none", choices=["none", "depth"])
+    ap.add_argument("--densify", default="none",
+                    choices=["none", "mvs", "depth"],
+                    help="'mvs' adds dense observed stereo geometry "
+                         "(needs a CUDA-enabled colmap); 'depth' adds "
+                         "inferred points excluded from measurement")
     a = ap.parse_args()
 
     mission_dir = REPO / "datasets/public" / a.set / a.mission
@@ -174,6 +183,18 @@ def main() -> int:
         raise SystemExit(f"no such mission: {mission_dir}")
     manifest = json.loads((mission_dir / "manifest.json").read_text())
     cam = json.loads((mission_dir / "calibration/camera.json").read_text())
+    # A clip mission has neither. Passing None is what puts the pipeline into
+    # relative-scale mode with estimated intrinsics, and it says so in its own
+    # warnings rather than this script pretending otherwise.
+    telemetry = mission_dir / "raw/telemetry.csv"
+    telemetry = telemetry if telemetry.exists() else None
+    intrinsics = None
+    if all(k in cam for k in ("fx", "fy", "cx", "cy")):
+        intrinsics = {"fx": cam["fx"], "fy": cam["fy"],
+                      "cx": cam["cx"], "cy": cam["cy"]}
+        if "k1" in cam:
+            intrinsics["distortion"] = [cam["k1"], cam["k2"], cam["p1"],
+                                        cam["p2"], cam["k3"]]
 
     run_dir = APP / "data/runs" / f"{a.mission}__{a.tag}"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -185,10 +206,7 @@ def main() -> int:
         proc_max_width=a.proc_width,
         do_mesh=not a.no_mesh,
         densify=a.densify,
-        intrinsics={"fx": cam["fx"], "fy": cam["fy"],
-                    "cx": cam["cx"], "cy": cam["cy"],
-                    "distortion": [cam["k1"], cam["k2"], cam["p1"],
-                                   cam["p2"], cam["k3"]]},
+        intrinsics=intrinsics,
         # Real, uncorrected-lens imagery: the 1.0 px epipolar band suits exact
         # pinholes only. Distortion is corrected up front here, but residual
         # calibration error on a factory calibration is real, so keep the
@@ -208,8 +226,7 @@ def main() -> int:
     err = None
     try:
         result = pipeline.run(run_dir, mission_dir / "raw/video.mp4",
-                              mission_dir / "raw/telemetry.csv",
-                              params=params, progress=progress)
+                              telemetry, params=params, progress=progress)
         report, warns = result.report, result.warnings
     except Exception as e:                                 # noqa: BLE001
         err = f"{type(e).__name__}: {e}"
@@ -234,6 +251,8 @@ def main() -> int:
                    "e_ransac_px": params.e_ransac_px},
         "mission_capture": manifest["capture"],
         "mission_video_sha256": manifest["artifacts"]["video"]["sha256"],
+        "has_telemetry": telemetry is not None,
+        "has_calibration": intrinsics is not None,
         "wall_seconds": round(wall, 1),
         "error": err,
         "warnings": warns,
