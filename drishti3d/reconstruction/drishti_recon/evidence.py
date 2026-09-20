@@ -128,6 +128,15 @@ class ReconstructionEvidence:
             except (OSError, ValueError, KeyError):
                 points = None
 
+        sigma_major = None
+        if cloud_npz.exists():
+            try:
+                _d = np.load(cloud_npz)
+                if "sigma_major" in _d.files:
+                    sigma_major = _d["sigma_major"]
+            except (OSError, ValueError, KeyError):
+                sigma_major = None
+
         observations = None
         obs_npz = art / "observations.npz"
         if obs_npz.exists():
@@ -143,9 +152,14 @@ class ReconstructionEvidence:
         frame_indices = [c.get("frame_index") for c in cams]
         cam_of_frame = {int(f): i for i, f in enumerate(frame_indices)
                         if f is not None}
-        return cls(centres, rotations, frame_indices, K, size, cov,
-                   scale_source, scale_sigma, points, observations,
-                   cam_of_frame)
+        rec = cls(centres, rotations, frame_indices, K, size, cov,
+                  scale_source, scale_sigma, points, observations,
+                  cam_of_frame)
+        #: The stored per-point worst-axis sigma, which is the global model's
+        #: own uncertainty for a neighbourhood. A local refit needs it to avoid
+        #: reporting a point as better known than the model it sits in.
+        rec.sigma_major = sigma_major
+        return rec
 
     # ---- observation lineage ---------------------------------------------- #
     @property
@@ -292,7 +306,8 @@ class ReconstructionEvidence:
         return bool(self.coverage.is_measurable(point))
 
     def for_points(self, points, *, provenances=None,
-                   endpoints_observed: bool | None = None) -> Evidence:
+                   endpoints_observed: bool | None = None,
+                   endpoints_within_coverage: bool | None = None) -> Evidence:
         """Assemble the evidence record for a whole measurement.
 
         Support is aggregated across endpoints with the *worst* endpoint
@@ -321,6 +336,8 @@ class ReconstructionEvidence:
                 per_point_views.append(len(idx))
                 per_point_sep.append(self.max_ray_separation_deg(p, idx))
             within &= self.within_coverage(p)
+        if endpoints_within_coverage is not None:
+            within = bool(endpoints_within_coverage)
 
         observed = endpoints_observed
         if observed is None and provenances is None and basis == \

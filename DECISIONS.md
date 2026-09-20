@@ -1131,3 +1131,127 @@ which plan section 5.7 step 4 actually calls for and which was not built.
 `drishti3d/eval/f4_experiment.py`,
 `drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/`,
 `drishti3d/reconstruction/drishti_recon/refinement.py`
+
+---
+
+## DEC-014 — Targeted refinement gets a local refit; it ties on yield and still loses on speed
+
+**Date:** 2026-09-20
+
+**Status:** Accepted
+
+### Context
+
+[DEC-013](#dec-013--same-pass-refinement-is-demoted-to-an-experimental-feature-the-f4-hypothesis-is-not-supported)
+recorded the F4 gate's failure and named the most likely cause: the targeted arm
+adds rays to a single point in isolation while the control re-solves every pose
+and point. Plan section 5.7 step 4 asks for "local re-match and refit with a
+connected boundary to the global model", and that had never been built
+([DEC-010](#dec-010--same-pass-refinement-recovers-frames-by-pnp-against-the-existing-model-and-is-judged-on-what-it-unblocks),
+scope). This is that retry, against the same frozen questions.
+
+### Options Considered
+
+#### How to hold the boundary
+
+`bundle.bundle_adjust` has no fixed-camera mask. Adding one means restructuring
+the parameter packing, the sparsity pattern and the analytic Jacobian of a
+well-tested solver.
+
+*Restructure the solver.* Faithful to "fixed boundary", and the riskiest change
+available to a module every reconstruction depends on.
+
+*Solve the subproblem free, then re-anchor.* A subproblem solved in isolation
+drifts in all seven similarity degrees of freedom, so it is Sim(3)-fitted back
+onto its boundary cameras' stored centres and rejected if they had to move more
+than a metre — which would mean the solve did not stay local.
+
+**Decided:** re-anchor. Measured drift on a representative refit is 0.054 m at
+an anchor scale of 0.9993, so the subproblem is not wandering; the rejection
+threshold exists for when it does.
+
+#### What the refined endpoint's uncertainty means
+
+Plan section 5.7 step 5: *"Retain global uncertainty at that boundary; fixing
+neighbouring cameras must not make the interval artificially certain."*
+
+The refit alone reported **0.006 m** on a point whose surrounding cloud is known
+to about 0.036 m — an order of magnitude better than the model it sits in. That
+is the artificial certainty the plan warns about, arriving exactly where it said
+it would.
+
+**Decided:** combine the refit's own covariance in quadrature with the
+neighbourhood's existing uncertainty, taken as the median `sigma_major` of the
+refit's points in the stored cloud. Refinement can improve where the endpoint
+sits *within* its neighbourhood; it cannot improve where the neighbourhood sits.
+
+#### Whether the coverage gate can judge a moved endpoint
+
+Refined endpoints landed in `OCCLUDED` cells and were refused as
+`outside_established_coverage`. The occluder is the endpoint's **own stale
+position**: the coverage grid's z-buffer was built from the pre-refinement
+cloud, where the point sat up to a metre nearer along the same ray. It occludes
+itself.
+
+*Keep the refusal.* Safe, and converts the feature's successes into refusals for
+a reason that is an artefact of ordering.
+
+*Rebuild the grid per refinement.* Correct and far outside an interactive
+budget.
+
+*Take the refined endpoint's coverage from the frames that measured it.* The run
+located the point in each recovered image and re-triangulated it from those
+rays; cameras demonstrably see it. That is a stronger statement than a grid
+formed before the point moved.
+
+**Decided:** the third, for the refined endpoint only. Every other endpoint is
+still checked against the grid. This loosens a safety gate and is the change in
+this decision most worth re-examining if refined measurements later prove
+unreliable.
+
+### Decision
+
+Build `RefinementEngine._local_bundle`, with all three treatments above, and
+rerun the F4 gate against the same `questions_frozen.json`.
+
+### Why
+
+The gate is a comparison, and the previous run compared an arm with a bundle
+adjustment against one without. Whatever the answer, it had to be retried on
+equal mechanism before "targeted refinement loses" could mean anything about
+targeting rather than about the scope of what was built.
+
+### Consequences
+
+| Metric | Targeted, no refit | Targeted, refit | Uniform |
+|---|---:|---:|---:|
+| Added compute | 210.5 s | 219.8 s | **135.4 s** |
+| Blocked only by calibration, after (from 8) | 7 | **10** | **10** |
+| Measurements regressed | 1 | **0** | 5 |
+| Narrower interval | 1 | 4 | **14** |
+| Median sigma | 0.151 → 0.151 m | 0.151 → 0.128 m | 0.151 → **0.092 m** |
+
+- **The refit worked and the verdict held.** The targeted arm now ties the
+  control on answer yield and regresses nothing against the control's five, but
+  takes 1.6x the compute to get there. The gate asks for better yield *or* the
+  same yield faster; it delivers neither. DEC-013's demotion stands.
+- **The binding constraint moved.** It is no longer the refit, it is reach: only
+  5 of 20 questions had any frame recovered, so 15 were untouchable. On the five
+  it reached, four intervals improved, two cleared blockers, none regressed, and
+  the worst measurement's sigma fell 47%. Improving endpoint location is now the
+  change most likely to alter this result, and is P1.
+- A genuine difference in risk profile is now visible: the control clears more
+  (8 against 2) *and* breaks more (5 against 0). For a product whose claim is
+  that it does not overstate what it knows, that is not a neutral trade.
+- Three of this decision's mechanisms are approximations with named failure
+  modes — the Sim(3) re-anchor, the quadrature uncertainty combination, and the
+  coverage exemption. None is validated against truth, because this mission has
+  none.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/refinement.py` (`_local_bundle`,
+`measurement_value_fn`, `_call_value_fn`), `evidence.py`
+(`for_points(endpoints_within_coverage=...)`, `sigma_major`),
+`drishti3d/eval/f4_experiment.py`,
+`drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/`

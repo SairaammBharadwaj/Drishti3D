@@ -24,9 +24,10 @@ Command: `cd drishti3d && .venv/bin/python -m pytest tests/ -q`
 | After observation lineage | 277 passed | 112 s |
 | After same-pass refinement | 301 passed | 191 s |
 | After COLMAP uncertainty | 312 passed | 199 s |
-| After the F4 experiment | **313 passed, 0 failed** | 196 s |
+| After the F4 experiment | 313 passed | 196 s |
+| After the local bundle refit | **314 passed, 0 failed** | 109 s |
 
-90 tests were added. No test was removed, skipped or weakened.
+91 tests were added. No test was removed, skipped or weakened.
 
 ### New test files
 
@@ -199,8 +200,8 @@ and area error against ground truth is entirely unmeasured.
 
 ### Same-pass refinement versus a uniform budget (plan F4 gate)
 
-**Run 2026-09-20. The hypothesis is NOT SUPPORTED on this mission.** Full
-write-up:
+**Run 2026-09-20, then rerun after building the local bundle refit. The
+hypothesis is NOT SUPPORTED on this mission in either run.** Full write-up:
 [`docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md`](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md).
 
 20 distance questions, ±0.30 m, frozen and hashed before either arm ran.
@@ -208,37 +209,47 @@ Baseline: COLMAP, 80 keyframes, 81.9 s SfM. Uniform arm: the same pipeline at
 `preset="quality"`, 160 keyframes, 217.3 s SfM. Targeted arm: 4-frame budget per
 question against the baseline.
 
-| Metric | Targeted | Uniform |
-|---|---:|---:|
-| Added compute | 210.5 s | **135.4 s** |
-| Measurements with fewer blockers | 2 / 20 | **8 / 20** |
-| Measurements regressed | **1 / 20** | 5 / 20 |
-| Measurements with a narrower interval | 1 / 20 | **14 / 20** |
-| Verdict moved up the ladder | 0 / 20 | **4 / 20** |
-| Blocked only by calibration, after | 7 (from 8) | **10** (from 8) |
-| Median measurement sigma | 0.151 → 0.151 m | 0.151 → **0.092 m** |
-| Blockers cleared per added minute | 0.57 | **3.55** |
+| Metric | Targeted, no refit | **Targeted, local refit** | Uniform |
+|---|---:|---:|---:|
+| Added compute | 210.5 s | 219.8 s | **135.4 s** |
+| Blocked only by calibration, after (from 8) | 7 / 20 | **10 / 20** | **10 / 20** |
+| Measurements with fewer blockers | 2 / 20 | 2 / 20 | **8 / 20** |
+| Measurements regressed | 1 / 20 | **0 / 20** | 5 / 20 |
+| Narrower interval | 1 / 20 | 4 / 20 | **14 / 20** |
+| Verdict moved up | 0 / 20 | 2 / 20 | **4 / 20** |
+| Median measurement sigma | 0.151 → 0.151 m | 0.151 → 0.128 m | 0.151 → **0.092 m** |
+| Blockers cleared per added minute | 0.57 | 0.55 | **3.55** |
 
 Truncated to the uniform arm's exact 135.4 s budget, the targeted arm reached 12
 of 20 questions and cleared 1 blocker; the uniform arm cleared 8 across all 20.
 
-The targeted arm recovered frames for only 5 of 20 questions and moved no
-verdict upward. Median supporting views is 3 in both arms — the uniform arm's
-39% sigma reduction comes from its global bundle adjustment and denser cloud
-(52,005 points against 17,898, mean track 4.93 against 3.91), not from extra
-views at the endpoints.
+**Result: FAIL for the hypothesis in both runs, PASS for the experiment.** The
+gate asks for better answer yield *or* the same yield faster. With the refit the
+targeted arm ties on yield (10 of 20, both arms) and regresses nothing against
+the control's five — but needs 1.6× the compute. Neither condition is met.
+Recorded as [DEC-013](DECISIONS.md) and [DEC-014](DECISIONS.md).
 
-**Result: FAIL for the hypothesis, PASS for the experiment.** Recorded as
-[DEC-013](DECISIONS.md); the feature is demoted to experimental. What this does
-*not* establish is in the write-up: one mission, one scene, no truth to score
-error against, and the targeted arm was deliberately denied the local bundle
-adjustment plan section 5.7 asks for.
+**On the 5 questions the targeted arm could reach**, the refit is effective:
 
-The experiment was run twice. The first run showed 2 targeted regressions; one
-was an artefact of `refine` building evidence without endpoint provenances, now
-fixed and covered by
-`test_endpoint_provenance_reaches_the_before_and_after_snapshots`. Regressions
-fell to 1; no other figure changed and the conclusion did not.
+| Question | Frames | Sigma before → after | Status |
+|---|---:|---|---|
+| q004 | 4 | 0.201 → **0.106 m** | `needs_refinement` → `estimated_only` |
+| q015 | 1 | 0.181 → **0.128 m** | `needs_refinement` → `estimated_only` |
+| q014 | 1 | 0.074 → **0.054 m** | unchanged (already calibration-only) |
+| q013 | 2 | 0.095 → **0.086 m** | unchanged (already calibration-only) |
+| q012 | 2 | 0.114 → 0.115 m | refit rejected; fell back to a ray intersection |
+
+A representative refit: 21 cameras, 400 points, 3,377 observations, reprojection
+RMSE 1.31 → 0.77 px, boundary drift 0.054 m, anchor scale 0.9993. The binding
+constraint is **reach**, not the mechanism: 15 of 20 questions had no frame
+recovered at all.
+
+**Three runs, one frozen question set.** (1) No refit, 2 regressions — one an
+artefact of `refine` building evidence without endpoint provenances. (2) Same,
+provenances fixed: regressions fell to 1, nothing else changed. (3) With the
+refit, plus two corrections it needed to be meaningful (the neighbourhood
+uncertainty term and the coverage exemption, both in
+[DEC-014](DECISIONS.md)). The conclusion held across all three.
 
 ### Measurement passport and offline verifier (plan F3)
 

@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-09-20T08:14:34Z",
+  "generated_utc": "2026-09-20T08:38:07Z",
   "baseline_run": "colmap_unc",
   "uniform_run": "colmap_quality",
   "questions_file": "drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/questions_frozen.json",
@@ -11,7 +11,7 @@
   "equal_budget": {
     "budget_s": 135.4,
     "targeted_questions_within_budget": 12,
-    "targeted_spend_s": 127.9,
+    "targeted_spend_s": 130.7,
     "targeted_cleared_within_budget": 1,
     "uniform_cleared_all_questions": 8,
     "note": "The uniform arm's spend buys a new reconstruction that answers every question at once; the targeted arm's buys attention for one question at a time. Within the same seconds, the targeted arm only reaches the first 12 of 20 questions."
@@ -20,21 +20,21 @@
     {
       "arm": "targeted",
       "n_questions": 20,
-      "added_compute_s": 210.5,
-      "added_compute_per_question_s": 10.5,
+      "added_compute_s": 219.8,
+      "added_compute_per_question_s": 11.0,
       "measurements_with_fewer_blockers": 2,
-      "measurements_regressed": 1,
-      "measurements_with_narrower_interval": 1,
-      "status_moved_up": 0,
+      "measurements_regressed": 0,
+      "measurements_with_narrower_interval": 4,
+      "status_moved_up": 2,
       "blocked_only_by_calibration_before": 8,
-      "blocked_only_by_calibration_after": 7,
+      "blocked_only_by_calibration_after": 10,
       "median_sigma_before": 0.151,
-      "median_sigma_after": 0.151,
+      "median_sigma_after": 0.128,
       "median_views_before": 3.0,
       "median_views_after": 3.0,
       "median_parallax_before": 9.555,
-      "median_parallax_after": 10.35,
-      "cleared_per_added_minute": 0.57
+      "median_parallax_after": 10.415,
+      "cleared_per_added_minute": 0.55
     },
     {
       "arm": "uniform",
@@ -96,7 +96,7 @@
         "max_ray_separation_deg": 6.68
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 12.82
+      "targeted_wall_s": 12.83
     },
     {
       "id": "q001",
@@ -136,7 +136,7 @@
         "max_ray_separation_deg": 7.77
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 11.25
+      "targeted_wall_s": 11.29
     },
     {
       "id": "q002",
@@ -178,7 +178,7 @@
         "max_ray_separation_deg": 10.42
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 11.45
+      "targeted_wall_s": 11.51
     },
     {
       "id": "q003",
@@ -216,7 +216,7 @@
         "max_ray_separation_deg": 3.66
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 16.92
+      "targeted_wall_s": 16.83
     },
     {
       "id": "q004",
@@ -234,15 +234,14 @@
         "max_ray_separation_deg": 3.9
       },
       "targeted": {
-        "value": 3.039937990687847,
-        "sigma": 0.2012282431628438,
-        "status": "needs_refinement",
+        "value": 3.5269502712019425,
+        "sigma": 0.10569005071476995,
+        "status": "estimated_only",
         "reasons": [
-          "interval_not_calibrated",
-          "interval_exceeds_tolerance"
+          "interval_not_calibrated"
         ],
-        "dominant_limitation": "interval_exceeds_tolerance",
-        "n_supporting_views": 6,
+        "dominant_limitation": "interval_not_calibrated",
+        "n_supporting_views": 7,
         "max_ray_separation_deg": 39.92
       },
       "uniform": {
@@ -258,7 +257,7 @@
         "max_ray_separation_deg": 3.04
       },
       "targeted_frames_added": 4,
-      "targeted_wall_s": 8.11
+      "targeted_wall_s": 11.5
     },
     {
       "id": "q005",
@@ -298,7 +297,7 @@
         "max_ray_separation_deg": 10.39
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 11.49
+      "targeted_wall_s": 10.76
     },
     {
       "id": "q006",
@@ -336,7 +335,7 @@
         "max_ray_separation_deg": 12.73
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 12.54
+      "targeted_wall_s": 12.44
     },
     {
       "id": "q007",
@@ -374,7 +373,7 @@
         "max_ray_separation_deg": 11.31
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 8.01
+      "targeted_wall_s": 8.14
     },
     {
       "id": "q008",
@@ -452,7 +451,7 @@
         "max_ray_separation_deg": 16.5
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 12.43
+      "targeted_wall_s": 12.67
     },
     {
       "id": "q010",
@@ -490,7 +489,7 @@
         "max_ray_separation_deg": 11.42
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 11.02
+      "targeted_wall_s": 11.06
     },
     {
       "id": "q011",
@@ -530,7 +529,7 @@
         "max_ray_separation_deg": 17.06
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 11.82
+      "targeted_wall_s": 11.68
     },
     {
       "id": "q012",
@@ -550,10 +549,9 @@
         "sigma": 0.11489109082149401,
         "status": "estimated_only",
         "reasons": [
-          "view_geometry_unverified",
           "interval_not_calibrated"
         ],
-        "dominant_limitation": "view_geometry_unverified",
+        "dominant_limitation": "interval_not_calibrated",
         "n_supporting_views": 5,
         "max_ray_separation_deg": 55.36
       },
@@ -570,7 +568,7 @@
         "max_ray_separation_deg": 3.15
       },
       "targeted_frames_added": 2,
-      "targeted_wall_s": 13.17
+      "targeted_wall_s": 16.63
     },
     {
       "id": "q013",
@@ -586,15 +584,15 @@
         "max_ray_separation_deg": 10.57
       },
       "targeted": {
-        "value": 3.0118211952370646,
-        "sigma": 0.0949181208007379,
+        "value": 4.271682329485411,
+        "sigma": 0.08586984988257927,
         "status": "estimated_only",
         "reasons": [
           "interval_not_calibrated"
         ],
         "dominant_limitation": "interval_not_calibrated",
         "n_supporting_views": 6,
-        "max_ray_separation_deg": 10.57
+        "max_ray_separation_deg": 12.91
       },
       "uniform": {
         "value": 2.7924232112501732,
@@ -608,7 +606,7 @@
         "max_ray_separation_deg": 10.12
       },
       "targeted_frames_added": 2,
-      "targeted_wall_s": 1.76
+      "targeted_wall_s": 4.22
     },
     {
       "id": "q014",
@@ -624,15 +622,15 @@
         "max_ray_separation_deg": 10.71
       },
       "targeted": {
-        "value": 2.987842563486091,
-        "sigma": 0.07384800552123312,
+        "value": 2.936079270547537,
+        "sigma": 0.05369838374030662,
         "status": "estimated_only",
         "reasons": [
           "interval_not_calibrated"
         ],
         "dominant_limitation": "interval_not_calibrated",
-        "n_supporting_views": 4,
-        "max_ray_separation_deg": 10.7
+        "n_supporting_views": 5,
+        "max_ray_separation_deg": 23.57
       },
       "uniform": {
         "value": 3.2510267126343084,
@@ -647,7 +645,7 @@
         "max_ray_separation_deg": 24.81
       },
       "targeted_frames_added": 1,
-      "targeted_wall_s": 7.25
+      "targeted_wall_s": 7.68
     },
     {
       "id": "q015",
@@ -665,14 +663,13 @@
         "max_ray_separation_deg": 7.12
       },
       "targeted": {
-        "value": 3.0084913323003053,
-        "sigma": 0.18068368021900896,
-        "status": "needs_refinement",
+        "value": 3.0997683142188337,
+        "sigma": 0.12771576855390257,
+        "status": "estimated_only",
         "reasons": [
-          "interval_not_calibrated",
-          "interval_exceeds_tolerance"
+          "interval_not_calibrated"
         ],
-        "dominant_limitation": "interval_exceeds_tolerance",
+        "dominant_limitation": "interval_not_calibrated",
         "n_supporting_views": 4,
         "max_ray_separation_deg": 52.42
       },
@@ -689,7 +686,7 @@
         "max_ray_separation_deg": 5.77
       },
       "targeted_frames_added": 1,
-      "targeted_wall_s": 14.82
+      "targeted_wall_s": 14.71
     },
     {
       "id": "q016",
@@ -729,7 +726,7 @@
         "max_ray_separation_deg": 10.82
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 14.49
+      "targeted_wall_s": 14.56
     },
     {
       "id": "q017",
@@ -770,7 +767,7 @@
         "max_ray_separation_deg": 7.35
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 1.94
+      "targeted_wall_s": 1.99
     },
     {
       "id": "q018",
@@ -810,7 +807,7 @@
         "max_ray_separation_deg": 13.64
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 14.74
+      "targeted_wall_s": 14.85
     },
     {
       "id": "q019",
@@ -851,7 +848,7 @@
         "max_ray_separation_deg": 4.0
       },
       "targeted_frames_added": 0,
-      "targeted_wall_s": 14.41
+      "targeted_wall_s": 14.42
     }
   ]
 }

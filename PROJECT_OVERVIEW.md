@@ -145,10 +145,13 @@ and parallax by 3.7× against what the measurements actually provided.
 
 ### Same-pass evidence recovery — **experimental**
 **Status:** the hypothesis behind this feature is **not supported** on the one
-mission where it has been tested. Against a uniform budget spent on a denser
-reconstruction, targeted refinement cleared 2 of 20 measurements' blockers to
-the control's 8, on 55% *more* compute
-([DEC-013](DECISIONS.md), [full results](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md)).
+mission where it has been tested. With the local bundle refit plan section 5.7
+asks for, the targeted arm now ties a uniform budget on answer yield (10 of 20
+measurements blocked only by calibration, both arms) and regresses none against
+the control's five — but takes 1.6× the compute to get there. The gate asks for
+better yield *or* the same yield faster; it delivers neither
+([DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md),
+[full results](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md)).
 It is retained for its observed benefits and must not be described as a proven
 advantage.
 
@@ -166,8 +169,14 @@ supporting views from a median of 2 to 4, parallax from 8.1° to 15.5°. On a
 COLMAP reconstruction it improved 6 of 30 and regressed 2, because the better
 engine leaves fewer measurements short of views to fix.
 
-**What it does not do:** beat spending the same compute on a denser
-reconstruction. See the status note above.
+**On the measurements it can reach** — 5 of 20 in the F4 experiment — it
+improved 4 of 5 intervals, cleared blockers on 2, regressed none, and cut the
+worst measurement's sigma by 47%. The binding constraint is reach, not the
+mechanism: the other 15 could not be touched because the endpoint could not be
+matched into any recovered frame.
+
+**What it does not do:** match the throughput of spending the same compute on a
+denser reconstruction. See the status note above.
 
 ### Dataset tooling
 **What:** inventory of every dataset in the checkout with content digests, LFS
@@ -465,12 +474,13 @@ cd drishti3d
   `estimated_only`. This is deliberate, not a defect ([DEC-003](DECISIONS.md)),
   and since observation lineage landed it is the *only* remaining blocker on
   real data.
-- **Same-pass refinement lost its own gate.** The F4 paired experiment has now
-  been run and the targeted arm lost to a uniform budget on every metric, on
-  more compute. The feature is experimental ([DEC-013](DECISIONS.md)). The most
-  likely cause is that the targeted arm was deliberately denied the local bundle
-  adjustment plan section 5.7 asks for, while the control re-solves everything;
-  the retry is specified in [NEXT_STEPS.md](NEXT_STEPS.md).
+- **Same-pass refinement lost its own gate, twice.** The F4 paired experiment
+  was run, then rerun after building the local bundle refit plan section 5.7
+  asks for. The refit helped substantially — median sigma now moves, regressions
+  went to zero, answer yield ties the control — but the targeted arm still needs
+  1.6× the compute for that yield. The feature stays experimental
+  ([DEC-013](DECISIONS.md), [DEC-014](DECISIONS.md)). The binding constraint is
+  now reach: 5 of 20 questions could be touched at all.
 - **The pipeline still defaults to the slower engine.** Both engines now
   produce measurable reconstructions, but `PipelineParams.engine` defaults to
   `"opencv"`, and on COLMAP 51 of 60 sampled measurements have nothing blocking

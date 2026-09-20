@@ -6,9 +6,12 @@ If you are picking this repository up now, read
 Last updated: 2026-09-19.
 
 **Read this first:** the plan's central innovation hypothesis — that targeted
-same-pass refinement beats a uniform budget — was tested on 2026-09-20 and
-**lost**. The feature is experimental. The top of the backlog is the one change
-most likely to give it a fair rerun.
+same-pass refinement beats a uniform budget — was tested on 2026-09-20, lost,
+rebuilt with the local bundle refit plan section 5.7 asks for, and **lost
+again**: it now ties the control on answer yield with zero regressions against
+the control's five, but needs 1.6× the compute. The feature is experimental. The
+binding constraint has moved from the refit to **reach** — only 5 of 20 questions
+could be touched — and that is the top of the backlog.
 
 **The one-line summary of where the project stands:** reconstruction works on
 real single-pass aerial video and is measured against a real reference; every
@@ -114,55 +117,53 @@ redundant, blurry, or wrongly rejected is **not established**.
 
 ---
 
-### Give the targeted arm a local bundle adjustment, then rerun the F4 gate
+### Make endpoint location succeed more often — the binding constraint on F4
 
 **Status:** TODO
 **Priority:** P1 — the top of the backlog
 
 **Why it matters**
 
-The F4 gate has now been run and **targeted refinement lost**: 2 of 20
-measurements' blockers cleared against the uniform arm's 8, on 55% more compute
-([DEC-013](DECISIONS.md),
-[results](drishti3d/docs/benchmarks/2026-09-20_f4_targeted_vs_uniform/RESULTS.md)).
-The feature is demoted to experimental and no claim that the innovation
-hypothesis holds may be made until this rerun wins.
+The local bundle refit landed and the F4 gate was rerun: the targeted arm now
+ties the control on answer yield and regresses nothing against its five, but
+still needs 1.6× the compute ([DEC-014](DECISIONS.md)). The constraint is no
+longer the refit — it is **reach**. Only 5 of 20 questions had any frame
+recovered, so 15 were untouchable. On the five it reached, four intervals
+improved, two cleared blockers, none regressed, and the worst measurement's
+sigma fell 47%.
 
-The most likely cause is also the most actionable. Plan section 5.7 step 4 asks
-for "local re-match and refit with a connected boundary to the global model".
-What was built adds rays to a *single point in isolation*
-([DEC-010](DECISIONS.md), scope) while the control re-solves every pose and
-point. The uniform arm's 39% median sigma reduction came from its global bundle
-adjustment, not from extra views — median supporting views was 3 in both arms.
-The targeted arm has never had the mechanism that would let it compete.
+If matching succeeded on most attempts rather than a third, the targeted arm
+would act on 15–20 questions instead of 5, and the comparison would have to be
+rerun. This is the single change most likely to change the verdict.
 
 **Current state**
 
-`refinement.RefinementEngine.refine` recovers frames, poses them by PnP, locates
-the endpoint and calls `_triangulate` — a weighted closest-point over the rays,
-with no pose refinement at all. `bundle.py` has the machinery for the refit.
+`_locate` projects the endpoint through the recovered pose to bound a 40 px
+window, then matches an independently detected keypoint in it against the
+endpoint's descriptors from a frame that measured it, with a 0.7 ratio test.
+Across the surveys it failed roughly 250 times per 30 measurements against about
+15 pose failures.
 
 **Recommended implementation**
 
-1. After the batch is recovered, collect the connected neighbourhood: the
-   recovered cameras, the registered cameras that share observations with them,
-   and the points those cameras see.
-2. Run `bundle` over that subproblem with the boundary cameras fixed, then
-   propagate covariance through `uncertainty.point_covariances` on the refined
-   subproblem rather than through the standalone ray intersection.
-3. Keep plan section 5.7 step 5: retaining global uncertainty at the boundary.
-   Fixing neighbouring cameras must not make the interval artificially certain —
-   which is the opposite failure from the one the experiment just found, and
-   easier to fall into once a solver is involved.
-4. Rerun `eval/f4_experiment.py` against the **same** `questions_frozen.json`.
-   Do not regenerate it; a question set chosen after seeing a result is not a
-   test.
-5. Publish the outcome either way.
+In order of expected value per effort:
+
+1. **Affine-normalised patch matching** in the window instead of raw SIFT
+   descriptors. The recovered pose and the local surface normal give the warp,
+   which is exactly the viewpoint change defeating the descriptor.
+2. **Chain through an intermediate frame** rather than jumping straight to one
+   25 frames away: match the recovered frame to a temporal neighbour that
+   already measured the endpoint.
+3. **LightGlue/DISK** for the guided match — `features.create("lightglue")`
+   exists and is markedly more viewpoint-robust than SIFT.
+
+Measure each against the 30-measurement survey; recovery rate is the metric.
+Then rerun `eval/f4_experiment.py` against the **same** `questions_frozen.json`.
 
 **Relevant files**
 
-`reconstruction/drishti_recon/refinement.py` (`_triangulate` and the batch
-loop), `bundle.py`, `uncertainty.py`, `eval/f4_experiment.py`
+`reconstruction/drishti_recon/refinement.py` (`_locate`,
+`_endpoint_descriptors`), `features.py`, `eval/f4_experiment.py`
 
 **Dependencies/blockers**
 
@@ -196,50 +197,6 @@ regime; if it loses in both, it is about the mechanism.
 **Relevant files**
 
 `eval/f4_experiment.py`, `scripts/run_mission.py`, `keyframes.py`
-
----
-
-### Improve endpoint location in recovered frames
-
-**Status:** TODO
-**Priority:** P1
-
-**Why it matters**
-
-It is the binding constraint on refinement, on both engines. Across the two
-surveys, pose recovery failed 22 times (in-repo) and 10 times (COLMAP) while
-endpoint location failed 243 and 253 times. Roughly two thirds of refinement
-attempts recover nothing for this one reason.
-
-**Current state**
-
-`_locate` projects the endpoint through the recovered pose to bound a 40 px
-window, then matches an independently detected keypoint in it against the
-endpoint's descriptors from a frame that measured it, with a 0.7 ratio test.
-Descriptor matching across a changed viewpoint is where it fails — which is
-also why ranking peaks at `MATCHABLE_GAIN_DEG = 25°` rather than at maximum
-parallax.
-
-**Recommended implementation**
-
-Worth trying, in order of expected value per effort:
-
-1. **Affine-normalised patch matching** in the window instead of raw SIFT
-   descriptors. The recovered pose and the local surface normal give the
-   warp, which is exactly the viewpoint change defeating the descriptor.
-2. **Chain through an intermediate frame**: match the recovered frame to a
-   temporal neighbour that already measured the endpoint, rather than jumping
-   straight to a frame 25 frames away.
-3. **LightGlue/DISK** for the guided match — `features.create("lightglue")`
-   already exists and is markedly more viewpoint-robust than SIFT.
-
-Measure each against the same 30-measurement survey; the recovery rate is the
-metric.
-
-**Relevant files**
-
-`reconstruction/drishti_recon/refinement.py` (`_locate`,
-`_endpoint_descriptors`), `features.py`
 
 ---
 
@@ -366,6 +323,39 @@ explicit fallback when PyCOLMAP import fails. Keep both tested either way.
 ---
 
 ## P2 — Improvements
+
+
+### Re-examine the three approximations the local refit rests on
+
+**Status:** TODO
+**Priority:** P2
+
+**Why it matters**
+
+[DEC-014](DECISIONS.md) introduced three mechanisms with named failure modes,
+none validated against truth because this mission has none:
+
+- The **Sim(3) re-anchor** that gauge-fixes the subproblem, instead of a
+  fixed-camera mask in `bundle_adjust`. Measured drift is 0.054 m at scale
+  0.9993, so it is behaving — but it is a workaround for a solver limitation.
+- The **quadrature combination** of the refit's sigma with the neighbourhood's.
+  It prevents the refit reporting 0.006 m on a point the model knows to 0.036 m,
+  but it assumes the two terms are independent, and they are not entirely.
+- The **coverage exemption** for a refined endpoint. This loosens a safety gate
+  on the argument that frames demonstrably measured the point. It is the change
+  most worth re-examining if refined measurements later prove unreliable.
+
+**Recommended implementation**
+
+The first is the only one with a clean fix: add a `fixed_cameras` mask to
+`bundle.bundle_adjust` and drop the re-anchor. The other two need reference
+dimensions to validate, so they wait on field data.
+
+**Relevant files**
+
+`reconstruction/drishti_recon/bundle.py`, `refinement.py` (`_local_bundle`)
+
+---
 
 ### Measurement passport and offline verifier
 
