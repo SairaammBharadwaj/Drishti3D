@@ -214,8 +214,10 @@ class RefinementRun:
             "wall_seconds": round(self.wall_seconds, 2),
             "notes": self.notes,
             "improved": self.improved,
+            "status_regressed": self.status_regressed,
             "interval_narrowed": self.interval_narrowed,
             "reasons_cleared": self.reasons_cleared,
+            "reasons_added": self.reasons_added,
             "value_change_m": (None if self.value_change_m is None
                                else round(self.value_change_m, 4)),
         }
@@ -226,12 +228,42 @@ class RefinementRun:
         return (b is not None and a is not None and np.isfinite(b)
                 and np.isfinite(a) and a < b)
 
+    #: Verdicts ordered worst to best. A refinement that moves a measurement
+    #: down this ladder has made it worse, however its reason list changed.
+    _STATUS_ORDER = ["not_observable", "needs_refinement", "estimated_only",
+                     "meets_requirement"]
+
     @property
     def reasons_cleared(self) -> list:
-        """Blocking reasons the recovered evidence removed."""
+        """Blocking reasons present before and absent after.
+
+        A literal set difference, and on its own it is *not* evidence of
+        improvement: a verdict that degrades to ``not_observable`` returns only
+        its hard-refusal reasons, so every soft reason vanishes from the list.
+        Measured on the AGZ mission, two runs in thirty cleared reasons that way
+        while making the measurement unusable. :attr:`improved` therefore checks
+        :attr:`status_regressed` as well.
+        """
         before = set(self.before.get("reasons") or [])
         after = set(self.after.get("reasons") or [])
         return sorted(before - after)
+
+    @property
+    def reasons_added(self) -> list:
+        """Reasons the refinement introduced."""
+        before = set(self.before.get("reasons") or [])
+        after = set(self.after.get("reasons") or [])
+        return sorted(after - before)
+
+    @property
+    def status_regressed(self) -> bool:
+        """Did the verdict move down the ladder?"""
+        try:
+            b = self._STATUS_ORDER.index(self.before.get("status", ""))
+            a = self._STATUS_ORDER.index(self.after.get("status", ""))
+        except ValueError:
+            return False
+        return a < b
 
     @property
     def value_change_m(self) -> float | None:
@@ -252,7 +284,16 @@ class RefinementRun:
         interval width alone would have called that a failure, and judging it
         on width alone in the other direction is how a narrower interval gets
         mistaken for a better answer.
+
+        Equally deliberately, a run whose verdict regressed is never an
+        improvement, whatever happened to its reason list or its interval. A
+        refined endpoint can land outside established coverage, and the verdict
+        then drops to ``not_observable`` carrying only hard-refusal reasons --
+        which reads as a clean sweep of the soft ones unless the status is
+        checked too.
         """
+        if self.status_regressed:
+            return False
         return bool(self.reasons_cleared) or self.interval_narrowed
 
 

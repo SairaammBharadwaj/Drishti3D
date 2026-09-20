@@ -919,3 +919,106 @@ property that makes its numbers worth anything.
 
 `drishti3d/reconstruction/drishti_recon/colmap_adapter.py`,
 `uncertainty.py` (`point_covariances`), `pipeline.py` fusion stage
+
+---
+
+## DEC-012 — A refinement that degrades the verdict is never counted as an improvement
+
+**Date:** 2026-09-20
+
+**Status:** Accepted
+
+### Context
+
+Wiring per-point uncertainty into the COLMAP path (the remedy DEC-011 chose)
+made COLMAP reconstructions measurable, so the refinement survey could be run on
+a second engine for the first time. It reported 8 improvements in 30 — and two
+of them were measurements that had become **unusable**.
+
+The cause is in `questions.evaluate`: a hard refusal returns early carrying only
+its hard-refusal reasons. A measurement that drops to `not_observable` therefore
+sheds every soft reason it had, and a set difference over the reason lists reads
+that as a clean sweep:
+
+```
+needs_refinement -> not_observable
+  cleared: ["interval_exceeds_tolerance", "interval_not_calibrated"]
+  interval_narrowed: true
+```
+
+Both statements are literally true. The measurement is worse.
+
+It happens for a real reason, not a spurious one: a re-triangulated endpoint can
+land outside established coverage, and the coverage gate then correctly refuses
+it. Refinement genuinely can make a measurement unusable, and that has to be
+visible.
+
+### Options Considered
+
+#### Suppress cleared reasons when the status regresses
+
+Advantages: `reasons_cleared` then only ever means good news.
+
+Disadvantages: hides that the reasons really did change, and the *why* — which
+reason list a regressed run ended with — is exactly what diagnosing it needs.
+
+#### Report the literal set difference, and gate `improved` on the status
+
+Keep `reasons_cleared` as what it says. Add `reasons_added` and
+`status_regressed`. Define `improved` as: no regression, **and** (a reason
+cleared or the interval narrowed).
+
+Advantages: every fact stays reportable, and the summary verdict cannot be
+gamed by a degradation.
+
+Disadvantages: three fields where a reader might want one.
+
+### Decision
+
+The second. `RefinementRun` exposes `reasons_cleared`, `reasons_added`,
+`interval_narrowed`, `status_regressed` and `value_change_m` separately, with
+`improved` derived from all of them. Verdicts are ordered
+`not_observable < needs_refinement < estimated_only < meets_requirement`; an
+unrecognised status is not treated as a regression.
+
+### Why
+
+This is the third time on this feature that the obvious summary metric has been
+wrong in the flattering direction — first "the interval got narrower"
+([DEC-010](#dec-010--same-pass-refinement-recovers-frames-by-pnp-against-the-existing-model-and-is-judged-on-what-it-unblocks)),
+now "a reason went away". Both would have overstated what refinement achieves.
+A feature whose whole claim is that it recovers evidence has to be measured by
+something that cannot improve when the answer gets worse.
+
+### Consequences
+
+- The COLMAP survey's reported improvements fall from 8 to **6 of 30**, with
+  **2 of 30 regressing** to `not_observable`. The in-repo engine's survey was
+  re-run under the corrected metric and is unchanged at 10 of 30 with no
+  regressions, so the two are comparable.
+- Regression is a real outcome of refinement, now visible per run rather than
+  counted as success.
+- **DEC-011's remedy is implemented and measured.** COLMAP reconstructions now
+  carry per-point uncertainty, estimated with the same MAD-based `sigma_px` the
+  in-repo engine uses so an engine comparison is not also a comparison of two
+  noise models. Measured over 60 in-coverage measurements per engine:
+
+  | | COLMAP | in-repo |
+  |---|---:|---:|
+  | Median measurement sigma | 0.0638 m | 0.0687 m |
+  | Blocked only by calibration | **51 / 60** | 10 / 60 |
+  | Blocked by `insufficient_views` | 4 / 60 | 50 / 60 |
+
+  COLMAP's longer mean track length (3.91 vs 2.78 observations per point) is
+  what does this: far more measurements clear the three-view floor. Which also
+  means **refinement has much less to fix on COLMAP** — 6 improvements in 30
+  against 10, because fewer measurements had `insufficient_views` to clear.
+  Fixing the engine reduced the need for the feature built to work around it.
+- The pipeline default is still the in-repo engine. Changing it remains a
+  separate task needing more than one mission.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/refinement.py` (`RefinementRun`),
+`colmap_adapter.py` (`_point_uncertainty`),
+`drishti3d/tests/test_refinement.py`, `drishti3d/tests/test_colmap_uncertainty.py`

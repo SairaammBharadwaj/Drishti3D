@@ -8,60 +8,19 @@ Last updated: 2026-09-19.
 **The one-line summary of where the project stands:** reconstruction works on
 real single-pass aerial video and is measured against a real reference; every
 measurement can name the frames and pixels that produced it, and can spend a
-bounded budget recovering more from the same pass. Nothing can be *accepted*
-yet, because there is no validated interval calibration — that needs field
-data, not code. Two gaps are code, though: the COLMAP path ships no per-point
-uncertainty, and the refinement hypothesis has not been tested against a
-uniform-budget control.
+bounded budget recovering more from the same pass. Both engines now produce
+measurable reconstructions, and on COLMAP **51 of 60 sampled measurements have
+nothing blocking them but calibration**. That calibration is the one thing left
+between this system and an accepted measurement, and it needs field data, not
+code.
 
 ---
 
 ## P0 — Critical
 
-### Wire per-point uncertainty into the COLMAP path
-
-**Status:** TODO
-**Priority:** P0
-
-**Why it matters**
-
-The faster, more accurate engine ([DEC-008](DECISIONS.md)) produces
-reconstructions on which **no measurement can be reported at all**.
-`cloud.npz` from a COLMAP run has no `sigma` or `sigma_major`, so every endpoint
-snaps to an infinite sigma and `questions.evaluate` returns `not_observable`
-with `uncertainty_undefined`. Every measurement and refinement result recorded
-so far had to use the in-repo engine instead. See
-[DEC-011](DECISIONS.md#dec-011--the-colmap-path-ships-no-per-point-uncertainty-so-its-measurements-cannot-be-reported).
-
-**Current state**
-
-`colmap_adapter.reconstruct_frames` leaves `ReconResult.point_cov`,
-`point_sigma` and `point_sigma_major` as `None`. Only the in-repo engine runs
-the `uncertainty.point_covariances` pass.
-
-**Recommended implementation**
-
-`uncertainty.point_covariances(points, cam_idx, pt_idx, uv, rvecs, tvecs, K)`
-needs observations, poses and intrinsics — all of which the COLMAP adapter now
-has, since observation lineage landed. Feed `obs_point`, `obs_frame` and
-`obs_uv` straight in. This is wiring, not new mathematics.
-
-Do **not** substitute a default sigma as a stopgap: a made-up interval flows
-directly into acceptance once calibration exists, which is exactly what
-[DEC-003](DECISIONS.md) exists to prevent.
-
-Afterwards, check whether COLMAP's longer mean track length (3.91 vs 2.78
-observations per point) gives it better per-point uncertainty than the engine
-currently in use, and re-run the measurement and refinement surveys on it.
-
-**Relevant files**
-
-`reconstruction/drishti_recon/colmap_adapter.py`, `uncertainty.py`,
-`pipeline.py` fusion stage
-
-**Dependencies/blockers**
-
-None.
+Nothing. Per-point uncertainty on the COLMAP path, the previous P0, landed on
+2026-09-20 — see [DEC-012](DECISIONS.md) and the
+[WORKLOG entry](WORKLOG.md). The top of the backlog is now P1.
 
 ---
 
@@ -189,7 +148,11 @@ reason, median 13.7 s each.
 
 **Dependencies/blockers**
 
-None. This is the highest-value experiment left in the plan.
+None. This is the highest-value experiment left in the plan, and the COLMAP
+survey sharpened why: refinement improved 6 of 30 measurements there against 10
+of 30 on the in-repo engine, because the better engine left fewer measurements
+short of views to begin with. What the targeted arm is worth depends entirely
+on what it is measured against.
 
 ---
 
@@ -200,9 +163,10 @@ None. This is the highest-value experiment left in the plan.
 
 **Why it matters**
 
-It is the binding constraint on refinement. Across the survey, pose recovery
-succeeded 92% of the time (22 failures) while endpoint location failed 243
-times. Two thirds of refinement attempts recover nothing for this one reason.
+It is the binding constraint on refinement, on both engines. Across the two
+surveys, pose recovery failed 22 times (in-repo) and 10 times (COLMAP) while
+endpoint location failed 243 and 253 times. Roughly two thirds of refinement
+attempts recover nothing for this one reason.
 
 **Current state**
 
@@ -324,14 +288,19 @@ shell access.
 ### Decide whether COLMAP becomes the pipeline default
 
 **Status:** TODO
-**Priority:** P1
+**Priority:** P1 — stronger now than when first raised
 
 **Why it matters**
 
 [DEC-008](DECISIONS.md#dec-008--colmap-is-the-reconstruction-engine-to-develop-against)
-made COLMAP the engine to develop against on measured grounds, but
+made COLMAP the engine to develop against on reconstruction grounds, but
 `PipelineParams.engine` still defaults to `"opencv"`, so the backend and every
-default run use the slower, less accurate path.
+default run use the slower path.
+
+Since per-point uncertainty landed, the case is no longer only about geometry:
+on COLMAP, 51 of 60 sampled measurements have nothing blocking them but
+calibration, against 10 of 60 on the in-repo engine. The engine choice now
+decides whether measurements are usable at all.
 
 **Current state**
 
@@ -340,9 +309,11 @@ Measured on one mission. One scene is not enough to flip a default.
 **Recommended implementation**
 
 Run both engines on `agz_pass` and `agz_seg2` as well, plus the synthetic
-regimes in `eval/cases.py` to check nothing regresses there. If COLMAP holds,
-change the default and make the OpenCV engine an explicit fallback when
-PyCOLMAP import fails. Keep both tested either way.
+regimes in `eval/cases.py` to check nothing regresses there. Report the
+measurement-standing split (how many measurements are blocked only by
+calibration) alongside the position errors, since that is what the engine now
+determines. If COLMAP holds, change the default and make the OpenCV engine an
+explicit fallback when PyCOLMAP import fails. Keep both tested either way.
 
 **Relevant files**
 

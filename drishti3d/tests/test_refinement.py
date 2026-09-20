@@ -347,3 +347,45 @@ def test_a_wider_interval_with_nothing_cleared_is_not_an_improvement():
     assert run.improved is False
     assert run.interval_narrowed is False
     assert run.to_dict()["value_change_m"] == pytest.approx(0.1)
+
+
+def test_a_verdict_that_regressed_is_never_an_improvement():
+    """Reasons vanish when a verdict drops to not_observable.
+
+    The hard-refusal path returns only its own reasons, so every soft reason
+    disappears from the list. Measured on the AGZ mission, two runs in thirty
+    "cleared" reasons this way while making the measurement unusable.
+    """
+    run = rf.RefinementRun(question_kind="distance", tolerance_m=0.3,
+                           budget_frames=4)
+    run.before = {"value": 3.0, "sigma": 0.5, "status": "needs_refinement",
+                  "reasons": ["interval_exceeds_tolerance",
+                              "interval_not_calibrated"]}
+    run.after = {"value": 3.1, "sigma": 0.4, "status": "not_observable",
+                 "reasons": ["outside_established_coverage"]}
+    assert run.reasons_cleared == ["interval_exceeds_tolerance",
+                                   "interval_not_calibrated"]
+    assert run.reasons_added == ["outside_established_coverage"]
+    assert run.status_regressed is True
+    assert run.interval_narrowed is True
+    assert run.improved is False, "a narrower interval on an unusable answer"
+
+
+def test_a_verdict_that_improved_still_counts():
+    run = rf.RefinementRun(question_kind="distance", tolerance_m=0.3,
+                           budget_frames=4)
+    run.before = {"value": 3.0, "sigma": 0.2, "status": "needs_refinement",
+                  "reasons": ["interval_exceeds_tolerance"]}
+    run.after = {"value": 3.0, "sigma": 0.1, "status": "estimated_only",
+                 "reasons": ["interval_not_calibrated"]}
+    assert run.status_regressed is False
+    assert run.improved is True
+
+
+def test_an_unknown_status_does_not_silently_read_as_a_regression():
+    run = rf.RefinementRun(question_kind="distance", tolerance_m=0.3,
+                           budget_frames=4)
+    run.before = {"value": 3.0, "sigma": 0.2, "reasons": []}
+    run.after = {"value": 3.0, "sigma": 0.1, "reasons": []}
+    assert run.status_regressed is False
+    assert run.improved is True

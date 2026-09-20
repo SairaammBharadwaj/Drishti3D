@@ -72,9 +72,12 @@ keyframes → masking → SfM → densify → georegistration → fusion → mes
 COLMAP via PyCOLMAP (`colmap_adapter.py`), selectable per run with
 `PipelineParams.engine`.
 **Measured 2026-09-19** on the real AGZ single-pass mission: COLMAP is 3.5×
-faster and roughly 2× more accurate in shape. See
+faster and roughly 2× more accurate in shape. Its longer tracks also leave far
+more measurements usable — 51 of 60 blocked only by calibration, against 10 of
+60. See
 [TESTS_AND_RESULTS.md](TESTS_AND_RESULTS.md#agz-single-pass-engine-comparison).
-The OpenCV engine remains the always-available CPU fallback.
+The OpenCV engine remains the always-available CPU fallback and is still the
+pipeline default.
 
 ### Telemetry-aware georeferencing with degeneracy checks
 **What:** robust covariance-weighted Sim(3) alignment of reconstructed camera
@@ -93,9 +96,14 @@ observed geometry by default and flag anything else.
 
 ### Propagated measurement uncertainty
 **What:** per-point covariance from the reconstruction, propagated into distance,
-height and area measurements including the metric-scale term.
+height and area measurements including the metric-scale term. Both SfM engines
+produce it, using the same MAD-based pixel-noise estimator so an engine
+comparison is not also a comparison of two noise models.
 **Where:** `uncertainty.py` (`point_covariances`, `distance_uncertainty`,
-`height_uncertainty`, `area_uncertainty`, `calibrate`), `measure.py`.
+`height_uncertainty`, `area_uncertainty`, `calibrate`), `measure.py`,
+`colmap_adapter._point_uncertainty`.
+**Measured on the AGZ mission:** median measurement sigma 0.064 m (COLMAP),
+0.069 m (in-repo).
 
 ### Coverage field with a positive free-space rule
 **What:** a voxel field classifying the mission volume as observed / weak /
@@ -145,10 +153,12 @@ whether or not they helped.
 **Where:** `refinement.py` (`RefinementEngine`, `RefinementRun`),
 `POST /api/projects/{id}/questions/{qid}/refine`, `models.RefinementRun`.
 **Measured on the AGZ mission** (30 weak measurements, 4-frame budget, median
-12.8 s each): 10 of 30 recovered at least one frame, and all 10 cleared a
-blocking reason; supporting views went from a median of 2 to 4 and parallax
-from 8.1° to 15.5°. The other 20 recovered nothing, almost always because the
-endpoint could not be matched into the recovered frame.
+12.8 s each): 10 of 30 recovered at least one frame, and all 10 improved;
+supporting views went from a median of 2 to 4 and parallax from 8.1° to 15.5°.
+The other 20 recovered nothing, almost always because the endpoint could not be
+matched into the recovered frame. Repeated on a COLMAP reconstruction it
+improved only 6 of 30 and regressed 2 — the better engine leaves fewer
+measurements short of views for refinement to fix.
 
 ### Dataset tooling
 **What:** inventory of every dataset in the checkout with content digests, LFS
@@ -449,10 +459,11 @@ cd drishti3d
   experiment the plan's F4 gate asks for — targeted versus uniform refinement at
   equal added compute — has not been run. The hypothesis is supported, not
   tested.
-- **COLMAP reconstructions carry no per-point uncertainty**, so every
-  measurement on one returns `not_observable`. The faster, more accurate engine
-  is not yet usable for measurement ([DEC-011](DECISIONS.md)); measurement work
-  runs on the in-repo engine.
+- **The pipeline still defaults to the slower engine.** Both engines now
+  produce measurable reconstructions, but `PipelineParams.engine` defaults to
+  `"opencv"`, and on COLMAP 51 of 60 sampled measurements have nothing blocking
+  them but calibration, against 10 of 60 on the in-repo engine. Changing the
+  default needs more than one mission.
 - **No measurement passport or verifier** (plan F3).
 - **No Tolerance Lens UI.** The backend gate exists; the frontend does not
   render it yet.

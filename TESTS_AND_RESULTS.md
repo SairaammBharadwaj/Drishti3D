@@ -22,9 +22,10 @@ Command: `cd drishti3d && .venv/bin/python -m pytest tests/ -q`
 | Before 2026-09-19 | 223 passed | 111 s |
 | After the measurement gate | 264 passed | 140 s |
 | After observation lineage | 277 passed | 112 s |
-| After same-pass refinement | **301 passed, 0 failed** | 191 s |
+| After same-pass refinement | 301 passed | 191 s |
+| After COLMAP uncertainty | **312 passed, 0 failed** | 199 s |
 
-78 tests were added. No test was removed, skipped or weakened.
+89 tests were added. No test was removed, skipped or weakened.
 
 ### New test files
 
@@ -322,6 +323,34 @@ gate asks for targeted versus uniform refinement at *equal added compute*; this
 is an outcome survey of the targeted arm alone. The hypothesis is supported and
 untested. The survey reproduced exactly on a second run.
 
+#### The same survey on a COLMAP reconstruction
+
+Repeated on `agz_dense_pass__colmap_unc` once the COLMAP path carried
+uncertainty. Both columns use the corrected improvement metric of
+[DEC-012](DECISIONS.md); the in-repo survey was re-run under it and is
+unchanged.
+
+| | in-repo | COLMAP |
+|---|---:|---:|
+| Recovered at least one frame | 10 / 30 | 11 / 30 |
+| **Improved** | **10 / 30** | **6 / 30** |
+| Regressed to `not_observable` | 0 | **2** |
+| Supporting views (median) | 2 → 4 | 3 → 5 |
+| Measured parallax (median) | 8.1° → 15.5° | 10.0° → 16.3° |
+| Median wall clock | 12.9 s | 13.0 s |
+| `endpoint_not_located_in_image` | 243 | 253 |
+| `pose_recovery_failed` | 22 | 10 |
+
+**Result: PASS, and it cuts against the feature.** Refinement helps *less* on
+the better engine — 6 improvements against 10 — because COLMAP's longer tracks
+mean fewer measurements had `insufficient_views` to clear in the first place.
+Fixing the engine's uncertainty reduced the need for the feature built to work
+around the gap. Both regressions came from a re-triangulated endpoint landing
+outside established coverage, which the coverage gate correctly refused.
+
+This strengthens the case for running the plan's actual F4 gate: the targeted
+arm's value depends heavily on what it is compared against.
+
 #### Worked example
 
 A 3.01 m span whose near endpoint had 2 supporting views and 5.99° of parallax.
@@ -360,20 +389,53 @@ substituted into the interval.
 **Result: PASS.** The agreement between an independently recovered pose and the
 interpolated guess is a check that neither is wildly wrong.
 
-### COLMAP reconstructions carry no per-point uncertainty
+### COLMAP per-point uncertainty (was a FAIL, now fixed)
 
-| Engine | `cloud.npz` contents |
-|---|---|
-| In-repo (OpenCV) | points, colors, confidence, provenance, **sigma, sigma_major** (19,080 finite, median 0.037 m) |
-| COLMAP | points, colors, confidence, provenance |
+Until 2026-09-20, `cloud.npz` from a COLMAP run carried no `sigma` or
+`sigma_major`, so every endpoint snapped to an infinite sigma and returned
+`not_observable` with `uncertainty_undefined`. `colmap_adapter` now runs the
+same covariance pass the in-repo engine uses.
 
-`colmap_adapter` never populates `ReconResult.point_sigma`, so every endpoint on
-a COLMAP reconstruction snaps to an infinite sigma and returns `not_observable`
-with `uncertainty_undefined`.
+| Engine | `sigma_px` estimated | Points with covariance | `sigma_major` median | p90 |
+|---|---:|---:|---:|---:|
+| COLMAP | 0.486 px | 22,649 | 0.0364 m | 0.1367 m |
+| In-repo (OpenCV) | — | 19,080 | 0.0370 m | — |
 
-**Result: FAIL** — the faster, more accurate engine cannot currently be measured
-on. Recorded as [DEC-011](DECISIONS.md); P1 in `NEXT_STEPS.md`. Every
-measurement and refinement result above therefore used the in-repo engine.
+`sigma_px` comes from each reconstruction's own reprojection residuals via a
+normalised MAD floored at 0.05 px — the same estimator on both engines, so an
+engine comparison is not also a comparison of two noise models.
+
+**Measurement outcomes**, 60 in-coverage distance measurements per engine,
+±0.30 m tolerance:
+
+| | COLMAP | in-repo |
+|---|---:|---:|
+| Median measurement sigma | **0.0638 m** | 0.0687 m |
+| Dominant limitation `interval_not_calibrated` (only calibration left) | **51 / 60** | 10 / 60 |
+| Dominant limitation `insufficient_views` | 4 / 60 | 50 / 60 |
+| Dominant limitation `degenerate_view_geometry` | 1 / 60 | 0 / 60 |
+| `needs_refinement` | 5 / 60 | 5 / 60 |
+
+**Result: PASS.** COLMAP's longer mean track length (3.91 vs 2.78 observations
+per point) means far more measurements clear the three-view floor: 51 of 60 have
+nothing but the calibration blocker left, against 10 of 60 on the in-repo engine.
+Reconstruction quality is unaffected (94.7 s wall, 3.764 m median
+as-georeferenced — matching the earlier runs).
+
+#### The unit tests that pin it — `tests/test_colmap_uncertainty.py`, 8 tests, all PASS
+
+Run against synthetic geometry, so they do not require PyCOLMAP.
+
+| Test | Asserts | Result |
+|---|---|---|
+| `test_a_well_observed_point_gets_a_finite_sigma` | Five arc cameras give every point a finite, positive, observable sigma | PASS |
+| `test_sigma_major_is_the_worst_axis_not_the_best` | The reported axis is the worst-constrained one | PASS |
+| `test_a_narrow_arc_is_more_uncertain_than_a_wide_one` | Five cameras at 0.02 rad are >5× more uncertain than five at 1.2 rad — parallax, not view count | PASS |
+| `test_a_point_with_one_observation_is_not_observable` | In a mixed cloud, the single-observation point gets infinity while the others keep finite sigmas | PASS |
+| `test_observations_are_matched_to_cameras_by_frame_index` | Cameras numbered 0,7,14,21,28 give identical uncertainty to the same geometry numbered 0..4 | PASS |
+| `test_observations_of_unregistered_frames_are_dropped_not_misindexed` | A frame with no camera is skipped, not allowed to select the wrong pose | PASS |
+| `test_empty_inputs_report_why_rather_than_raising_or_going_silent` | A failure returns a reason string, not a bare `None` | PASS |
+| `test_sigma_px_is_estimated_from_this_reconstruction_not_assumed` | Exact projections floor at 0.05 px; 2 px of injected noise raises it >5× | PASS |
 
 ### Which blocker remains
 
