@@ -2006,3 +2006,45 @@ scale, sparse and dense side by side.
 The honest remaining gap is unchanged and now nearly alone: interval
 calibration needs measured reference dimensions, and no dataset in this
 checkout has them.
+
+## 2026-09-21 — the Lens was empty because nothing had ever asked it a question
+
+The workspace showed "Tolerance Lens 1" for a reconstruction whose entire claim
+is that it can now be measured. Not a UI fault: `ToleranceLens` loads saved
+questions on mount and the frontend typechecks clean. The database held one
+question per project, because every measurement comparison in the benchmark
+record was computed offline against `drishti_recon` and never went through the
+app. The evidence for dense lineage existed only in RESULTS.md.
+
+Two smaller things were in the way first. Both servers had exited with the shell
+that started them, so nothing was listening at all; the frontend is launched
+with `setsid` now. And the URL in the record, `127.0.0.1:5173`, never had a
+listener even when Vite was up: Vite defaults to host `localhost`, Node 17+
+resolves that to IPv6 first, so it bound `[::1]:5173` only. Bound explicitly to
+`127.0.0.1` now — both spellings answer.
+
+`scripts/seed_questions.py` samples point pairs from a project's own cloud --
+endpoints with at least two observations, inside coverage -- across three
+baseline bands (2-6 m at 50 mm tolerance, 6-18 m at 150 mm, 18-60 m at 500 mm)
+and asks each through the HTTP API. Nothing in it computes a measurement; the
+results are the app's own, by the code path an operator's clicks take.
+
+24 questions into each of the dense and sparse AGZ projects, same flight:
+
+                          sparse    dense
+  median sigma            0.2480   0.1843 m
+  median supporting views      3        4
+  median parallax          15.0°    25.8°
+  insufficient_views           4        0
+  view_support_basis      triangulated_observations, 25/25 both
+
+The dense advantage holds on questions chosen by a script that knows nothing
+about which cloud it is sampling, which is the first time that comparison has
+been made anywhere but my own analysis.
+
+Every question on both projects carries `interval_not_calibrated`. That is the
+designed refusal, not a defect (DEC-002), and it is now the visible state of the
+system rather than a line in a document: 2 of 25 dense questions reach
+`estimated_only`, the rest are held at `needs_refinement`, and none can reach
+`meets_requirement` until a calibration profile is fitted against independently
+measured dimensions. 335 tests pass.

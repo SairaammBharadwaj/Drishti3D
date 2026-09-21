@@ -46,6 +46,35 @@ calibration work it shares a site visit with.
 ## P1 — Important
 
 
+### Seed questions on the remaining missions
+
+**Status:** READY — `scripts/seed_questions.py`
+**Priority:** P1
+
+**Why it matters**
+
+Until now every measurement comparison lived in the benchmark record, computed
+offline against `drishti_recon`. The app itself held one question per project,
+so the workspace understated the pipeline: a reconstruction whose claim is that
+it can be measured showed an empty Tolerance Lens.
+
+`scripts/seed_questions.py` asks a project real questions through the HTTP API
+across three baseline bands. It is run on the dense and sparse AGZ projects; the
+dense advantage reproduced on script-chosen geometry (median sigma 0.184 m vs
+0.248 m, 4 views vs 3, 25.8 deg parallax vs 15.0, zero `insufficient_views`
+against four).
+
+**Recommended implementation**
+
+Import the remaining telemetry-bearing missions (`agz_dense_firsthalf`,
+`agz_dense_secondhalf`, `agz_sparse_pass`, `agz_segment_two`) and seed each.
+Dense reconstruction is ~21 min of GPU time per mission; seeding is seconds.
+
+**Relevant files**
+
+`scripts/seed_questions.py`, `scripts/import_run_as_project.py`
+
+
 ### Validate dense uncertainty against measured dimensions
 
 **Status:** BLOCKED — needs field data

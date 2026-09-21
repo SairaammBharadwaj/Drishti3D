@@ -759,3 +759,31 @@ source. A ±20 cm tolerance is unreachable beyond about 9 m from this capture.
 This is a correctly reported property of a 9.4 m `eph` receiver, not a defect —
 but it means the AGZ mission cannot demonstrate a tight-tolerance acceptance
 even once calibration exists.
+
+## 2026-09-21 — Questions asked through the app (seeded)
+
+24 distance questions per project via `scripts/seed_questions.py`, asked over
+the HTTP API so the results are the application's own, not library calls.
+Endpoints sampled from each project's own cloud: at least two observations,
+inside coverage, across three baseline bands. Seed 7.
+
+| 25 answered questions | Sparse AGZ | Dense AGZ |
+|---|---:|---:|
+| median sigma | 0.2480 m | 0.1843 m |
+| median supporting views | 3 | 4 |
+| median parallax | 15.0° | 25.8° |
+| `insufficient_views` | 4 | 0 |
+| `view_support_basis` | triangulated_observations 25/25 | triangulated_observations 25/25 |
+| `estimated_only` | 1 | 2 |
+| `needs_refinement` | 24 | 23 |
+| `meets_requirement` | 0 | 0 |
+
+Every question on both projects carries `interval_not_calibrated`, so none can
+reach `meets_requirement`. This is the designed refusal (DEC-002), not a test
+failure.
+
+**NOT TESTED:** whether these intervals cover the true dimensions. No
+independently measured reference dimension exists for this flight, which is
+exactly what `interval_not_calibrated` is reporting.
+
+Suite: 335 passed.
