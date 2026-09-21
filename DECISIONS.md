@@ -1778,3 +1778,104 @@ claim to know more than the thing it was derived from.
 `DENSE_PIXEL_SIGMA`, `MAX_INDEPENDENT_VIEWS`), `pipeline.py` densify stage,
 `drishti3d/tests/test_mvs.py`,
 `drishti3d/docs/benchmarks/2026-09-21_dense_mvs/RESULTS.md`
+
+---
+
+## DEC-020 — Dense points carry observation lineage, attributed spatially
+
+**Date:** 2026-09-21
+
+**Status:** Accepted
+
+### Context
+
+[DEC-019](#dec-019--a-dense-points-uncertainty-is-floored-by-the-model-it-rides-on)
+got dense multi-view stereo producing 252,000 observed points with a defensible
+uncertainty. Measuring on it then showed the cloud was *worse* than the sparse
+one in the only sense that matters: on a 60-measurement sample the dense
+intervals were narrower and **all 60 measurements were refused**, dominant
+limitation `view_geometry_unverified`.
+
+The cause is structural, not a bug. `observations.npz` held only sparse SfM
+tracks, so a dense point had no record of which images produced it, and
+`evidence.for_points` fell back to the frustum basis — which
+[DEC-006](#dec-006--view-support-is-stamped-with-its-basis-and-a-frustum-derived-basis-cannot-license-acceptance)
+made a blocking reason precisely so that an unverified support count could never
+license acceptance.
+
+### Options Considered
+
+#### Exempt dense points from the lineage requirement
+
+They are observed geometry, so arguably the basis stamp is unnecessary for them.
+
+Rejected: "observed" is a provenance class, not evidence of *which* images
+observed a given point. The whole purpose of DEC-006's stamp is that a support
+count must be traceable, and carving out an exemption for the class that happens
+to be failing is how that guarantee stops meaning anything.
+
+#### Record the tracks fusion already computes
+
+`stereo_fusion` writes a `fused.ply.vis` sidecar listing, per fused point, the
+images it was fused from. That is a dense point's track: the same object as a
+sparse point's, arrived at photometrically rather than by feature matching. The
+first implementation read that file and kept only the count.
+
+### Decision
+
+Keep the image lists, translate them to frame indices once in `mvs.py`, and
+build observation rows for the points that survive fusion — matching each
+survivor to its dense input **spatially**, within one voxel diagonal, rather
+than through `source_index`.
+
+The pixel comes from projecting the point into each contributing camera. That is
+exact rather than circular here: fusion builds the point *from* those cameras'
+depth-map pixels, so the projection recovers the measurement instead of assuming
+it.
+
+### Why
+
+Spatially, because `source_index` is a nearest-point mapping on the Open3D
+fusion path rather than a bijection (noted in
+[DEC-009](#dec-009--observation-lineage-is-carried-as-a-separate-artifact-and-a-merged-away-point-donates-nothing)
+as acceptable for sigma and confidence). At 1.39 M dense inputs it attributed
+tracks correctly for only 21.5% of survivors. A survivor is a voxel
+representative of the dense points around it, so the nearest dense input is the
+right attribution — the same approximation Open3D already makes for confidence.
+
+Built after fusion for survivors only: 1.39 M points at five views each is seven
+million rows, of which voxel downsampling keeps a fifth.
+
+### Consequences
+
+- **All 251,785 points carry a track** — 1,331,016 observations, median 5 per
+  point, and 99.9% of them reproject inside the image that claims them.
+- Measurement outcomes on the dense cloud, against the sparse one, 60 in-coverage
+  distance measurements each:
+
+  | | Sparse | Dense |
+  |---|---:|---:|
+  | Median sigma | 0.0647 m | **0.0619 m** |
+  | Median supporting views | 3 | **4** |
+  | Median measured parallax | 16.6° | **27.9°** |
+  | Blocked by `insufficient_views` | 12 | **1** |
+  | **Blocked only by calibration** | 40 / 60 | **59 / 60** |
+
+- **Three of my own errors surfaced on the way, each producing a plausible wrong
+  answer.** A validation using the wrong camera model (PINHOLE's `fx, fy, cx, cy`
+  read as `f, cx, cy`) reported 59% and sent me hunting a non-existent ordering
+  bug; the real figure was 99.9%. `source_index` used as a bijection gave 21.5%.
+  ENU points projected through reconstruction-frame cameras gave 17%, the
+  cheirality test discarding the rest in silence. None of the three raised an
+  exception.
+- The keyframe-versus-decoded frame index distinction had to be handled
+  explicitly for the third time (DEC-009, DEC-015). It is now worth treating as
+  a known hazard of this codebase rather than a recurring surprise.
+- Dense observation rows add about 21 MB to `observations.npz` per mission.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/mvs.py` (`_read_visibility`,
+`_workspace_frame_order`), `pipeline.py` (`_dense_observations`,
+`_remap_observations`), `drishti3d/tests/test_mvs.py`,
+`drishti3d/docs/benchmarks/2026-09-21_dense_mvs/RESULTS.md`

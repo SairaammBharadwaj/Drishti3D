@@ -69,6 +69,13 @@ unchanged. 20.5 minutes, ~19 of it patch-match stereo on the GPU.
 **Requires** a CUDA-enabled `colmap` executable; the PyPI `pycolmap` wheels are
 CPU-only and dense stereo refuses without CUDA. `/api/capabilities` reports
 which of those two cases applies.
+**Lineage:** dense points carry observation tracks like sparse ones — the images
+`stereo_fusion` fused each point from — so they are measurable rather than
+refused for unverified support. All 251,785 points have one; 1,331,016
+observations, median 5 per point ([DEC-020](DECISIONS.md)).
+**Effect on measurement:** on a 60-measurement sample, **59 of 60 are blocked
+only by calibration** on the dense cloud against 40 of 60 on the sparse one;
+median supporting views 3 → 4 and measured parallax 16.6° → 27.9°.
 **Uncertainty caveat:** dense points carry a geometric estimate, not a
 propagated covariance, floored by the sparse model's own accuracy
 ([DEC-019](DECISIONS.md)).

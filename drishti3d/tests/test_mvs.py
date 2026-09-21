@@ -102,7 +102,32 @@ def test_ascii_ply_round_trip(tmp_path):
 
 
 def test_missing_visibility_sidecar_is_not_an_error(tmp_path):
-    assert mvs._read_visibility(tmp_path / "nope.vis", 10) is None
+    counts, images = mvs._read_visibility(tmp_path / "nope.vis", 10)
+    assert counts is None and images is None
+
+
+def test_visibility_round_trip_keeps_which_images_saw_each_point(tmp_path):
+    """The image list, not just the count, is what gives a dense point lineage."""
+    import struct
+    path = tmp_path / "fused.ply.vis"
+    with open(path, "wb") as fh:
+        fh.write(struct.pack("<Q", 2))
+        fh.write(struct.pack("<I", 3) + struct.pack("<3I", 4, 7, 9))
+        fh.write(struct.pack("<I", 2) + struct.pack("<2I", 1, 4))
+    counts, images = mvs._read_visibility(path, 2)
+    assert list(counts) == [3, 2]
+    assert list(images[0]) == [4, 7, 9]
+    assert list(images[1]) == [1, 4]
+
+
+def test_visibility_is_rejected_when_it_does_not_match_the_cloud(tmp_path):
+    """A sidecar for a different fusion would attribute points to wrong images."""
+    import struct
+    path = tmp_path / "fused.ply.vis"
+    with open(path, "wb") as fh:
+        fh.write(struct.pack("<Q", 5))
+    counts, images = mvs._read_visibility(path, 2)
+    assert counts is None and images is None
 
 
 # --- the floor: a dense point cannot beat the model it rides on ------------ #

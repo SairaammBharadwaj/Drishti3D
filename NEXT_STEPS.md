@@ -5,6 +5,13 @@ If you are picking this repository up now, read
 
 Last updated: 2026-09-19.
 
+**Dense geometry landed 2026-09-21.** COLMAP PatchMatch stereo gives 252k
+observed points at 0.100 m spacing against 17.9k at 0.167 m, with full
+observation lineage — and on the dense cloud **59 of 60 sampled measurements are
+blocked only by calibration**, against 40 of 60 sparse. Calibration is now
+almost the only thing standing between this system and an accepted measurement,
+and it needs field data.
+
 **Read this first:** the plan's central innovation hypothesis — that targeted
 same-pass refinement beats a uniform budget — **now passes its own gate on all
 three test beds tried**: higher answer yield (15 against 10, 13 against 5, 15

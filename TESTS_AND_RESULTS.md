@@ -297,6 +297,37 @@ which is correct: dense stereo adds detail to a model, it does not move it.
 
 **Result: PASS**, and it closes the gap that made the clouds look broken.
 
+#### Dense points carry observation lineage
+
+Without it, a dense point falls back to the frustum basis and is refused
+`view_geometry_unverified` — a blocking reason. On a 60-measurement sample the
+dense cloud produced better intervals than the sparse one and **every
+measurement was refused**. COLMAP's `fused.ply.vis` sidecar records which images
+each point was fused from; the first implementation kept only the count.
+
+All 251,785 points now carry a track: 1,331,016 observations, median 5 per
+point, 99.9% reprojecting inside the image that claims them.
+
+| 60 in-coverage distance measurements | Sparse | **Dense** |
+|---|---:|---:|
+| Median measurement sigma | 0.0647 m | **0.0619 m** |
+| Median supporting views | 3 | **4** |
+| Median measured parallax | 16.6° | **27.9°** |
+| Blocked by `insufficient_views` | 12 | **1** |
+| Blocked by `interval_exceeds_tolerance` | 7 | **0** |
+| Blocked by `view_geometry_unverified` | 1 | **0** |
+| **Blocked only by calibration** | 40 / 60 | **59 / 60** |
+| `needs_refinement` | 10 | **0** |
+
+**Result: PASS.** Recorded as [DEC-020](DECISIONS.md).
+
+Three of my own errors surfaced getting there, each returning a plausible wrong
+number without raising: a validation using PINHOLE's `fx, fy, cx, cy` as
+`f, cx, cy` (reported 59%, actual 99.9%); `source_index` used as a bijection when
+the Open3D fusion path makes it a nearest-point mapping (21.5%); and ENU points
+projected through reconstruction-frame cameras, the cheirality test silently
+discarding the rest (17%).
+
 #### The uncertainty bug the first run caught
 
 Dense points initially reported a **median sigma of 0.0052 m against the sparse

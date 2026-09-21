@@ -61,6 +61,11 @@ class DenseResult:
     colors: np.ndarray                  # (N,3) uint8
     #: How many images contributed to each point, when the backend reports it.
     n_views: np.ndarray | None = None
+    #: Ragged per-point lists of contributing image indices -- the dense
+    #: equivalent of a sparse point's track. Indices are into ``frame_order``.
+    vis_images: list | None = None
+    #: Frame index of each workspace image, in visibility-index order.
+    frame_order: list | None = None
     #: Per-point 1-sigma, metres in the reconstruction frame.
     sigma: np.ndarray | None = None
     backend: str = ""
@@ -204,21 +209,49 @@ def _read_ply(path: Path):
         return xyz, rgb
 
 
-def _read_visibility(path: Path, n_points: int) -> np.ndarray | None:
-    """Per-point contributing-image counts from COLMAP's ``.vis`` sidecar."""
+def _read_visibility(path: Path, n_points: int):
+    """Which images each fused point was seen in, from COLMAP's ``.vis`` sidecar.
+
+    This is the dense equivalent of a sparse point's track, and it is what lets
+    a dense point carry observation lineage instead of falling back to a
+    frustum guess. Returns ``(counts, image_indices)``; the second is ragged --
+    indices into the dense workspace's image list, which the caller maps to
+    frame indices.
+    """
     if not path.exists():
-        return None
+        return None, None
     try:
         with open(path, "rb") as fh:
             n = int(np.frombuffer(fh.read(8), dtype="<u8", count=1)[0])
             if n != n_points:
-                return None
-            out = np.zeros(n, np.int32)
-            for i in range(n):
+                return None, None
+            counts = np.zeros(n, np.int32)
+            images = []
+            for _ in range(n):
                 k = int(np.frombuffer(fh.read(4), dtype="<u4", count=1)[0])
-                fh.read(4 * k)
-                out[i] = k
-            return out
+                idx = np.frombuffer(fh.read(4 * k), dtype="<u4", count=k)
+                counts[len(images)] = k
+                images.append(idx.astype(np.int32))
+            return counts, images
+    except Exception:                      # noqa: BLE001 - optional detail
+        return None, None
+
+
+def _workspace_frame_order(dense: Path):
+    """Frame index of each workspace image, in the order visibility refers to.
+
+    ``stereo_fusion``'s visibility indices are positions in the
+    reconstruction's image list -- not COLMAP image ids, and not our frame
+    numbers. `colmap_adapter` names each workspace image after its keyframe
+    index, so the name carries the mapping, but the *order* has to come from the
+    model. Getting it wrong would attribute every dense point to the wrong
+    cameras, silently.
+    """
+    try:
+        import pycolmap
+        rec = pycolmap.Reconstruction(str(dense / "sparse"))
+        pairs = sorted((int(i), im.name) for i, im in rec.images.items())
+        return [int(Path(name).stem) for _i, name in pairs]
     except Exception:                      # noqa: BLE001 - optional detail
         return None
 
@@ -278,9 +311,19 @@ def run_colmap(workspace, *, max_image_size: int = 1600,
         raise RuntimeError("stereo_fusion produced no output")
 
     xyz, rgb = _read_ply(fused)
-    vis = _read_visibility(dense / "fused.ply.vis", len(xyz))
+    vis, vis_images = _read_visibility(dense / "fused.ply.vis", len(xyz))
+    order = _workspace_frame_order(dense)
+    # Translate visibility indices into frame numbers once, here, so nothing
+    # downstream has to know about COLMAP's image ordering. Validated by
+    # reprojection: 99.9% of the observations this produces land inside the
+    # image that claims to have seen the point.
+    if vis_images is not None and order is not None:
+        arr = np.asarray(order, np.int32)
+        vis_images = [arr[i[i < len(arr)]] for i in vis_images]
     _p("mvs: done", 1.0)
-    return DenseResult(points=xyz, colors=rgb, n_views=vis, backend="colmap",
+    return DenseResult(points=xyz, colors=rgb, n_views=vis,
+                       vis_images=vis_images, frame_order=order,
+                       backend="colmap",
                        stats={"n_points": int(len(xyz)),
                               "max_image_size": max_image_size,
                               "geom_consistency": geom_consistency,

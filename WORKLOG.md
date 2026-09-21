@@ -1863,3 +1863,146 @@ The second-flight F4 test remains open for a third distinct reason — first the
 sparse-capture guard on `agz_segment_two`, now keyframe convergence on the
 clips. Both are properties of the comparison needing an over-sampled capture,
 which is the same thing a field capture would supply.
+
+---
+
+# 2026-09-21 — Dense stereo runs, and three of my own errors on the way
+
+## Objective
+
+Run the dense stage built in DEC-018 now that a CUDA-enabled COLMAP exists, and
+make dense geometry actually measurable rather than merely visible.
+
+## Work Completed
+
+### Dense multi-view stereo, end to end
+
+`densify="mvs"` on the AGZ mission: 1,386,161 points out of PatchMatch stereo,
+fused to **251,785** at 0.100 m spacing against 17,898 at 0.167 m sparse.
+`AI_ASSISTED: 0`. Reconstruction accuracy unchanged at 3.764 m
+as-georeferenced — correct, since dense stereo adds detail to a model rather
+than moving it. 21 minutes, ~19 of it on the GPU.
+
+### The uncertainty was seven times too optimistic
+
+Dense points first reported a median sigma of 0.0052 m against the sparse
+points' 0.0364 m — more certain than the bundle-adjusted geometry they were
+triangulated from. Three causes: the sparse reprojection residual used as a
+disparity precision (feature localisation is far tighter than window
+correlation); `sqrt(n_views)` treating consecutive frames of one pass as
+independent; and no floor from the sparse model's own accuracy, which was the
+one that mattered. Now 0.0379 m — marginally *worse* than sparse, which is the
+right ordering. [DEC-019](DECISIONS.md).
+
+### Dense points had no lineage, so none of them could be measured
+
+With better intervals than the sparse cloud, **all 60 sampled measurements were
+refused** `view_geometry_unverified`. `observations.npz` held only sparse SfM
+tracks, so a dense point had no record of which images produced it.
+
+COLMAP's `fused.ply.vis` sidecar has exactly that — a dense point's track — and
+the first implementation kept only the count. Now all 251,785 points carry one:
+1,331,016 observations, median 5 per point, 99.9% reprojecting inside the image
+that claims them. [DEC-020](DECISIONS.md).
+
+| 60 in-coverage measurements | Sparse | Dense |
+|---|---:|---:|
+| Median sigma | 0.0647 m | **0.0619 m** |
+| Median supporting views | 3 | **4** |
+| Median measured parallax | 16.6° | **27.9°** |
+| Blocked by `insufficient_views` | 12 | **1** |
+| **Blocked only by calibration** | 40 / 60 | **59 / 60** |
+
+## Files Changed
+
+`drishti3d/reconstruction/drishti_recon/mvs.py`
+`DENSE_PIXEL_SIGMA`, `MAX_INDEPENDENT_VIEWS` and a floor in
+`depth_uncertainty`; `_read_visibility` keeps the image lists;
+`_workspace_frame_order` maps COLMAP's visibility indices to frame numbers.
+
+`drishti3d/reconstruction/drishti_recon/pipeline.py`
+`_dense_observations`, and `_remap_observations` merging sparse and dense tracks.
+
+`drishti3d/tests/test_mvs.py` — the floor, the view cap, visibility round-trip.
+
+## Commands Executed
+
+```bash
+cd drishti3d
+.venv/bin/python scripts/run_mission.py --mission agz_dense_pass \
+    --max-frames 184 --engine colmap --densify mvs --tag dense_mvs
+.venv/bin/python scripts/import_run_as_project.py --run agz_dense_pass__dense_mvs ...
+.venv/bin/python -m pytest tests/ -q          # 335 passed
+```
+
+## Problems Encountered
+
+Three errors, all mine, each returning a plausible wrong number without raising
+an exception. That is the pattern worth remembering from this session.
+
+**Problem** — Checking that dense points reproject into the images claiming to
+have seen them gave 59%, and I read it as a broken image-ordering map and went
+looking for the right ordering in `fusion.cfg` and `patch-match.cfg`.
+
+**Cause** — `image_undistorter` emits PINHOLE (`fx, fy, cx, cy`) and my check
+read `params[1]` as `cx`. The ordering had been right from the start; all three
+candidate orderings gave *identical* results, which should have told me sooner
+that the ordering was not the variable.
+
+**Solution** — Project with COLMAP's own camera model: **99.9%**.
+
+---
+
+**Problem** — Dense tracks attached to only 21.5% of the cloud.
+
+**Cause** — Attribution went through `cloud.source_index`, which on the Open3D
+fusion path is a nearest-point mapping rather than a bijection — noted in
+DEC-009 as acceptable for sigma and confidence, and not acceptable for this.
+
+**Solution** — Match survivors to their dense input spatially, within one voxel
+diagonal. 99.7% match.
+
+---
+
+**Problem** — After the spatial fix, lineage got *worse*: 16.7%.
+
+**Cause** — I projected ENU cloud points through reconstruction-frame camera
+poses. The cheirality test then discarded most observations in silence. And
+`cameras_enu` is keyed by decoded frame index while visibility lists carry
+keyframe indices — the third time those two numbering schemes have had to be
+separated explicitly (DEC-009, DEC-015).
+
+**Solution** — ENU poses for ENU points, with keyframe indices translated
+through `sel`. Validated offline against the saved run *before* spending another
+21-minute rebuild: 251,740 of 252,480 survivors matched, 99.9% of observations
+in-frame, zero behind camera.
+
+## Approaches That Did Not Work
+
+**Exempting dense points from the lineage requirement.** They are observed
+geometry, so the basis stamp looks unnecessary for them. But "observed" is a
+provenance class, not evidence of *which* images observed a point, and carving
+out an exemption for the class that happens to be failing is how DEC-006's
+guarantee stops meaning anything.
+
+## Verification
+
+- 335 tests pass.
+- Dense reconstruction reproduced across five runs as the fixes went in; point
+  count and accuracy stable at ~252k and 3.764 m throughout.
+- The lineage chain was validated offline against saved artifacts before the
+  final rebuild, which is what kept the last fix to one run rather than three.
+
+## Result
+
+The clouds no longer look broken, and — more to the point — dense geometry is
+*measurable*. On the dense cloud 59 of 60 sampled measurements have nothing
+standing between them and acceptance except the calibration profile that does
+not exist yet.
+
+Both demo projects are loaded in the app: the AGZ mission with GNSS and metric
+scale, sparse and dense side by side.
+
+The honest remaining gap is unchanged and now nearly alone: interval
+calibration needs measured reference dimensions, and no dataset in this
+checkout has them.

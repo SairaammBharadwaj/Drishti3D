@@ -91,6 +91,61 @@ that the sparse p10 (0.0123 m) still beats every dense point: the
 best-constrained sparse points have long tracks and wide baselines that generic
 stereo cannot match, and the distribution should show that.
 
+## Dense points carry observation lineage
+
+A dense point's track is the set of images `stereo_fusion` fused it from — the
+same thing a sparse point's track is, arrived at photometrically rather than by
+feature matching. COLMAP writes it to a `fused.ply.vis` sidecar, and the first
+version of this work discarded everything but the count.
+
+That mattered more than it looks. Without lineage a dense point falls back to
+the frustum basis and is refused `view_geometry_unverified`, which is a
+*blocking* reason: on a 60-measurement sample the dense cloud produced better
+intervals than the sparse one and **every single measurement was refused**.
+
+With lineage, all 251,785 points carry a track — 1,331,016 observations, median
+5 per point.
+
+### Measurement outcomes, 60 in-coverage distance measurements per cloud
+
+| | Sparse | **Dense** |
+|---|---:|---:|
+| Median measurement sigma | 0.0647 m | **0.0619 m** |
+| 95% interval | ±0.127 m | **±0.121 m** |
+| Median supporting views | 3 | **4** |
+| Median measured parallax | 16.6° | **27.9°** |
+| Blocked by `insufficient_views` | 12 | **1** |
+| Blocked by `interval_exceeds_tolerance` | 7 | **0** |
+| Blocked by `view_geometry_unverified` | 1 | **0** |
+| **Blocked only by calibration** | 40 / 60 | **59 / 60** |
+| `needs_refinement` | 10 | **0** |
+
+On the dense cloud 59 of 60 measurements have nothing standing between them and
+acceptance except the calibration profile that does not exist yet.
+
+### Three bugs this cost, all mine
+
+Each produced a plausible-looking result that was wrong, and each was caught by
+checking rather than by a test:
+
+1. **Wrong camera model in the validation.** Checking that a point reprojects
+   into the images that claim to have seen it gave 59%, and I read that as a
+   broken image-ordering map. It was `image_undistorter` emitting PINHOLE
+   (`fx, fy, cx, cy`) while the check read `params[1]` as `cx`. With COLMAP's
+   own projection it is **99.9%** — the ordering was right all along.
+2. **`source_index` is not a bijection on the Open3D fusion path.** It is a
+   nearest-point mapping (DEC-009), so attributing dense tracks through it found
+   the right input for only 21.5% of survivors. Survivors are now matched to
+   their dense input spatially, within one voxel diagonal.
+3. **ENU points projected through reconstruction-frame cameras.** The cloud is
+   in ENU and `recon.cameras` are not; the cheirality test then discarded most
+   observations silently, giving 17%. Also, `cameras_enu` is keyed by decoded
+   frame index while visibility lists carry keyframe indices — the third time
+   those two numbering schemes have had to be separated explicitly.
+
+After all three: **100%** of points have lineage, and 99.9% of the observations
+reproject inside the image that claims them.
+
 ## What this does not establish
 
 - **Dense uncertainty is still a geometric estimate, not a propagated

@@ -332,6 +332,7 @@ def run(project_dir, video_path, telemetry_path, *,
     mvs_colors = None
     mvs_sigma = None
     mvs_conf = None
+    mvs_vis = None             # per-point contributing frame indices
     with stage_timer("densify"):
         if params.densify == "mvs":
             try:
@@ -350,6 +351,7 @@ def run(project_dir, video_path, telemetry_path, *,
                 if len(dr):
                     mvs_points = dr.points
                     mvs_colors = dr.colors
+                    mvs_vis = dr.vis_images
                     centres = np.array([c.center for c in recon.cameras], float)
                     focal = 0.5 * (float(recon.K[0, 0]) + float(recon.K[1, 1]))
                     # The floor is the sparse model's own accuracy in the
@@ -729,7 +731,12 @@ def run(project_dir, video_path, telemetry_path, *,
                         "R": (np.asarray(c.R, float)
                               @ R_world_for_cov.T).tolist()}
                        for c, ce in zip(recon.cameras, cams_enu)]
-        observations = _remap_observations(recon, cloud, sel)
+        observations = _remap_observations(recon, cloud, sel,
+                                           n_sparse=len(recon.points),
+                                           dense_vis=mvs_vis,
+                                           dense_points=mvs_enu,
+                                           voxel=params.voxel,
+                                           cameras_enu=cameras_enu)
         artifacts = _write_artifacts(art_dir, cloud, cameras_enu, enu_frame,
                                      report, timeline, gps_enu_all, sel, metrics,
                                      K=recon.K, image_size=(proc_w, proc_h),
@@ -885,7 +892,89 @@ def _maybe_gt_eval(video_path, telemetry_path, enu_frame, cloud):
         return None
 
 
-def _remap_observations(recon, cloud, sel):
+def _dense_observations(recon, cloud, n_sparse, dense_vis,
+                        dense_points=None, voxel=None, cameras_enu=None,
+                        sel=None):
+    """Observation rows for the dense points that survived fusion.
+
+    A dense point's track is the set of images `stereo_fusion` fused it from --
+    the same thing a sparse point's track is, arrived at photometrically rather
+    than by feature matching. Without it a dense point falls back to the frustum
+    basis and is refused `view_geometry_unverified`, which on the AGZ mission
+    blocked all 60 sampled measurements despite the dense cloud producing *better*
+    intervals than the sparse one.
+
+    The pixel is obtained by projecting the point into each contributing camera.
+    That is exact rather than circular here: fusion builds the point *from* those
+    cameras' depth-map pixels, so the projection recovers the measurement rather
+    than assuming it.
+
+    Built after fusion, for survivors only -- 1.39 M dense points at five views
+    each would be seven million rows, of which voxel downsampling keeps a fifth.
+
+    Survivors are matched to their dense input **spatially**, not through
+    ``source_index``. On the Open3D fusion path that index is a nearest-point
+    mapping rather than a bijection (see DEC-009), so most dense survivors
+    resolve to some other input and never find their own track: it attached
+    lineage to 21.5% of the cloud instead of nearly all of it. A survivor is a
+    voxel representative of the dense points around it, so the nearest dense
+    input within half a voxel is the right attribution -- the same
+    approximation Open3D already makes for confidence and sigma.
+    """
+    if dense_vis is None or recon.K is None or dense_points is None:
+        return None
+    if len(dense_points) == 0 or len(cloud) == 0:
+        return None
+    from scipy.spatial import cKDTree
+    dense_points = np.asarray(dense_points, float).reshape(-1, 3)
+    d, nn = cKDTree(dense_points).query(cloud.points)
+    # One voxel diagonal: a survivor is a representative of the dense points in
+    # its cell, so anything inside the cell is the same surface patch. Beyond
+    # it the survivor came from somewhere else -- a sparse point, most likely --
+    # and must not inherit a dense track.
+    tol = float(voxel) * np.sqrt(3.0) if voxel else float(np.median(d)) * 3.0
+    rows = np.flatnonzero(d <= tol)
+    if len(rows) == 0:
+        return None
+    # The cloud is in ENU and `recon.cameras` are in the reconstruction frame.
+    # Projecting one through the other puts most points behind the camera and
+    # silently drops them: it attached lineage to 17% of the cloud. The ENU
+    # poses are the ones that belong with ENU points.
+    if not cameras_enu or sel is None:
+        return None
+    # `cameras_enu` is keyed by decoded frame index; visibility lists carry
+    # keyframe indices. Translating once here is the third time this pair has
+    # had to be kept apart explicitly (DEC-009, DEC-015) -- conflating them
+    # finds no camera and drops the observation without complaint.
+    sel_arr = np.asarray(sel, np.int32)
+    cam_of_frame = {int(c["frame_index"]): c for c in cameras_enu}
+    K = np.asarray(recon.K, float)
+    pt_idx, fr_idx, uv = [], [], []
+    for row in rows:
+        p = cloud.points[row]
+        for f in dense_vis[int(nn[row])]:
+            k = int(f)
+            if k >= len(sel_arr):
+                continue
+            cam = cam_of_frame.get(int(sel_arr[k]))
+            if cam is None:
+                continue
+            c = (np.asarray(cam["R"], float)
+                 @ (p - np.asarray(cam["C"], float)))
+            if c[2] <= 1e-6:
+                continue
+            pt_idx.append(int(row))
+            fr_idx.append(int(f))
+            uv.append((K[0, 0] * c[0] / c[2] + K[0, 2],
+                       K[1, 1] * c[1] / c[2] + K[1, 2]))
+    if not pt_idx:
+        return None
+    return (np.asarray(pt_idx, np.int32), np.asarray(fr_idx, np.int32),
+            np.asarray(uv, np.float32))
+
+
+def _remap_observations(recon, cloud, sel, *, n_sparse=None, dense_vis=None,
+                        dense_points=None, voxel=None, cameras_enu=None):
     """Re-express the reconstruction's observation lineage onto the fused cloud.
 
     The lineage `sfm`/`colmap_adapter` produce indexes the *pre-fusion* point
@@ -898,25 +987,38 @@ def _remap_observations(recon, cloud, sel):
     every consumer able to tell "no observations were recorded" apart from "this
     point has no observations".
     """
-    if getattr(recon, "obs_point", None) is None or len(recon.obs_point) == 0:
-        return None
-    if cloud.source_index is None:
+    has_sparse = (getattr(recon, "obs_point", None) is not None
+                  and len(recon.obs_point) > 0)
+    if cloud.source_index is None or not (has_sparse or dense_vis is not None):
         return None
 
     n_src = int(cloud.source_index.max()) + 1 if len(cloud.source_index) else 0
-    n_src = max(n_src, int(recon.obs_point.max()) + 1)
+    if has_sparse:
+        n_src = max(n_src, int(recon.obs_point.max()) + 1)
     # Inverse of source_index: pre-fusion row -> fused row, or -1 if dropped.
     inverse = np.full(n_src, -1, np.int32)
     valid_rows = cloud.source_index >= 0          # inferred points carry -1
     inverse[cloud.source_index[valid_rows]] = np.flatnonzero(valid_rows).astype(
         np.int32)
 
-    fused = inverse[recon.obs_point]
-    keep = fused >= 0
-    if not keep.any():
-        return None
+    if has_sparse:
+        fused = inverse[recon.obs_point]
+        keep = fused >= 0
+        pts_out = fused[keep].astype(np.int32)
+        kf = recon.obs_frame[keep]
+        uv_out = np.asarray(recon.obs_uv, np.float32)[keep]
+    else:
+        pts_out = np.zeros(0, np.int32)
+        kf = np.zeros(0, np.int32)
+        uv_out = np.zeros((0, 2), np.float32)
 
-    kf = recon.obs_frame[keep]
+    # Dense points carry their own tracks, already in fused-cloud indices and
+    # in frame numbers rather than keyframe indices.
+    dense_rows = (_dense_observations(recon, cloud, n_sparse, dense_vis,
+                                      dense_points, voxel, cameras_enu, sel)
+                  if dense_vis is not None else None)
+    if dense_rows is None and len(pts_out) == 0:
+        return None
     # Two frame numberings exist and confusing them silently mislabels every
     # piece of evidence: `obs_frame` is the keyframe index the solver used,
     # while `sel` maps that to the decoded frame index the operator and the
@@ -924,12 +1026,18 @@ def _remap_observations(recon, cloud, sel):
     sel_arr = np.asarray(sel, np.int32)
     decoded = np.where(kf < len(sel_arr), sel_arr[np.clip(kf, 0, len(sel_arr) - 1)],
                        -1).astype(np.int32)
-    return {
-        "point_index": fused[keep].astype(np.int32),
-        "keyframe_index": kf.astype(np.int32),
-        "frame_index": decoded,
-        "uv": np.asarray(recon.obs_uv, np.float32)[keep],
-    }
+    out = {"point_index": pts_out, "keyframe_index": kf.astype(np.int32),
+           "frame_index": decoded, "uv": uv_out}
+    if dense_rows is not None:
+        d_pt, d_kf, d_uv = dense_rows
+        d_dec = np.where(d_kf < len(sel_arr),
+                         sel_arr[np.clip(d_kf, 0, len(sel_arr) - 1)],
+                         -1).astype(np.int32)
+        out = {"point_index": np.concatenate([out["point_index"], d_pt]),
+               "keyframe_index": np.concatenate([out["keyframe_index"], d_kf]),
+               "frame_index": np.concatenate([out["frame_index"], d_dec]),
+               "uv": np.vstack([out["uv"], d_uv])}
+    return out
 
 
 def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
