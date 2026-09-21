@@ -2275,3 +2275,41 @@ rewriting the manifest gave new geometry while stored answers looked current.
 All 15 audit checks pass. 431 tests, up from 422. Production frontend build
 passes. Rebuilding the dense artifacts again so the demo matches the corrected
 angular model.
+
+## 2026-09-21 — Rebuilt under `eps/sin` and re-imported
+
+Second 28-minute rebuild of the same flight so the demo matches DEC-031.
+251,504 points, no error, and the numbers barely moved: median `sigma_major`
+0.0385 → 0.0409 m, p90 0.0909 → 0.0937, p99 0.3255 → 0.3288.
+
+That is the honest headline. AGZ's dense parallax is narrow-angle dominated,
+and `1/tan` and `1/sin` agree to 0.4% at 5° and about 10% at 26°, so for *this*
+mission the previous model's numbers were close to right despite being
+nonsensical at wide angles. The correction is about the domain, not this
+capture — and I would rather say that than present a 6% median shift as though
+it vindicated the work.
+
+Zero negative sigmas and zero unconstrained points: no dense point in this
+mission falls below the 0.5° threshold, so the new `inf` path costs no coverage
+here. A slower or more nadir pass would produce unconstrained points, and they
+would now be refused rather than measured.
+
+Re-import exercised the whole chain again. All 27 dense and all 25 sparse
+questions flagged superseded — sparse because `artifact_version` gained its
+revision component under DEC-033, a format change rather than a geometry
+change, which is exactly the one-time effect that decision predicted. Re-asked,
+dense gives median sigma 0.1983 m against sparse's 0.2480 m, 4 views against 3,
+25.2° of parallax against 15.0°.
+
+Evidence verified live rather than from artifacts: a sampled question reports
+5 and 3 views per endpoint, all `dense_fusion_contributor`, `kinds_recorded`
+true. The sidecar declares EPSG:32632, `georeferenced: true`, and states the
+vertical reference as ellipsoidal. All nine export keys are reachable through
+the API.
+
+**One question is `not_observable` this time against three after the previous
+rebuild**, both `outside_established_coverage`. That is the second observation
+of the coverage-volume variation between non-deterministic COLMAP runs, and two
+observations is enough to call it confirmed: outcomes for endpoints near a
+coverage boundary are not stable across rebuilds of the same flight. Anyone
+quoting a single-run result needs to know that.

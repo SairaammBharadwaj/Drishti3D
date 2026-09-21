@@ -996,3 +996,75 @@ minimised at 90°, and exactly symmetric about it — `s(60°) == s(120°)` and
   usability test.
 - The rebuilt artifacts under the `1/sin` model, at the time of writing. The
   figures above are from the function, not from a mission.
+
+## 2026-09-21 — AGZ dense rebuilt under the `eps/sin` model and re-imported
+
+Second rebuild of the same flight, so the demo artifacts match
+[DEC-031](DECISIONS.md). 1,701 s wall, 1,385,668 dense points before fusion,
+**251,504** after, no error.
+
+### Per-point uncertainty across the three models
+
+| `sigma_major` | median | p90 | p99 | negative | unconstrained |
+|---|---:|---:|---:|---:|---:|
+| no angle (DEC-019) | 0.0363 m | 0.0437 m | 0.0832 m | 0 | 0 |
+| `1/tan` (DEC-025) | 0.0385 m | 0.0909 m | 0.3255 m | 0 | 0 |
+| **`eps/sin` (DEC-031)** | **0.0409 m** | **0.0937 m** | **0.3288 m** | **0** | **0** |
+
+The `1/tan` → `eps/sin` change moves this mission very little, which is the
+expected result and worth stating plainly: AGZ's dense parallax is
+narrow-angle dominated, and the two forms agree to 0.4% at 5° and about 10% at
+26°. The correction matters for *correctness over the domain*, not for these
+numbers.
+
+**No dense point in this mission falls below `MIN_PARALLAX_DEG`**, so the new
+`inf` path costs no coverage here. That is a property of this capture, not a
+general guarantee — a slower or more nadir pass would produce unconstrained
+points, and they would now be refused rather than measured.
+
+### Lineage
+
+1,330,150 rows: **20,019** `sparse_feature_observation`, **1,310,131**
+`dense_fusion_contributor`. Verified live through the evidence API: a sampled
+question reports 5 and 3 views per endpoint, all dense contributors,
+`kinds_recorded: true`.
+
+### Georeference sidecar
+
+`projected_crs EPSG:32632`, `georeferenced true`, `units metres`,
+`scale_source gps`, vertical reference stated as WGS84 ellipsoidal. Exports
+available through the API: geojson, **georeference**, las, mesh_glb, ply,
+report_html, report_json, trajectory_csv, viewer.
+
+### Scoring (unchanged by the uncertainty model, as it must be)
+
+`as_georeferenced` 5.269 m · `after_translation_fit` 3.763 m ·
+`after_similarity_fit` 0.322 m.
+
+### Questions re-answered
+
+All 27 dense and all 25 sparse questions flagged `superseded` and were re-asked.
+Sparse was flagged because `artifact_version` gained its revision component
+([DEC-033](DECISIONS.md)) — a one-time effect of the format change, not a
+geometry change.
+
+| answered | Sparse | Dense (`eps/sin`) |
+|---|---:|---:|
+| median sigma | 0.2480 m | **0.1983 m** |
+| median interval half-width | 0.4860 m | **0.3856 m** |
+| median supporting views | 3 | **4** |
+| median parallax | 15.0° | **25.2°** |
+| `view_support_basis` | triangulated 25/25 | triangulated 27/27 |
+| `insufficient_views` | 4 | **0** |
+| `not_observable` | 0 | 1 |
+
+**One question is `not_observable` this time, against three after the previous
+rebuild** — both `outside_established_coverage`, both from coverage-volume
+variation between non-deterministic COLMAP runs. This is the second observation
+of that effect and confirms it: **outcomes for endpoints near a coverage
+boundary are not stable across rebuilds of the same flight.**
+
+### NOT TESTED
+
+Whether any of these intervals covers a true dimension. All 52 questions across
+both projects still report `interval_not_calibrated`.
