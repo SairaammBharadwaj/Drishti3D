@@ -48,15 +48,21 @@ def test_dense_uncertainty_grows_with_range():
     assert s_far == pytest.approx(4 * s_near, rel=1e-6)
 
 
-def test_dense_uncertainty_shrinks_with_agreeing_views():
+def test_dense_uncertainty_shrinks_with_agreeing_views_up_to_the_cap():
+    """More views help, but only while they are still independent looks.
+
+    Two to four halves the error. Past MAX_INDEPENDENT_VIEWS it stops, because
+    fusion's extra supporting images are consecutive frames of the same pass
+    seeing the same surface from nearly the same place.
+    """
     centres = np.array([[0.0, 0.0, 0.0]])
     p = np.array([[0.0, 20.0, 0.0]])
     two = mvs.depth_uncertainty(p, centres, np.array([2]), sigma_px=1.0,
                                 focal=900.0)[0]
-    eight = mvs.depth_uncertainty(p, centres, np.array([8]), sigma_px=1.0,
-                                  focal=900.0)[0]
-    assert eight < two
-    assert eight == pytest.approx(two / 2.0, rel=1e-6)
+    four = mvs.depth_uncertainty(p, centres, np.array([4]), sigma_px=1.0,
+                                 focal=900.0)[0]
+    assert four < two
+    assert four == pytest.approx(two / np.sqrt(2.0), rel=1e-6)
 
 
 def test_dense_uncertainty_never_assumes_fewer_than_two_views():
@@ -97,3 +103,40 @@ def test_ascii_ply_round_trip(tmp_path):
 
 def test_missing_visibility_sidecar_is_not_an_error(tmp_path):
     assert mvs._read_visibility(tmp_path / "nope.vis", 10) is None
+
+
+# --- the floor: a dense point cannot beat the model it rides on ------------ #
+def test_the_floor_dominates_when_stereo_looks_implausibly_good():
+    """Measured: without it, dense points came out 7x better than the sparse
+    geometry they were triangulated from.
+
+    The stereo term alone reported a 5 mm median on a model good to 36 mm.
+    Cameras are known only to the bundle adjustment's accuracy, so nothing
+    triangulated from them can be better known than that.
+    """
+    centres = np.array([[0.0, 0.0, 0.0]])
+    p = np.array([[0.0, 20.0, 0.0]])
+    bare = mvs.depth_uncertainty(p, centres, np.array([5]),
+                                 sigma_px=1.0, focal=1536.0)[0]
+    floored = mvs.depth_uncertainty(p, centres, np.array([5]),
+                                    sigma_px=1.0, focal=1536.0,
+                                    floor=0.0364)[0]
+    assert bare < 0.01, "the stereo term alone is millimetres"
+    assert floored >= 0.0364
+    assert floored == pytest.approx(np.hypot(bare, 0.0364))
+
+
+def test_views_stop_helping_once_they_stop_being_independent():
+    """Fusion's supporting images are consecutive frames of one pass."""
+    centres = np.array([[0.0, 0.0, 0.0]])
+    p = np.array([[0.0, 20.0, 0.0]])
+    four = mvs.depth_uncertainty(p, centres, np.array([4]), sigma_px=1.0,
+                                 focal=1536.0)[0]
+    twenty = mvs.depth_uncertainty(p, centres, np.array([20]), sigma_px=1.0,
+                                   focal=1536.0)[0]
+    assert twenty == pytest.approx(four), "beyond the cap, more views buy nothing"
+
+
+def test_dense_pixel_sigma_is_not_the_sparse_reprojection_residual():
+    """Patch-match matches a window; SIFT localises a corner. Different things."""
+    assert mvs.DENSE_PIXEL_SIGMA >= 1.0

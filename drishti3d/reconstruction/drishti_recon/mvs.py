@@ -106,33 +106,59 @@ def available() -> dict:
     }
 
 
+#: Disparity precision of dense stereo, in pixels. **Not** the sparse
+#: reconstruction's reprojection residual, which is feature-localisation
+#: precision and far tighter: SIFT keypoints sit on corners and are found to a
+#: fraction of a pixel, while patch-match matches a window over whatever texture
+#: is there. Using the sparse residual (0.49 px on the AGZ mission) gave dense
+#: points a median sigma of 5 mm against the bundle-adjusted sparse points'
+#: 36 mm -- seven times more certain than the geometry they were triangulated
+#: from, which is impossible.
+DENSE_PIXEL_SIGMA = 1.0
+
+#: Contributing views beyond this stop reducing the error. Fusion's supporting
+#: images are consecutive frames of one pass looking at the same surface from
+#: nearly the same place: their disparity errors are correlated, so ``sqrt(n)``
+#: over all of them treats dependent measurements as independent ones.
+MAX_INDEPENDENT_VIEWS = 4.0
+
+
 def depth_uncertainty(points, centres, n_views, *, sigma_px: float,
-                      focal: float) -> np.ndarray:
+                      focal: float, floor=None) -> np.ndarray:
     """1-sigma for a dense point, from the geometry that produced it.
 
     A stereo point's error is dominated by depth along the view ray: a
     disparity uncertain by ``sigma_px`` at focal length ``f`` and range ``r``
-    puts the point uncertain by about ``r * sigma_px / f`` across the ray, and
-    rather more along it. Averaging over ``n`` contributing views reduces that
-    by roughly ``sqrt(n)``.
+    puts the point uncertain by about ``r * sigma_px / f`` across the ray.
+    Contributing views reduce that, but only up to
+    :data:`MAX_INDEPENDENT_VIEWS` -- past which they are the same look from
+    almost the same place.
+
+    ``floor`` is the uncertainty of the sparse geometry this point sits in,
+    combined in quadrature. It is the part that matters most. A dense point is
+    triangulated from cameras whose poses are known only to the bundle
+    adjustment's accuracy, so **it cannot be better known than the model it
+    rides on** -- the same reasoning that puts a neighbourhood term on the local
+    refit in DEC-014. Without it the stereo term alone reports millimetres on a
+    model good to centimetres.
 
     This is deliberately a geometric estimate, not a propagated covariance:
     fusion does not report which images agreed at what disparity, so the full
-    Jacobian of :mod:`uncertainty` cannot be formed. It is labelled as such by
-    the caller, and it is conservative -- a dense point is never given a
-    smaller sigma than a sparse one at the same range.
+    Jacobian of :mod:`uncertainty` cannot be formed. The caller says so in a
+    warning on every run.
     """
     pts = np.asarray(points, float).reshape(-1, 3)
     if len(pts) == 0:
         return np.zeros(0)
     c = np.asarray(centres, float).reshape(-1, 3)
-    # Range to the nearest contributing camera is the optimistic case; use the
-    # median camera distance instead, which is what a fused point actually sees.
     from scipy.spatial import cKDTree
     rng = cKDTree(c).query(pts)[0] if len(c) else np.full(len(pts), np.nan)
-    n = np.maximum(np.asarray(n_views, float).reshape(-1)
-                   if n_views is not None else 2.0, 2.0)
-    return rng * float(sigma_px) / max(float(focal), 1e-9) / np.sqrt(n)
+    n = np.clip(np.asarray(n_views, float).reshape(-1)
+                if n_views is not None else 2.0, 2.0, MAX_INDEPENDENT_VIEWS)
+    stereo = rng * float(sigma_px) / max(float(focal), 1e-9) / np.sqrt(n)
+    if floor is None:
+        return stereo
+    return np.hypot(stereo, float(floor))
 
 
 def _read_ply(path: Path):

@@ -352,11 +352,17 @@ def run(project_dir, video_path, telemetry_path, *,
                     mvs_colors = dr.colors
                     centres = np.array([c.center for c in recon.cameras], float)
                     focal = 0.5 * (float(recon.K[0, 0]) + float(recon.K[1, 1]))
-                    sig_px = (recon.stats.get("uncertainty", {})
-                              .get("sigma_px_estimated") or 1.0)
+                    # The floor is the sparse model's own accuracy in the
+                    # reconstruction frame: a dense point cannot be better
+                    # known than the geometry that fixed the cameras.
+                    _ps = recon.point_sigma_major
+                    floor = None
+                    if _ps is not None and np.any(np.isfinite(_ps)):
+                        floor = float(np.median(_ps[np.isfinite(_ps)]))
                     mvs_sigma = mvsmod.depth_uncertainty(
                         dr.points, centres, dr.n_views,
-                        sigma_px=float(sig_px), focal=focal)
+                        sigma_px=mvsmod.DENSE_PIXEL_SIGMA, focal=focal,
+                        floor=floor)
                     # Confidence from how many images actually agreed. A point
                     # two images agree on is real but weakly held; one that
                     # survives many is the dense equivalent of a long track.

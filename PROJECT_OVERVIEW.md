@@ -56,6 +56,23 @@ been validated yet, so the strongest honest verdict is *estimated only*. See
 
 ## Current Features
 
+### Dense multi-view stereo
+**What:** `densify="mvs"` adds COLMAP PatchMatch stereo — **observed** geometry,
+triangulated from photometric agreement across real images, measurable under
+exactly the same rules as the sparse points. Kept strictly distinct from
+`densify="depth"`, whose points are predicted from single images and excluded
+from measurement.
+**Where:** `mvs.py`, `pipeline.py` densify stage, `colmap_adapter.keep_workspace`.
+**Measured on the AGZ mission:** 251,998 points at 0.099 m spacing against
+17,898 at 0.167 m sparse — 14× denser, `AI_ASSISTED: 0`, reconstruction accuracy
+unchanged. 20.5 minutes, ~19 of it patch-match stereo on the GPU.
+**Requires** a CUDA-enabled `colmap` executable; the PyPI `pycolmap` wheels are
+CPU-only and dense stereo refuses without CUDA. `/api/capabilities` reports
+which of those two cases applies.
+**Uncertainty caveat:** dense points carry a geometric estimate, not a
+propagated covariance, floored by the sparse model's own accuracy
+([DEC-019](DECISIONS.md)).
+
 ### Reconstruction pipeline
 **What:** video + telemetry → georeferenced point cloud, mesh, trajectory,
 coverage field, quality report.
@@ -496,14 +513,6 @@ cd drishti3d
 - **A learned matcher is now on the refinement path.** LightGlue/DISK
   (Apache-2.0 via kornia) is what made endpoint location work, and it wants a
   GPU. The classical fallback exists but is untested at scale.
-- **The clouds are sparse, and a dense stage exists but has never run.** The
-  pipeline ships only triangulated feature points — 17,898 for a 233 m flight,
-  0.167 m spacing, and **zero AI-assisted points**. `densify="mvs"` adds COLMAP
-  PatchMatch stereo, which is observed geometry and measurable, but it needs a
-  CUDA-enabled `colmap` executable and none is installed here: the PyPI
-  `pycolmap` wheels are CPU-only and dense stereo refuses without CUDA. The
-  module and plumbing are built and tested; the dense reconstruction itself has
-  not been run ([DEC-018](DECISIONS.md)).
 - **The pipeline still defaults to the slower engine.** Both engines now
   produce measurable reconstructions, but `PipelineParams.engine` defaults to
   `"opencv"`, and on COLMAP 51 of 60 sampled measurements have nothing blocking

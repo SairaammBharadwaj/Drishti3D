@@ -26,9 +26,10 @@ Command: `cd drishti3d && .venv/bin/python -m pytest tests/ -q`
 | After COLMAP uncertainty | 312 passed | 199 s |
 | After the F4 experiment | 313 passed | 196 s |
 | After the local bundle refit | 314 passed | 109 s |
-| After the transfer locator | **318 passed, 0 failed** | 117 s |
+| After the transfer locator | 318 passed | 117 s |
+| After the Tolerance Lens UI and dense MVS | **333 passed, 0 failed** | 116 s |
 
-95 tests were added. No test was removed, skipped or weakened.
+110 tests were added. No test was removed, skipped or weakened.
 
 ### New test files
 
@@ -274,6 +275,49 @@ strictly better one.
 **Result: PASS for reproducibility of direction, NOT ESTABLISHED for
 generalisation.** All three test beds are partitions of one flight. Recorded as
 [DEC-016](DECISIONS.md).
+
+### Dense multi-view stereo
+
+Full write-up:
+[`docs/benchmarks/2026-09-21_dense_mvs/RESULTS.md`](drishti3d/docs/benchmarks/2026-09-21_dense_mvs/RESULTS.md).
+
+COLMAP 4.1.0 built with CUDA, RTX 5060 Laptop. Mission `agz_dense_pass`.
+
+| | Sparse only | **Dense (MVS)** |
+|---|---:|---:|
+| Points in the shipped cloud | 17,898 | **251,998** |
+| Median point spacing | 0.167 m | **0.099 m** |
+| `AI_ASSISTED` | 0 | **0** |
+| Position error, as georeferenced | 3.764 m | 3.764 m |
+| … after Sim(3) | 0.322 m | 0.318 m |
+| Wall clock | 94.7 s | 1231 s |
+
+1,386,161 points before the 0.15 m voxel downsample. Accuracy is unchanged,
+which is correct: dense stereo adds detail to a model, it does not move it.
+
+**Result: PASS**, and it closes the gap that made the clouds look broken.
+
+#### The uncertainty bug the first run caught
+
+Dense points initially reported a **median sigma of 0.0052 m against the sparse
+points' 0.0364 m** — seven times more certain than the bundle-adjusted geometry
+they were triangulated from.
+
+| | Sparse only | Dense, before | **Dense, after** |
+|---|---:|---:|---:|
+| p10 | 0.0123 m | 0.0035 m | 0.0371 m |
+| median | 0.0364 m | 0.0052 m | **0.0379 m** |
+| p90 | 0.1367 m | 0.0116 m | 0.0450 m |
+
+Three causes, fixed in [DEC-019](DECISIONS.md): the sparse reprojection residual
+used as a disparity precision (feature localisation is far tighter than window
+correlation); `sqrt(n_views)` treating consecutive frames of one pass as
+independent; and no floor from the sparse model's own accuracy, which is the one
+that mattered.
+
+Dense is now marginally *worse* than sparse, which is the correct ordering.
+**NOT TESTED:** whether either figure is right — no reference dimensions exist,
+and plausible is not correct.
 
 #### Per-question cost, profiled rather than guessed
 

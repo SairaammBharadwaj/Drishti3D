@@ -28,58 +28,51 @@ code.
 
 ## P0 — Critical
 
-### Verify dense multi-view stereo end to end
-
-**Status:** BLOCKED — needs a CUDA-enabled `colmap` executable
-**Priority:** P0
-
-**Why it matters**
-
-The clouds are sparse enough to look broken: 17,898 points for a 233 m flight at
-0.167 m spacing. Plan section 5.3 asks for dense observed geometry and it was
-never built. It is built now behind `densify="mvs"` — and **has never run**,
-because dense stereo needs CUDA and the PyPI `pycolmap` wheels are CPU-only.
-
-**Current state**
-
-`reconstruction/drishti_recon/mvs.py` shells out to a `colmap` binary for
-`image_undistorter` → `patch_match_stereo` → `stereo_fusion`, reads the fused
-PLY and its visibility sidecar, and returns points with a geometric uncertainty.
-`colmap_adapter` keeps its workspace when dense is requested; the pipeline fuses
-the result into the same cloud as the sparse points, as observed geometry.
-`/api/capabilities` reports why it is unavailable. Ten tests cover the module,
-none of them the subprocess path.
-
-**Recommended implementation**
-
-1. Install it: `BUILD_CUDA=ON CUDA_ARCH=native yay -S colmap`. `onnxruntime-cuda`,
-   `cgal`, `metis` and `flann` build from source first, so allow hours.
-   COLMAP 4.1.0 against CUDA 13.4 is a new combination and may not compile.
-2. Run `scripts/run_mission.py --mission agz_dense_pass --engine colmap
-   --densify mvs` and check point count, spacing, and that the class counts
-   stay `AI_ASSISTED: 0`.
-3. Check the dense sigma against the sparse one at similar range. If dense
-   points come out *more* certain than bundle-adjusted sparse points, the
-   estimate in `mvs.depth_uncertainty` is wrong and must be made conservative.
-4. Re-run a measurement survey: dense geometry should raise the share of
-   endpoints that snap to well-supported points.
-
-**If the build fails**, put a torch GPU plane-sweep behind the same `mvs`
-interface — `torch` cu128 already works on this card. Worse output, no install.
-
-**Relevant files**
-
-`reconstruction/drishti_recon/mvs.py`, `pipeline.py`, `colmap_adapter.py`
-
----
-
-Nothing. Per-point uncertainty on the COLMAP path, the previous P0, landed on
-2026-09-20 — see [DEC-012](DECISIONS.md) and the
-[WORKLOG entry](WORKLOG.md). The top of the backlog is now P1.
+Nothing. Dense multi-view stereo, the previous P0, ran successfully on
+2026-09-21 — see [DEC-019](DECISIONS.md) and the
+[benchmark](drishti3d/docs/benchmarks/2026-09-21_dense_mvs/RESULTS.md). What is
+left of it is validation, which needs field data, so it sits at P1 with the
+calibration work it shares a site visit with.
 
 ---
 
 ## P1 — Important
+
+
+### Validate dense uncertainty against measured dimensions
+
+**Status:** BLOCKED — needs field data
+**Priority:** P1
+
+**Why it matters**
+
+Dense MVS works: 251,998 observed points at 0.099 m spacing against 17,898 at
+0.167 m, `AI_ASSISTED: 0`, accuracy unchanged ([DEC-019](DECISIONS.md)). But a
+dense point's uncertainty is a **geometric estimate floored by the sparse
+model's accuracy**, not a propagated covariance — the first run had it seven
+times too optimistic, and the fix makes the numbers *plausible*, not *verified*.
+
+The distribution is now tight (p10 0.037, p90 0.045) because the floor dominates
+it, which means a dense point's reported uncertainty currently says more about
+the model than about that point.
+
+**Recommended implementation**
+
+With measured reference dimensions, compare predicted sigma against observed
+error for dense endpoints specifically, separately from sparse ones. If dense
+intervals under-cover, the floor or the pixel sigma is wrong. This is the same
+site visit as the calibration task.
+
+A partial check needing no field data: `stereo_fusion` can be asked for a
+visibility sidecar, and a per-point covariance could be approximated from the
+contributing cameras' geometry rather than from range alone. That would separate
+"this point is well seen" from "the model is good here".
+
+**Relevant files**
+
+`reconstruction/drishti_recon/mvs.py`, `eval/`
+
+---
 
 ### Fit and validate an interval calibration profile
 
@@ -281,41 +274,38 @@ Shares the Tolerance Lens UI work below.
 
 ---
 
-### Tolerance Lens UI
+### Finish the operator surface beyond the Tolerance Lens
 
 **Status:** TODO
 **Priority:** P1
 
 **Why it matters**
 
-The backend gate is complete and tested, but an operator cannot reach it. Plan
-F2's exit gate requires an operator to go question → evidence → report without
-shell access.
+The Tolerance Lens itself is built and on screen: value and interval, status
+chip, dominant limitation with each reason's next action, a tolerance slider
+that re-decides without re-measuring, evidence with measuring frames marked
+apart from candidates, and "Improve this measurement" with a before/after.
 
-**Current state**
+What is still missing is everything around it. Plan features F3, F5 and F6 have
+no operator surface at all.
 
-`POST/GET/PATCH/DELETE /api/projects/{id}/questions` and
-`GET …/questions/{qid}/evidence` all work and are covered by
-`tests/test_questions_api.py`. The frontend has no view for them.
+**What is left**
 
-**Recommended implementation**
-
-1. Add the endpoints to `frontend/src/api.ts`.
-2. A measurement card per question showing value, interval, a status chip, the
-   dominant limitation, and the `next_action` text for each reason code — the
-   API already returns all of it in `guidance`.
-3. A tolerance slider that issues `PATCH` and re-renders. The card must not
-   recompute a status locally; render exactly what the API returns.
-4. An evidence panel listing the frames from `…/evidence`. Each row carries
-   `measured` and, when true, the `pixel` the measurement was made at — enough
-   for Evidence Replay to draw a marker on the source frame. Show
-   `support_basis` verbatim so an upper-bound caveat reaches the operator when
-   the fallback path is in use.
+1. **Evidence Replay proper (F3).** The panel lists measuring frames and the
+   pixel each was measured at, but does not *show* the frame with a marker on
+   it. The data is there; `frame_index.csv` maps back to original source images.
+2. **The unknown-space map (F5).** `coverage.npz` classifies the mission volume
+   into observed / weak / occluded / unseen / verified-empty and nothing renders
+   it. This is the feature that makes a refusal legible.
+3. **Export and report (F6).** No way to export a measurement set, and no
+   comparison report.
+4. **A capability notice.** `/api/capabilities` reports whether dense MVS is
+   available and why not; the UI ignores it.
 
 **Relevant files**
 
-`frontend/src/api.ts`, `frontend/src/views/Workspace.tsx`,
-`frontend/src/styles.css`
+`frontend/src/ToleranceLens.tsx`, `views/Workspace.tsx`,
+`PointCloudViewer.tsx`, `api.ts`
 
 ---
 
@@ -357,6 +347,32 @@ explicit fallback when PyCOLMAP import fails. Keep both tested either way.
 ---
 
 ## P2 — Improvements
+
+
+### Decide the dense voxel size
+
+**Status:** TODO
+**Priority:** P2
+
+Patch-match produced 1,386,161 points; the pipeline's 0.15 m voxel keeps
+251,998. That default was chosen for sparse clouds where every point is a
+tracked feature, and it has not been revisited for dense output. A finer voxel
+keeps more detail at proportionate memory and export cost; the browser viewer
+subsamples to 120,000 regardless, so this is about the exported PLY/LAS and
+measurement snapping, not about how it looks on screen.
+
+**Relevant files**
+
+`reconstruction/drishti_recon/pipeline.py` (`PipelineParams.voxel`), `fusion.py`
+
+---
+
+
+Nothing. Per-point uncertainty on the COLMAP path, the previous P0, landed on
+2026-09-20 — see [DEC-012](DECISIONS.md) and the
+[WORKLOG entry](WORKLOG.md). The top of the backlog is now P1.
+
+---
 
 
 ### Re-examine the three approximations the local refit rests on

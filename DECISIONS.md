@@ -1682,3 +1682,99 @@ class counts.
 `drishti3d/reconstruction/drishti_recon/mvs.py`,
 `colmap_adapter.py` (`keep_workspace`), `pipeline.py` (densify stage, fusion),
 `backend/app/main.py` (`_mvs_status`), `drishti3d/tests/test_mvs.py`
+
+---
+
+## DEC-019 — A dense point's uncertainty is floored by the model it rides on
+
+**Date:** 2026-09-21
+
+**Status:** Accepted
+
+### Context
+
+[DEC-018](#dec-018--dense-geometry-comes-from-multi-view-stereo-and-is-kept-distinct-from-the-depth-prior)
+built dense multi-view stereo but could not run it: no CUDA-enabled COLMAP was
+installed. One now is, and the first run exposed a defect in the uncertainty
+model that the plumbing tests could not have caught.
+
+Dense points came back with a **median sigma of 0.0052 m against the sparse
+points' 0.0364 m** — seven times more certain than the bundle-adjusted geometry
+they were triangulated from. The estimate was
+`range * sigma_px / focal / sqrt(n_views)`, and every term was wrong in the
+flattering direction.
+
+### Options Considered
+
+#### Leave it and label dense points unmeasurable
+
+Avoids the bad number by refusing to use it. It also throws away the point of
+producing observed dense geometry rather than a depth prior: if dense points
+cannot be measured, they are decoration, and the depth prior already does
+decoration more cheaply.
+
+#### Propagate a real covariance
+
+The correct answer, and not available: `stereo_fusion` reports fused points and
+a visibility count, not which images agreed at what disparity, so the Jacobian
+in :mod:`uncertainty` cannot be formed. Recovering it would mean reimplementing
+fusion.
+
+#### Fix each wrong term, and floor the result on the sparse model
+
+1. **Pixel sigma.** The sparse reconstruction's reprojection residual (0.49 px
+   here) is *feature-localisation* precision: SIFT sits on a corner and finds it
+   to a fraction of a pixel. Patch-match correlates a window over whatever
+   texture is present. `DENSE_PIXEL_SIGMA = 1.0` px instead.
+2. **Independence.** `sqrt(n_views)` over every contributing image treats
+   consecutive frames of one pass, seeing the same surface from nearly the same
+   place, as independent samples. Capped at `MAX_INDEPENDENT_VIEWS = 4`.
+3. **A floor.** A dense point is triangulated from cameras known only to the
+   bundle adjustment's accuracy, so it cannot be better known than the model it
+   rides on. The sparse cloud's own median `sigma_major` is combined in
+   quadrature.
+
+### Decision
+
+The third. The floor is the part that matters: without it the stereo term alone
+reports millimetres on a model good to centimetres, and the other two
+corrections only change how badly.
+
+### Why
+
+This is the third time on this project that an uncertainty has come out
+implausibly small because something was held fixed that is not actually
+known — the local refit's boundary cameras in
+[DEC-014](#dec-014--targeted-refinement-gets-a-local-refit-it-ties-on-yield-and-still-loses-on-speed),
+and now the camera poses under dense stereo. The pattern is worth naming: any
+estimate conditioned on a model must carry that model's uncertainty, or it will
+claim to know more than the thing it was derived from.
+
+### Consequences
+
+| | Sparse only | Dense, before | **Dense, after** |
+|---|---:|---:|---:|
+| p10 | 0.0123 m | 0.0035 m | 0.0371 m |
+| median | 0.0364 m | 0.0052 m | **0.0379 m** |
+| p90 | 0.1367 m | 0.0116 m | 0.0450 m |
+
+- Dense points are now marginally *less* certain than sparse ones, which is the
+  correct ordering, and the sparse p10 still beats every dense point — the
+  best-constrained sparse points have long tracks and wide baselines that
+  generic stereo cannot match.
+- The dense distribution is tight (p10 0.037, p90 0.045) because the floor
+  dominates it. That is honest but not informative: it means a dense point's
+  reported uncertainty is currently more a statement about the model than about
+  that point. A propagated covariance would separate them.
+- **None of this is validated against truth.** Plausible is not correct, and
+  only measured reference dimensions can settle it.
+- DEC-018's remedy is confirmed working: 251,998 observed points at 0.099 m
+  spacing against 17,898 at 0.167 m, `AI_ASSISTED: 0`, and reconstruction
+  accuracy unchanged at 3.764 m as-georeferenced.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/mvs.py` (`depth_uncertainty`,
+`DENSE_PIXEL_SIGMA`, `MAX_INDEPENDENT_VIEWS`), `pipeline.py` densify stage,
+`drishti3d/tests/test_mvs.py`,
+`drishti3d/docs/benchmarks/2026-09-21_dense_mvs/RESULTS.md`
