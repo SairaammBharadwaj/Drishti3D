@@ -122,7 +122,16 @@ def _answer(project_id: str, row: MeasurementQuestion,
     return result
 
 
-def _out(row: MeasurementQuestion, result: Measurement | None) -> dict:
+def _out(row: MeasurementQuestion, result: Measurement | None,
+         current_version: str | None = None) -> dict:
+    """Serialise a question and its latest answer.
+
+    ``current_version`` is the reconstruction the project holds *now*. A stored
+    result belongs to the artifacts that produced it, and after a reprocess
+    those are gone -- so a listing that returned the old value with no marker
+    let a superseded answer read as current. The PATCH and refine paths already
+    re-measured on a version change; plain listing had no way to say anything.
+    """
     guidance = []
     if result is not None:
         for code in (result.status_reasons or []):
@@ -153,6 +162,13 @@ def _out(row: MeasurementQuestion, result: Measurement | None) -> dict:
             "threshold_result": result.threshold_result,
             "evidence": result.evidence or {},
             "artifact_version": result.artifact_version,
+            # True when the reconstruction has been rebuilt since this answer
+            # was computed. The value is not wrong; it is about geometry that
+            # no longer exists, and re-asking is what makes it current.
+            "superseded": bool(
+                current_version is not None
+                and result.artifact_version is not None
+                and result.artifact_version != current_version),
             "warnings": result.warnings or [],
             "created_at": result.created_at,
         },
@@ -209,7 +225,8 @@ def create_question(project_id: str, body: QuestionCreate,
     db.add(row)
     db.commit()
     db.refresh(row)
-    return _out(row, _answer(project_id, row, db))
+    return _out(row, _answer(project_id, row, db),
+                _artifact_version(project_id))
 
 
 @router.get("/{project_id}/questions", response_model=list[QuestionOut])
@@ -217,7 +234,8 @@ def list_questions(project_id: str, db: Session = Depends(get_db)):
     rows = (db.query(MeasurementQuestion)
             .filter(MeasurementQuestion.project_id == project_id)
             .order_by(MeasurementQuestion.created_at.desc()).all())
-    return [_out(r, _latest(db, r.id)) for r in rows]
+    current = _artifact_version(project_id)
+    return [_out(r, _latest(db, r.id), current) for r in rows]
 
 
 @router.patch("/{project_id}/questions/{question_id}",
@@ -253,7 +271,8 @@ def update_question(project_id: str, question_id: str, body: QuestionUpdate,
         # Either nothing was measured yet, or the geometry changed underneath.
         # Re-measuring is right in both cases; reusing a stale value would
         # silently answer a question about geometry that no longer exists.
-        return _out(row, _answer(project_id, row, db))
+        return _out(row, _answer(project_id, row, db),
+                _artifact_version(project_id))
 
     question = qmod.MeasurementQuestion(
         kind=row.kind, tolerance_m=row.tolerance_m, level=row.interval_level,
@@ -274,7 +293,7 @@ def update_question(project_id: str, question_id: str, body: QuestionUpdate,
     prior.threshold_result = verdict.threshold_result
     db.commit()
     db.refresh(prior)
-    return _out(row, prior)
+    return _out(row, prior, _artifact_version(project_id))
 
 
 @router.get("/{project_id}/questions/{question_id}/evidence",

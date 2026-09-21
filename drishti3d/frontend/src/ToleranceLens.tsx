@@ -79,6 +79,13 @@ function Card({ q, projectId, onChanged, onDelete }: {
         {r?.interval_half_width != null &&
           <span className="muted"> ± {r.interval_half_width.toFixed(3)} ({r.interval_level}%)</span>}
       </div>
+      {r?.superseded && (
+        <div className="notebox warn" style={{ marginTop: 6, fontSize: 12 }}>
+          <strong>Superseded.</strong> The reconstruction was rebuilt after this
+          answer was computed, so it describes geometry that no longer exists.
+          Changing the tolerance re-measures it against the current artifacts.
+        </div>
+      )}
       {r && r.interval_basis !== 'calibrated' && (
         <div className="muted" style={{ fontSize: 12 }}>
           Interval is a sensitivity estimate, not a coverage-checked one.

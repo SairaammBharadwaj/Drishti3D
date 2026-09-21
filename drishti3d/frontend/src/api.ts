@@ -249,6 +249,12 @@ export interface QuestionResult {
   threshold_result: 'above' | 'below' | 'indeterminate' | null
   evidence: Record<string, unknown>
   artifact_version: string | null
+  /**
+   * The reconstruction was rebuilt after this answer was computed. The value
+   * is not wrong; it describes geometry that no longer exists. Re-asking the
+   * question against the current artifacts is what makes it current.
+   */
+  superseded?: boolean
   warnings: string[]
   created_at: string
 }

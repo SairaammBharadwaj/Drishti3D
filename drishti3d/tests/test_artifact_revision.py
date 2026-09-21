@@ -89,3 +89,53 @@ def test_missing_artifacts_are_a_404_not_a_stale_hit(project):
     (storage.artifacts_dir(PID) / "cloud.npz").unlink()
     with pytest.raises(HTTPException):
         meas.load_cloud(PID)
+
+
+# --------------------------------------------------------------------------- #
+# A stored answer belongs to the artifacts that produced it
+# --------------------------------------------------------------------------- #
+def test_superseded_is_flagged_when_the_reconstruction_was_rebuilt():
+    from app.routers.questions import _out
+
+    class Row:
+        id = "q1"; project_id = PID; kind = "distance"; label = "d"
+        points_enu = [[0, 0, 0], [1, 0, 0]]; tolerance_m = 0.2
+        interval_level = 95; threshold_m = None
+        threshold_direction = "at_least"; allow_inferred = False; notes = ""
+        created_at = updated_at = None
+
+    class Res:
+        id = "m1"; value = 1.0; unit = "m"; sigma = 0.01
+        interval_half_width = 0.02; interval_level = 95
+        interval_basis = "uncalibrated_sensitivity"; status = "estimated_only"
+        status_reasons = []; dominant_limitation = None; threshold_result = None
+        evidence = {}; warnings = []; created_at = None
+        artifact_version = "old@1"
+
+    stale = _out(Row(), Res(), "new@2")["result"]
+    assert stale["superseded"] is True
+
+    current = _out(Row(), Res(), "old@1")["result"]
+    assert current["superseded"] is False
+
+
+def test_unknown_current_version_is_not_reported_as_superseded():
+    """Absence of information is not evidence the answer is stale."""
+    from app.routers.questions import _out
+
+    class Row:
+        id = "q1"; project_id = PID; kind = "distance"; label = "d"
+        points_enu = [[0, 0, 0], [1, 0, 0]]; tolerance_m = 0.2
+        interval_level = 95; threshold_m = None
+        threshold_direction = "at_least"; allow_inferred = False; notes = ""
+        created_at = updated_at = None
+
+    class Res:
+        id = "m1"; value = 1.0; unit = "m"; sigma = 0.01
+        interval_half_width = 0.02; interval_level = 95
+        interval_basis = "uncalibrated_sensitivity"; status = "estimated_only"
+        status_reasons = []; dominant_limitation = None; threshold_result = None
+        evidence = {}; warnings = []; created_at = None
+        artifact_version = "old@1"
+
+    assert _out(Row(), Res(), None)["result"]["superseded"] is False
