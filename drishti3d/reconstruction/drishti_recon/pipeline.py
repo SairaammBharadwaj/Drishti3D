@@ -161,7 +161,7 @@ def run(project_dir, video_path, telemetry_path, *,
         _emit(progress, "telemetry", 0.3, "parsing telemetry")
         no_gps = telemetry_path is None
         if no_gps:
-            treport = tel.TelemetryReport([], 0, 0, [], False, None)
+            treport = tel.TelemetryReport([], 0, 0, [])
         else:
             treport = tel.load(telemetry_path)
             warnings += treport.warnings
@@ -491,6 +491,9 @@ def run(project_dir, video_path, telemetry_path, *,
             weights = np.array([1.0 / a if a else 1.0 for a in acc_for_cams])
             align = robust_sim3(cam_centers, gps_for_cams, weights=weights,
                                 threshold=3.0)
+            # `has_rtk` is now a supermajority test, not `any()`, so a single
+            # RTK-labelled sample can no longer describe a whole mission's
+            # scale as RTK-derived.
             scale_source = "rtk" if treport.has_rtk else "gps"
             pts_enu = align.transform.apply(recon.points)
             cams_enu = [align.transform.apply(c.center)[0] for c in recon.cameras]
@@ -718,6 +721,9 @@ def run(project_dir, video_path, telemetry_path, *,
             uncertainty_summary=_unc_summary, frame_metrics=metrics,
             required_sigma_m=params.required_sigma_m)
         recapture = capmod.plan_recapture(assessment, coverage_grid=cov_grid)
+        # The fix-quality composition travels with the scale label, so a
+        # reader can see what the word "rtk" or "gps" rests on rather than
+        # having to trust it.
         report = quality.build_report(
             video_info=vinfo, telemetry_report=treport, frame_metrics=metrics,
             keyframe_count=len(sel), recon_stats=recon.stats, align_result=align,
@@ -734,6 +740,11 @@ def run(project_dir, video_path, telemetry_path, *,
             capture_assessment=assessment.to_dict(),
             recapture_plan=recapture.to_dict(),
             inferred_verification=verification_summary)
+        if treport.fix_quality_counts:
+            tsec = report.setdefault("input", {}).setdefault("telemetry", {})
+            tsec["fix_quality_counts"] = dict(treport.fix_quality_counts)
+            tsec["rtk_fixed_fraction"] = round(
+                float(treport.rtk_fixed_fraction), 4)
         _emit(progress, "report", 1.0, "report ready")
 
     # 13) EXPORTS + viewer payload ------------------------------------------

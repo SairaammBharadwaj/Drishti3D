@@ -73,6 +73,15 @@ class ReconstructionEvidence:
     #: decoded one, and observations carry both precisely so the two numbering
     #: schemes never have to be guessed between.
     _camera_of_frame: dict = None
+    #: Whether a masking backend ran on this reconstruction. When it did not,
+    #: nothing looked for moving surfaces and a "no contamination" finding is
+    #: an absence of evidence, not evidence of absence.
+    #:
+    #: Declared last on purpose: `load` and several tests construct this class
+    #: positionally, so inserting a field in the middle silently shifts every
+    #: argument after it -- `points` becomes this flag, `observations` becomes
+    #: `points`, and the failure surfaces far away as a KeyError on lineage.
+    dynamic_status_known: bool = False
 
     # ---- construction ---------------------------------------------------- #
     @classmethod
@@ -99,7 +108,7 @@ class ReconstructionEvidence:
                                free_count=d["free_count"]
                                if "free_count" in d.files else None)
 
-        scale_source, scale_sigma = "none", float("nan")
+        scale_source, scale_sigma, masked = "none", float("nan"), False
         man = art / "manifest.json"
         if man.exists():
             try:
@@ -118,6 +127,9 @@ class ReconstructionEvidence:
                 if (sig is not None and sc and np.isfinite(float(sig))
                         and np.isfinite(float(sc)) and float(sc) > 0):
                     scale_sigma = float(sig) / float(sc)
+                # Whether anything looked for moving surfaces on this run.
+                backend = (m.get("params") or {}).get("mask_backend")
+                masked = bool(backend) and str(backend) != "none"
             except (ValueError, KeyError, TypeError):
                 pass
         points = None
@@ -170,6 +182,7 @@ class ReconstructionEvidence:
         #: own uncertainty for a neighbourhood. A local refit needs it to avoid
         #: reporting a point as better known than the model it sits in.
         rec.sigma_major = sigma_major
+        rec.dynamic_status_known = masked
         return rec
 
     # ---- observation lineage ---------------------------------------------- #
@@ -394,7 +407,13 @@ class ReconstructionEvidence:
             touches_inferred=inferred,
             endpoints_observed=bool(observed) if observed is not None else False,
             endpoints_within_coverage=bool(within),
-            dynamic_contamination=False,
+            # Derived from the endpoints, not asserted. A selection resolving
+            # onto geometry the masker classified as moving is contamination;
+            # `dynamic_status_known` says whether anything looked at all.
+            dynamic_contamination=bool(provenances is not None and any(
+                int(pr) == int(Provenance.DYNAMIC_EXCLUDED)
+                for pr in provenances)),
+            dynamic_status_known=self.dynamic_status_known,
             scale_source=self.scale_source,
             scale_sigma_rel=self.scale_sigma_rel,
         )

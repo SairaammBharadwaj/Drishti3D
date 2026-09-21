@@ -2608,3 +2608,96 @@ enough.
 `drishti3d/backend/app/routers/questions.py`, `results.py`,
 `drishti3d/reconstruction/drishti_recon/questions.py`,
 `drishti3d/tests/test_result_contract.py`
+
+---
+
+## DEC-034 — Sensor and dynamic evidence say what was actually checked
+
+**Date:** 2026-09-21
+
+**Status:** Accepted
+
+### Context
+
+Two findings from the verification's V05, both reporting an unknown as a
+finding:
+
+- `TelemetryReport.has_rtk` was `any(sample is RTK)`. **One** RTK-labelled row
+  among thousands made the pipeline label the whole mission's scale source
+  `"rtk"` — a claim about the accuracy of an entire track, on the evidence of
+  one sample.
+- `ReconstructionEvidence.for_points` set `dynamic_contamination=False`
+  unconditionally. "No masking backend ran, so nothing looked for moving
+  surfaces" and "masking ran and this measurement is clean" were reported
+  identically, and the second is what an operator would read.
+
+### Decision
+
+`rtk_fixed_fraction` replaces the boolean, with `fix_quality_counts` beside it
+so "unknown" stays distinguishable from "poor". `has_rtk` is derived and
+requires `RTK_FRACTION_REQUIRED` (0.9): scale is fitted over the whole
+contributing track, so a track that is mostly float or autonomous is not an
+RTK-derived scale however many fixed samples it also contains. A partially
+fixed mission warns with its actual fraction.
+
+`dynamic_contamination` is derived from the endpoints' own provenance — a
+selection resolving onto `DYNAMIC_EXCLUDED` geometry is contamination — and
+`dynamic_status_known` records whether a masking backend ran at all.
+
+### Consequences
+
+- Adding `dynamic_status_known` to `ReconstructionEvidence` in the middle of
+  the dataclass silently shifted every positional argument after it: `points`
+  became the flag, `observations` became `points`, and 22 tests failed with a
+  `KeyError` on lineage, far from the cause. The field is declared last, with a
+  comment saying why. **`load` and several tests construct this class
+  positionally, so field order is part of its interface.**
+- The manifest now carries the fix-quality composition, so the word "rtk" or
+  "gps" can be checked rather than trusted.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/telemetry.py`, `pipeline.py`,
+`evidence.py`, `questions.py`
+
+---
+
+## DEC-035 — `evaluate` enforces calibration regime matching
+
+**Date:** 2026-09-21
+
+**Status:** Accepted · **completes
+[DEC-028](#dec-028--calibration-is-a-release-process-not-a-sample-count)**
+
+### Context
+
+`evaluate`'s docstring said: "``profile`` is the calibration for *this capture
+regime*; passing a profile fitted elsewhere is the caller's error and cannot be
+detected here."
+
+Both halves were wrong. It is detectable — `CalibrationProfile.applies_to`
+existed and nothing called it — and making the single most consequential
+precondition in the module something no code enforces is how it eventually
+fails. "The caller must match it" holds until the one call site that forgets,
+and that call site will be the one that grants an accepted measurement.
+
+### Decision
+
+`evaluate` takes `regime` and checks it. A mismatch produces
+`CALIBRATION_REGIME_MISMATCH`, which blocks acceptance and carries its own
+operator guidance. An **unknown** regime also refuses: a profile that cannot be
+shown to apply has not been shown to apply.
+
+### Consequences
+
+- Two existing tests began failing because they passed a usable profile with no
+  regime. That is the new rule working: they now state which capture they are
+  measuring, which is information a calibrated verdict always needed and never
+  had to supply.
+- Nothing in production passes a profile yet, so no live behaviour changes. The
+  point is that the gate is correct before anything depends on it.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/questions.py`,
+`drishti3d/tests/test_calibration_lifecycle.py`, `tests/test_questions.py`

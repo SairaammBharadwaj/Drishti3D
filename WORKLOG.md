@@ -2313,3 +2313,45 @@ of the coverage-volume variation between non-deterministic COLMAP runs, and two
 observations is enough to call it confirmed: outcomes for endpoints near a
 coverage boundary are not stable across rebuilds of the same flight. Anyone
 quoting a single-run result needs to know that.
+
+## 2026-09-21 — The rest of the verification's open items
+
+Worked through what the verification left open after the nine blocking
+failures, taking the ones that are correctness or honesty rather than new
+features.
+
+**Sensor claims.** `has_rtk` was `any(sample is RTK)`, so one RTK-labelled row
+among thousands made the pipeline describe a whole mission's scale as
+RTK-derived. It is now a fraction with a 0.9 supermajority requirement, and the
+fix-quality composition travels in the manifest so the label can be checked
+rather than trusted. `dynamic_contamination` was hardcoded `False`; it is
+derived from endpoint provenance now, with `dynamic_status_known` recording
+whether any masker ran — "nothing looked" and "looked and found nothing" were
+being reported identically.
+
+Adding that field cost me twenty minutes: I declared it in the middle of
+`ReconstructionEvidence`, which shifted every positional argument after it, so
+`points` became the flag and 22 tests failed with a `KeyError` on lineage far
+from the cause. `load` and several tests construct that class positionally, so
+field order is part of its interface. Declared last now, with a comment.
+
+**Calibration regime.** `evaluate`'s docstring said passing a profile fitted
+elsewhere "is the caller's error and cannot be detected here". Both halves were
+wrong — `applies_to` existed and nothing called it. `evaluate` takes `regime`
+and refuses a mismatch, and refuses an unknown regime too, because a profile
+that cannot be shown to apply has not been shown to apply. Two existing tests
+failed on this, which is the rule working: they now state which capture they
+are measuring.
+
+**The sequence test the verification asked for.** `test_question_lifecycle_api.py`
+runs create → seed refinement metadata → change tolerance → reload → evidence →
+export as one flow, plus a rejected-change test and a rebuilt-cloud test. Three
+of the verification's findings were invisible to unit tests because every step
+worked alone and only the *transitions* were broken. A sequence test is the
+only shape that catches those.
+
+**Frontend.** The evidence panel cached its response and never cleared it after
+a refinement, so opening it showed the old frames beside the new value. It now
+clears on refinement and on a tolerance change that re-measured.
+
+441 tests pass, 15/15 audit checks pass, production frontend build passes.

@@ -90,3 +90,63 @@ def test_unsupported_interval_level_is_refused_not_substituted():
     assert p.interval(0.05, level=95) == pytest.approx(0.08)
     assert p.interval(0.05, level=80) == pytest.approx(0.06)
     assert p.interval(0.05, level=99) == float("inf")
+
+
+# --------------------------------------------------------------------------- #
+# Regime matching is enforced, not delegated
+# --------------------------------------------------------------------------- #
+def _released(regime="uav_oblique/gps"):
+    res = unc.CalibrationResult(
+        n=40, conformal_factors={95: 1.6}, scale_factor=1.1,
+        coverage_conformal={95: 0.95}, coverage={95: 0.7})
+    return (q.CalibrationProfile.from_calibration(
+                res, regime=regime, source="test", fit_missions=("m1",))
+            .evaluated(coverage_heldout={95: 0.94}, eval_missions=("m9",))
+            .released(approved_by="test"))
+
+
+def _good_evidence():
+    return q.Evidence(
+        n_supporting_views=8, max_ray_separation_deg=35.0,
+        view_support_basis="triangulated_observations",
+        endpoints_observed=True, endpoints_within_coverage=True,
+        scale_source="gps", scale_sigma_rel=1e-5)
+
+
+def _verdict(profile, regime):
+    return q.evaluate(q.MeasurementQuestion(kind="distance", tolerance_m=1.0),
+                      value=10.0, sigma=0.01, evidence=_good_evidence(),
+                      profile=profile, regime=regime)
+
+
+def test_a_matching_regime_can_reach_meets_requirement():
+    v = _verdict(_released(), "uav_oblique/gps")
+    assert v.status == q.Status.MEETS_REQUIREMENT
+    assert v.interval_basis == "calibrated"
+
+
+def test_a_mismatched_regime_is_refused_by_evaluate():
+    """Not left to the caller: a profile cannot know where it is used."""
+    v = _verdict(_released("uav_oblique/gps"), "uav_nadir/rtk")
+    assert v.status != q.Status.MEETS_REQUIREMENT
+    assert "calibration_regime_mismatch" in v.to_dict()["reasons"]
+    assert v.interval_basis == "uncalibrated_sensitivity"
+
+
+def test_an_unknown_regime_cannot_be_shown_to_match():
+    v = _verdict(_released(), None)
+    assert v.status != q.Status.MEETS_REQUIREMENT
+    assert "calibration_regime_mismatch" in v.to_dict()["reasons"]
+
+
+def test_regime_mismatch_has_operator_guidance():
+    v = _verdict(_released(), "other/regime")
+    codes = [g["reason"] for g in v.to_dict()["guidance"]]
+    assert "calibration_regime_mismatch" in codes
+
+
+def test_no_profile_still_reports_not_calibrated_not_mismatch():
+    v = _verdict(None, "uav_oblique/gps")
+    reasons = v.to_dict()["reasons"]
+    assert "interval_not_calibrated" in reasons
+    assert "calibration_regime_mismatch" not in reasons

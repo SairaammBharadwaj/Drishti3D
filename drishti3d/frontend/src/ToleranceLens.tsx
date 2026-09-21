@@ -46,8 +46,13 @@ function Card({ q, projectId, onChanged, onDelete }: {
 
   const setTol = async (t: number) => {
     setBusy(true); setErr(null)
-    try { onChanged(await api.setTolerance(projectId, q.id, t)) }
-    catch (e) { setErr(String(e)) } finally { setBusy(false) }
+    try {
+      const next = await api.setTolerance(projectId, q.id, t)
+      // A tolerance change re-measures when the reconstruction moved under
+      // the question, so the cached evidence can be about different geometry.
+      if (next.result?.artifact_version !== r?.artifact_version) setEvidence(null)
+      onChanged(next)
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
 
   const loadEvidence = async () => {
@@ -62,6 +67,15 @@ function Card({ q, projectId, onChanged, onDelete }: {
     try {
       const run = await api.refineQuestion(projectId, q.id, 4)
       setRefinement(run)
+      // Refinement moves an endpoint and can add supporting frames, so the
+      // evidence held here describes the measurement as it was before. It was
+      // never cleared, so opening the panel after a refinement showed the old
+      // frames beside the new value.
+      setEvidence(null)
+      if (showEvidence) {
+        try { setEvidence(await api.questionEvidence(projectId, q.id)) }
+        catch { /* the panel reloads on next open */ }
+      }
       onChanged(await api.listQuestions(projectId).then(
         (all) => all.find((x) => x.id === q.id) ?? q))
     } catch (e) { setErr(String(e)) } finally { setRefining(false) }

@@ -23,6 +23,12 @@ def good_evidence(**kw):
     return q.Evidence(**base)
 
 
+#: The regime the test profile is fitted for. `evaluate` now checks a profile
+#: against the capture it is being applied to, so a test that wants a
+#: calibrated verdict has to say which capture it is measuring.
+REGIME = "uav_oblique/gps"
+
+
 def usable_profile(n=40, k95=1.6):
     """A profile that has been through the whole lifecycle.
 
@@ -32,7 +38,7 @@ def usable_profile(n=40, k95=1.6):
     -- so a test that wants a usable profile has to build one that could
     actually exist.
     """
-    return (q.CalibrationProfile(regime="uav_oblique/gps", n_samples=n,
+    return (q.CalibrationProfile(regime=REGIME, n_samples=n,
                                  conformal_factors={95: k95},
                                  coverage_observed={95: 0.95},
                                  source="test", fit_missions=("fit_a",))
@@ -60,7 +66,7 @@ def test_uncalibrated_system_cannot_claim_meets_requirement():
 def test_calibrated_profile_permits_acceptance():
     v = q.evaluate(q.MeasurementQuestion("distance", tolerance_m=0.20),
                    value=3.42, sigma=0.06, evidence=good_evidence(),
-                   profile=usable_profile())
+                   profile=usable_profile(), regime=REGIME)
     assert v.status is q.Status.MEETS_REQUIREMENT
     assert v.interval_basis == "calibrated"
     assert v.interval_half_width == pytest.approx(0.096)
@@ -82,9 +88,11 @@ def test_small_calibration_sample_blocks_acceptance():
 def test_tightening_tolerance_changes_status_not_the_measurement():
     ev, prof = good_evidence(), usable_profile()
     loose = q.evaluate(q.MeasurementQuestion("distance", tolerance_m=0.20),
-                       value=3.42, sigma=0.06, evidence=ev, profile=prof)
+                       value=3.42, sigma=0.06, evidence=ev, profile=prof,
+                       regime=REGIME)
     tight = q.evaluate(q.MeasurementQuestion("distance", tolerance_m=0.05),
-                       value=3.42, sigma=0.06, evidence=ev, profile=prof)
+                       value=3.42, sigma=0.06, evidence=ev, profile=prof,
+                       regime=REGIME)
     assert loose.status is q.Status.MEETS_REQUIREMENT
     assert tight.status is q.Status.NEEDS_REFINEMENT
     assert q.Reason.INTERVAL_EXCEEDS_TOLERANCE in tight.reasons

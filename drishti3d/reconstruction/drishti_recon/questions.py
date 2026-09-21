@@ -71,6 +71,7 @@ class Reason(str, Enum):
     #: No validated calibration profile covers this capture, so the interval is
     #: a sensitivity estimate rather than a coverage-checked one.
     INTERVAL_NOT_CALIBRATED = "interval_not_calibrated"
+    CALIBRATION_REGIME_MISMATCH = "calibration_regime_mismatch"
     #: A calibration profile exists but was fitted on too few missions.
     CALIBRATION_SAMPLE_TOO_SMALL = "calibration_sample_too_small"
     #: An endpoint lies in space the capture never established.
@@ -119,6 +120,13 @@ REASON_GUIDANCE = {
     Reason.INTERVAL_EXCEEDS_TOLERANCE: (
         "The measurement's interval is wider than the tolerance requested.",
         "Run 'Improve this measurement', or relax the tolerance."),
+    Reason.CALIBRATION_REGIME_MISMATCH: (
+        "A calibration profile exists, but it was fitted for a different "
+        "capture regime than this one -- a different camera, capture pattern "
+        "or scale source.",
+        "Fit and release a profile for this regime, or capture under one the "
+        "existing profile covers. A profile applied outside its regime is an "
+        "unvalidated guess wearing a validated label."),
     Reason.INTERVAL_NOT_CALIBRATED: (
         "No validated calibration covers this capture, so the interval is a "
         "sensitivity estimate, not a coverage-checked one.",
@@ -357,6 +365,12 @@ class Evidence:
     endpoints_observed: bool = False
     endpoints_within_coverage: bool = True
     dynamic_contamination: bool = False
+    #: Whether anything actually looked for moving surfaces. False means the
+    #: question was never asked, which is not the same as asking and finding
+    #: none -- ``dynamic_contamination=False`` used to be set unconditionally,
+    #: so "no masking backend ran" and "masking ran and found nothing clean"
+    #: were reported identically.
+    dynamic_status_known: bool = False
     scale_source: str = "none"           # gps | control | known_length | none
     scale_sigma_rel: float = float("nan")
 
@@ -398,12 +412,20 @@ MIN_SUPPORTING_VIEWS = 3
 
 def evaluate(question: MeasurementQuestion, *, value: float | None,
              sigma: float | None, evidence: Evidence,
-             profile: CalibrationProfile | None = None) -> Verdict:
+             profile: CalibrationProfile | None = None,
+             regime: str | None = None) -> Verdict:
     """Decide a measurement's status against a question.
 
     ``sigma`` is the propagated 1-sigma of ``value`` from :mod:`uncertainty`.
-    ``profile`` is the calibration for *this capture regime*; passing a profile
-    fitted elsewhere is the caller's error and cannot be detected here.
+
+    ``profile`` is a calibration, and ``regime`` names the capture this
+    measurement came from. The two are checked against each other here rather
+    than trusted: the docstring used to say that passing a profile fitted
+    elsewhere "is the caller's error and cannot be detected here", which made
+    the single most consequential precondition in this module something no code
+    enforced. It can be detected here, and now is.
+
+    An unknown ``regime`` cannot be shown to match anything, so it refuses.
     """
     reasons: list = []
 
@@ -438,13 +460,22 @@ def evaluate(question: MeasurementQuestion, *, value: float | None,
     if evidence.scale_source in ("none", "", None):
         reasons.append(Reason.SCALE_NOT_ESTABLISHED)
 
-    calibrated = profile is not None and profile.usable()
+    # Regime matching is enforced here, not left to the caller. A profile
+    # cannot know where it is being used, and "the caller must match it" is
+    # the kind of requirement that holds until the one call site that forgets.
+    # `regime` is the capture this measurement came from; when it is unknown
+    # no profile can be shown to apply, which is a refusal rather than a pass.
+    regime_ok = (profile is not None and bool(regime)
+                 and profile.applies_to(regime))
+    calibrated = profile is not None and profile.usable() and regime_ok
     if profile is None:
         reasons.append(Reason.INTERVAL_NOT_CALIBRATED)
     elif not profile.usable():
         reasons.append(Reason.CALIBRATION_SAMPLE_TOO_SMALL
                        if profile.n_samples < MIN_CALIBRATION_SAMPLES
                        else Reason.INTERVAL_NOT_CALIBRATED)
+    elif not regime_ok:
+        reasons.append(Reason.CALIBRATION_REGIME_MISMATCH)
 
     half = (profile.interval(sigma, question.level) if calibrated
             else _Z(question.level) * float(sigma))
@@ -485,7 +516,7 @@ def evaluate(question: MeasurementQuestion, *, value: float | None,
 #: genuinely well supported by the remaining views.
 _BLOCKING = {
     Reason.INTERVAL_NOT_CALIBRATED, Reason.CALIBRATION_SAMPLE_TOO_SMALL,
-    Reason.SCALE_NOT_ESTABLISHED, Reason.SCALE_UNCERTAINTY_DOMINATES,
+    Reason.CALIBRATION_REGIME_MISMATCH, Reason.SCALE_NOT_ESTABLISHED, Reason.SCALE_UNCERTAINTY_DOMINATES,
     Reason.DEGENERATE_VIEW_GEOMETRY, Reason.INSUFFICIENT_VIEWS,
     Reason.TOUCHES_INFERRED_GEOMETRY, Reason.ENDPOINT_NOT_OBSERVED,
     Reason.OUTSIDE_ESTABLISHED_COVERAGE, Reason.UNCERTAINTY_UNDEFINED,
@@ -506,6 +537,7 @@ _PRIORITY = [
     Reason.DEGENERATE_VIEW_GEOMETRY, Reason.INSUFFICIENT_VIEWS,
     Reason.VIEW_GEOMETRY_UNVERIFIED,
     Reason.DYNAMIC_CONTAMINATION, Reason.INTERVAL_EXCEEDS_TOLERANCE,
+    Reason.CALIBRATION_REGIME_MISMATCH,
     Reason.CALIBRATION_SAMPLE_TOO_SMALL, Reason.INTERVAL_NOT_CALIBRATED,
 ]
 

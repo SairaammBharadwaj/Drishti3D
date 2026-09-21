@@ -36,18 +36,40 @@ class TelemetrySample:
         return d
 
 
+#: A mission is labelled RTK only if this fraction of its samples carry a fixed
+#: RTK solution. Scale is fitted over the whole contributing track, so a track
+#: that is mostly float or autonomous is not an RTK-derived scale however many
+#: fixed samples it also contains.
+RTK_FRACTION_REQUIRED = 0.9
+
+_RTK_FIXED_LABELS = ("RTK", "FIXED", "4", "RTK_FIXED")
+_RTK_FLOAT_LABELS = ("FLOAT", "5", "RTK_FLOAT")
+
+
 @dataclass
 class TelemetryReport:
     samples: list[TelemetrySample]
     n_input_rows: int
     n_valid: int
     warnings: list[str]
-    has_rtk: bool
+    #: Fraction of samples carrying a fixed RTK solution, 0.0 to 1.0.
+    #: This used to be a bare ``has_rtk`` boolean set by ``any()``, so a single
+    #: RTK-labelled row among thousands made the pipeline label the mission's
+    #: scale source "rtk" -- a claim about the accuracy of the whole track made
+    #: on the evidence of one sample.
+    rtk_fixed_fraction: float = 0.0
+    #: Counts by fix quality, so "unknown" stays distinguishable from "poor".
+    fix_quality_counts: dict = field(default_factory=dict)
     intrinsics: dict | None = None  # fx,fy,cx,cy if present in telemetry
 
     @property
     def ok(self) -> bool:
         return self.n_valid >= 2
+
+    @property
+    def has_rtk(self) -> bool:
+        """Whether this mission's scale may be described as RTK-derived."""
+        return self.rtk_fixed_fraction >= RTK_FRACTION_REQUIRED
 
 
 _ALIASES = {
@@ -257,9 +279,26 @@ def load(path: str | Path) -> TelemetryReport:
 
     n_in = len(samples) + len(warnings)
     samples.sort(key=lambda s: s.timestamp)
-    has_rtk = any(s.rtk_status and str(s.rtk_status).upper() in
-                  ("RTK", "FIXED", "4", "RTK_FIXED") for s in samples)
-    return TelemetryReport(samples, n_in, len(samples), warnings, has_rtk, intr)
+    counts = {"fixed": 0, "float": 0, "other": 0, "unknown": 0}
+    for smp in samples:
+        if not smp.rtk_status:
+            counts["unknown"] += 1
+            continue
+        label = str(smp.rtk_status).upper()
+        if label in _RTK_FIXED_LABELS:
+            counts["fixed"] += 1
+        elif label in _RTK_FLOAT_LABELS:
+            counts["float"] += 1
+        else:
+            counts["other"] += 1
+    frac = counts["fixed"] / len(samples) if samples else 0.0
+    if 0.0 < frac < RTK_FRACTION_REQUIRED:
+        warnings.append(
+            f"only {frac:.0%} of telemetry samples carry a fixed RTK solution; "
+            f"scale is treated as ordinary GNSS, not RTK")
+    return TelemetryReport(samples, n_in, len(samples), warnings,
+                           rtk_fixed_fraction=frac, fix_quality_counts=counts,
+                           intrinsics=intr)
 
 
 def kalman_smooth(times, positions, *, sigma_m=5.0, accel_m_s2=1.0):
