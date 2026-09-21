@@ -301,6 +301,21 @@ export interface QuestionEvidence {
     max_ray_separation_deg: number
     within_established_coverage: boolean
     frames: EvidenceFrame[]
+    /**
+     * How this endpoint's support was recorded. A sparse row's pixel was
+     * measured in that image by a feature detector; a dense row's pixel is the
+     * fused point projected back into an image `stereo_fusion` recorded as
+     * contributing. Both establish that the image contributed, but only the
+     * first is an original image measurement.
+     *
+     * `kinds_recorded` is false for artifacts written before the distinction
+     * existed -- their counts are an honest default, not a measurement.
+     */
+    observation_kinds?: {
+      sparse_feature_observation: number
+      dense_fusion_contributor: number
+      kinds_recorded: boolean
+    }
   }[]
   note: string
 }

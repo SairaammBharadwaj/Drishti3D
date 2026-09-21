@@ -166,6 +166,15 @@ def _latest(db: Session, question_id: str) -> Measurement | None:
             .order_by(Measurement.created_at.desc()).first())
 
 
+#: Minimum selections a question of each kind can be answered from. Enforced at
+#: creation so an unanswerable question is never stored.
+MIN_POINTS = {"point": 1, "distance": 2, "height": 2, "area": 3}
+
+#: Interval levels the uncertainty layer has a z-factor for; refused at the
+#: door so the request fails with a clear message rather than deep in evaluate.
+SUPPORTED_INTERVAL_LEVELS = set(qmod.SUPPORTED_INTERVAL_LEVELS)
+
+
 @router.post("/{project_id}/questions", response_model=QuestionOut)
 def create_question(project_id: str, body: QuestionCreate,
                     db: Session = Depends(get_db)):
@@ -175,6 +184,21 @@ def create_question(project_id: str, body: QuestionCreate,
         raise HTTPException(400, f"unsupported question kind '{body.kind}'")
     if body.tolerance_m is not None and body.tolerance_m <= 0:
         raise HTTPException(400, "tolerance must be positive")
+    # Checked before the row is committed. The measurement layer rejects a
+    # two-point area anyway, but it did so *after* the question was persisted,
+    # leaving a stored question that can never be answered and that every later
+    # listing has to carry.
+    need = MIN_POINTS[body.kind]
+    if len(body.points) < need:
+        raise HTTPException(
+            400, f"a {body.kind} question needs at least {need} "
+                 f"point{'s' if need > 1 else ''}; {len(body.points)} given")
+    if any(len(p) != 3 for p in body.points):
+        raise HTTPException(400, "every point must be [east, north, up]")
+    if body.interval_level not in SUPPORTED_INTERVAL_LEVELS:
+        raise HTTPException(
+            400, f"interval level {body.interval_level} is not supported; "
+                 f"choose one of {sorted(SUPPORTED_INTERVAL_LEVELS)}")
     row = MeasurementQuestion(
         project_id=project_id, kind=body.kind, label=body.label,
         points_enu=[list(map(float, p)) for p in body.points],

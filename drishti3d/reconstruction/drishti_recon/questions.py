@@ -496,9 +496,22 @@ def _dominant(reasons):
     return None
 
 
+#: Confidence levels with a defined normal factor. Anything else has to be
+#: refused: quietly answering a 97% request with a 95%-shaped number is the
+#: same substitution CalibrationProfile.interval refuses for calibrated
+#: intervals, and it would be no better here.
+SUPPORTED_INTERVAL_LEVELS = (50, 68, 80, 90, 95, 99)
+
+_Z_TABLE = {50: 0.6745, 68: 1.0, 80: 1.2816, 90: 1.6449, 95: 1.96, 99: 2.5758}
+
+
 def _Z(level: int) -> float:
-    return {50: 0.6745, 68: 1.0, 80: 1.2816, 90: 1.6449, 95: 1.96,
-            99: 2.5758}.get(int(level), 1.96)
+    try:
+        return _Z_TABLE[int(level)]
+    except KeyError:
+        raise ValueError(
+            f"interval level {level} is not supported; "
+            f"choose one of {list(SUPPORTED_INTERVAL_LEVELS)}") from None
 
 
 def _threshold(value, half, q: MeasurementQuestion):

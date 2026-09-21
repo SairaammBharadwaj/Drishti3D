@@ -87,7 +87,8 @@ function Card({ q, projectId, onChanged, onDelete }: {
 
       <label style={{ marginTop: 8, display: 'block' }}>
         Required tolerance: <span className="mono">
-          {q.tolerance_m == null ? 'none' : `±${q.tolerance_m} m`}</span>
+          {q.tolerance_m == null ? 'none'
+            : `±${q.tolerance_m} ${toleranceUnit(q.kind, r?.unit)}`}</span>
       </label>
       <input
         className="slider" type="range" min={0} max={TOLERANCE_STEPS.length - 1} step={1}
@@ -145,6 +146,26 @@ function Card({ q, projectId, onChanged, onDelete }: {
                 parallax {fmt(ep.measured_ray_separation_deg ?? ep.max_ray_separation_deg, 1, '°')}
                 {ep.within_established_coverage ? '' : ' · outside established coverage'}
               </div>
+              {ep.observation_kinds && (
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {ep.observation_kinds.kinds_recorded ? (
+                    <>
+                      {ep.observation_kinds.sparse_feature_observation} measured
+                      feature {ep.observation_kinds.sparse_feature_observation === 1
+                        ? 'pixel' : 'pixels'}
+                      {' · '}
+                      {ep.observation_kinds.dense_fusion_contributor} dense
+                      contributor
+                      {ep.observation_kinds.dense_fusion_contributor === 1
+                        ? '' : 's'}
+                      {ep.observation_kinds.dense_fusion_contributor > 0
+                        ? ' (pixel projected, not measured there)' : ''}
+                    </>
+                  ) : (
+                    <>support kind not recorded for this reconstruction</>
+                  )}
+                </div>
+              )}
               <div className="qframes">
                 {ep.frames.slice(0, 8).map((f) => (
                   <span key={f.camera_index} className={f.measured ? 'qframe measured' : 'qframe'}>
@@ -199,6 +220,18 @@ function Card({ q, projectId, onChanged, onDelete }: {
       )}
     </div>
   )
+}
+
+/** The unit a tolerance is expressed in, which is the result's own unit.
+ *
+ * The control read "m" for every question, area included -- so an area
+ * tolerance of 0.2 was displayed as twenty centimetres when it is a fifth of a
+ * square metre. The measurement already reports its unit; use it, and fall back
+ * to the unit implied by the kind before a result exists.
+ */
+function toleranceUnit(kind: string, resultUnit?: string): string {
+  if (resultUnit) return resultUnit
+  return kind === 'area' ? 'm²' : 'm'
 }
 
 export default function ToleranceLens({ projectId, kind, points, onConsumed }: {

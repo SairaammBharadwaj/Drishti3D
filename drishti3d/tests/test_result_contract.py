@@ -184,3 +184,31 @@ def test_uncalibrated_is_reported_once_the_hard_refusals_clear(monkeypatch):
     reasons = verdict.to_dict()["reasons"]
     assert "interval_not_calibrated" in reasons
     assert verdict.status.value == "estimated_only"
+
+
+# --------------------------------------------------------------------------- #
+# U07 -- a question that cannot be answered must not be stored
+# --------------------------------------------------------------------------- #
+def test_min_points_matches_what_each_kind_needs():
+    from app.routers.questions import MIN_POINTS
+    assert MIN_POINTS == {"point": 1, "distance": 2, "height": 2, "area": 3}
+
+
+def test_supported_levels_come_from_the_library_not_a_copy():
+    from app.routers.questions import SUPPORTED_INTERVAL_LEVELS
+    from drishti_recon import questions as qmod
+    assert SUPPORTED_INTERVAL_LEVELS == set(qmod.SUPPORTED_INTERVAL_LEVELS)
+
+
+def test_unsupported_level_is_refused_by_the_library_too():
+    """The API guard is not the only defence; _Z must not substitute."""
+    from drishti_recon import questions as qmod
+    with pytest.raises(ValueError, match="not supported"):
+        qmod._Z(97)
+    assert qmod._Z(95) == pytest.approx(1.96)
+
+
+@pytest.mark.parametrize("level", [50, 68, 80, 90, 95, 99])
+def test_every_advertised_level_actually_works(level):
+    from drishti_recon import questions as qmod
+    assert qmod._Z(level) > 0
