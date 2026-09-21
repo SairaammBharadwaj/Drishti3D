@@ -57,10 +57,12 @@ def test_dense_uncertainty_shrinks_with_agreeing_views_up_to_the_cap():
     """
     centres = np.array([[0.0, 0.0, 0.0]])
     p = np.array([[0.0, 20.0, 0.0]])
-    two = mvs.depth_uncertainty(p, centres, np.array([2]), sigma_px=1.0,
-                                focal=900.0)[0]
-    four = mvs.depth_uncertainty(p, centres, np.array([4]), sigma_px=1.0,
-                                 focal=900.0)[0]
+    # An angle has to be supplied: without one the point is unconstrained and
+    # every view count returns inf, which is the correct answer to a different
+    # question than the one this test asks.
+    kw = dict(sigma_px=1.0, focal=900.0, parallax_deg=np.array([30.0]))
+    two = mvs.depth_uncertainty(p, centres, np.array([2]), **kw)[0]
+    four = mvs.depth_uncertainty(p, centres, np.array([4]), **kw)[0]
     assert four < two
     assert four == pytest.approx(two / np.sqrt(2.0), rel=1e-6)
 
@@ -195,17 +197,77 @@ def test_a_single_contributing_view_has_no_measurable_parallax():
     assert np.isnan(mvs.contributing_parallax_deg(p, c, [[0]])[0])
 
 
-def test_unknown_parallax_is_treated_as_the_weakest_that_still_counts():
-    """Absent geometry must not be assumed convenient."""
+def test_unknown_parallax_is_reported_as_unconstrained():
+    """Absent geometry is not a small angle; it is no angle.
+
+    This test previously asserted that an unknown angle was clamped up to
+    MIN_PARALLAX_DEG and given a finite value. That contradicted the
+    function's own documentation, which said such a point was treated as
+    unconstrained, and it turned a point nothing is known about into a
+    number.
+    """
     p = np.array([[0.0, 20.0, 0.0]])
     c = np.array([[0.0, 0.0, 0.0]])
     unknown = mvs.depth_uncertainty(p, c, np.array([5]), sigma_px=1.0,
                                     focal=1536.0)[0]
-    floor_angle = mvs.depth_uncertainty(
-        p, c, np.array([5]), sigma_px=1.0, focal=1536.0,
+    assert not np.isfinite(unknown)
+    # A floor cannot rescue it: an unconstrained point stays unconstrained.
+    with_floor = mvs.depth_uncertainty(p, c, np.array([5]), sigma_px=1.0,
+                                       focal=1536.0, floor=0.0364)[0]
+    assert not np.isfinite(with_floor)
+
+
+def test_below_threshold_parallax_is_unconstrained_not_merely_large():
+    p = np.array([[0.0, 20.0, 0.0]])
+    c = np.array([[0.0, 0.0, 0.0]])
+    below = mvs.depth_uncertainty(
+        p, c, np.array([2]), sigma_px=1.0, focal=1536.0,
+        parallax_deg=np.array([mvs.MIN_PARALLAX_DEG / 2]))[0]
+    at = mvs.depth_uncertainty(
+        p, c, np.array([2]), sigma_px=1.0, focal=1536.0,
         parallax_deg=np.array([mvs.MIN_PARALLAX_DEG]))[0]
-    assert unknown == pytest.approx(floor_angle)
-    assert unknown > 0.5, "an unmeasured angle must not look well constrained"
+    assert not np.isfinite(below)
+    assert np.isfinite(at)
+
+
+def test_sigma_is_never_negative_over_the_whole_angular_domain():
+    """1/tan went negative past 90 degrees and hit exactly zero at 90."""
+    p = np.array([[0.0, 20.0, 0.0]])
+    c = np.array([[0.0, 0.0, 0.0]])
+    angles = np.linspace(mvs.MIN_PARALLAX_DEG, 179.5, 400)
+    sig = mvs.depth_uncertainty(np.repeat(p, len(angles), axis=0), c,
+                                np.full(len(angles), 2), sigma_px=1.0,
+                                focal=1536.0, parallax_deg=angles)
+    assert np.all(sig > 0)
+    assert np.all(np.isfinite(sig))
+
+
+def test_uncertainty_is_smallest_at_ninety_degrees_and_symmetric():
+    """Rays 120 degrees apart constrain a point as well as rays 60 apart."""
+    p = np.array([[0.0, 20.0, 0.0]])
+    c = np.array([[0.0, 0.0, 0.0]])
+
+    def s(a):
+        return mvs.depth_uncertainty(p, c, np.array([2]), sigma_px=1.0,
+                                     focal=1536.0,
+                                     parallax_deg=np.array([a]))[0]
+
+    assert s(90.0) < s(60.0)
+    assert s(90.0) < s(120.0)
+    assert s(60.0) == pytest.approx(s(120.0), rel=1e-9)
+    assert s(30.0) == pytest.approx(s(150.0), rel=1e-9)
+
+
+def test_narrow_angle_regime_is_unchanged_by_the_sin_correction():
+    """The drone-pass regime must not move: sin and tan agree there."""
+    p = np.array([[0.0, 20.0, 0.0]])
+    c = np.array([[0.0, 0.0, 0.0]])
+    a = 5.0
+    got = mvs.depth_uncertainty(p, c, np.array([2]), sigma_px=1.0,
+                                focal=1536.0, parallax_deg=np.array([a]))[0]
+    eps = 20.0 * 1.0 / 1536.0 / np.sqrt(2.0)
+    old_tan_form = eps / np.tan(np.radians(a))
+    assert got == pytest.approx(old_tan_form, rel=0.005)
 
 
 def test_dense_pixel_sigma_is_not_the_sparse_reprojection_residual():

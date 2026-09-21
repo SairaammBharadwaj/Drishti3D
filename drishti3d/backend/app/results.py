@@ -54,15 +54,31 @@ def evidence_for(project_id: str) -> ReconstructionEvidence | None:
 
 
 def artifact_version(project_id: str) -> str | None:
-    """Identity of the reconstruction a verdict was computed against."""
-    man = storage.artifacts_dir(project_id) / "manifest.json"
+    """Identity of the exact artifacts a verdict was computed against.
+
+    This is the same identity the caches key by, with the manifest's own
+    identity in front of it so a human can still read which run it was.
+
+    It used to be the manifest alone -- a video-hash prefix plus a rounded
+    creation time -- while caches keyed by file size and mtime. The two
+    disagreed exactly where it mattered: replacing ``cloud.npz`` without
+    rewriting the manifest gave the loader new geometry while every stored
+    answer still looked current, because the manifest had not moved. A partial
+    or failed rerun produces that state, since artifacts are written in place.
+
+    Both halves are needed. The revision alone would not say which run it was;
+    the manifest alone does not notice the bytes changing under it.
+    """
+    art = storage.artifacts_dir(project_id)
+    man = art / "manifest.json"
     if not man.exists():
         return None
     try:
         m = json.loads(man.read_text())
-        return f"{m.get('video_sha256', '?')[:12]}@{m.get('created', 0):.0f}"
+        head = f"{m.get('video_sha256', '?')[:12]}@{m.get('created', 0):.0f}"
     except (OSError, ValueError):
         return None
+    return f"{head}#{storage.artifact_revision(project_id)}"
 
 
 def scale_status(project_id: str) -> dict:

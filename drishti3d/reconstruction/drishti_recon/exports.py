@@ -240,6 +240,26 @@ def export_report_html(path, report: dict) -> str:
     align = r.get("alignment") or {}
     perf = r.get("performance", {})
     gte = r.get("ground_truth_evaluation")
+    # Every section is read defensively. This is the last stage of artifact
+    # writing, so a KeyError here aborts the run *after* the cloud, PLY and LAS
+    # are on disk -- leaving a partial artifact set that looks complete. A
+    # missing section should render as "not available", which is also the
+    # honest thing to show.
+    inp = r.get("input") or {}
+    video = inp.get("video") or {}
+    telem = inp.get("telemetry") or {}
+    recon = r.get("reconstruction") or {}
+
+    def num(v, spec=""):
+        if v is None:
+            return "not available"
+        try:
+            return format(float(v), spec) if spec else v
+        except (TypeError, ValueError):
+            return v
+
+    def text(v):
+        return "not available" if v is None else v
 
     def row(k, v):
         return f"<tr><th>{k}</th><td>{v}</td></tr>"
@@ -268,15 +288,15 @@ th{{background:#f4f6f8;width:40%}} .warn{{color:#b8860b}} code{{background:#f4f4
 </style></head><body>
 <h1>Drishti3D — Reconstruction Evidence Report</h1>
 <p>Single-pass drone video to georeferenced 3D. Scale source:
-<b>{r.get('input',{}).get('scale_source','?')}</b></p>
+<b>{text(inp.get('scale_source'))}</b></p>
 
 <h2>Input</h2><table>
-{row('Video duration (s)', f"{r['input']['video']['duration']:.2f}")}
-{row('Resolution', f"{r['input']['video']['width']}x{r['input']['video']['height']}")}
-{row('FPS', f"{r['input']['video']['fps']:.2f}")}
-{row('Video SHA-256', '<code>'+r['input']['video']['sha256'][:16]+'…</code>')}
-{row('Telemetry valid samples', r['input']['telemetry']['n_valid'])}
-{row('RTK present', r['input']['telemetry']['has_rtk'])}
+{row('Video duration (s)', num(video.get('duration'), '.2f'))}
+{row('Resolution', f"{text(video.get('width'))}x{text(video.get('height'))}")}
+{row('FPS', num(video.get('fps'), '.2f'))}
+{row('Video SHA-256', '<code>' + (video.get('sha256') or 'not available')[:16] + '…</code>')}
+{row('Telemetry valid samples', text(telem.get('n_valid')))}
+{row('RTK present', text(telem.get('has_rtk')))}
 </table>
 
 <h2>Frames</h2><table>
@@ -287,11 +307,11 @@ th{{background:#f4f6f8;width:40%}} .warn{{color:#b8860b}} code{{background:#f4f4
 </table>
 
 <h2>Reconstruction</h2><table>
-{row('Registered keyframes', f"{r['reconstruction'].get('n_registered')}/{r['reconstruction'].get('n_keyframes')}")}
-{row('Points', cloud.get('n_points'))}
-{row('Median reprojection error (px)', r['reconstruction'].get('median_reproj_err'))}
-{row('Mean track length', r['reconstruction'].get('mean_track_length'))}
-{row('Mean triangulation angle (deg)', r['reconstruction'].get('mean_tri_angle'))}
+{row('Registered keyframes', f"{text(recon.get('n_registered'))}/{text(recon.get('n_keyframes'))}")}
+{row('Points', text(cloud.get('n_points')))}
+{row('Median reprojection error (px)', text(recon.get('median_reproj_err')))}
+{row('Mean track length', text(recon.get('mean_track_length')))}
+{row('Mean triangulation angle (deg)', text(recon.get('mean_tri_angle')))}
 {row('Model dimensions (m)', cloud.get('dimensions_m'))}
 {row('Median point spacing (m)', cloud.get('median_point_spacing_m'))}
 </table>

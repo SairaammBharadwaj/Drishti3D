@@ -175,27 +175,36 @@ def depth_uncertainty(points, centres, n_views, *, sigma_px: float,
                       focal: float, floor=None, parallax_deg=None) -> np.ndarray:
     """1-sigma for a dense point, from the geometry that produced it.
 
-    For two views separated by baseline ``B`` looking at range ``r``, a
-    disparity uncertain by ``sigma_px`` at focal length ``f`` puts the point
-    uncertain along the ray by ``r**2 * sigma_px / (f * B)``, and since
-    ``B ~= r * tan(alpha)`` for parallax angle ``alpha`` that is
+    Each contributing ray localises the point transversely to within about
+    ``eps = r * sigma_px / f`` at range ``r`` and focal length ``f``. Two rays
+    meeting at angle ``alpha`` fix it to
 
-        sigma_depth ~= r * sigma_px / (f * tan(alpha))
+        sigma ~= eps / sin(alpha)
 
-    The previous form omitted the ``tan(alpha)`` entirely, reporting
-    ``r * sigma_px / f``. That is the *transverse* localisation scale -- how
-    well the ray itself is placed -- not the depth error, and using it as the
-    depth error silently asserts ``tan(alpha) = 1``, i.e. that every dense
-    point was seen from 45 degrees apart. Real passes are far tighter: at the
-    AGZ mission's median dense parallax of about 26 degrees the true figure is
-    two times larger, and at 5 degrees it is eleven times larger. The error was
-    always in the optimistic direction, and it was largest exactly where the
-    geometry was weakest.
+    which diverges as the rays become parallel, is smallest at
+    ``alpha = 90`` degrees where it equals ``eps``, and is symmetric about
+    that: rays 120 degrees apart constrain a point exactly as well as rays
+    60 degrees apart.
+
+    Two earlier forms were wrong in opposite directions. The original omitted
+    the angle entirely and reported ``eps`` -- the transverse localisation
+    scale used as though it were the depth error, which silently asserts that
+    every dense point was seen from 45 degrees apart. Its replacement used
+    ``1 / tan(alpha)``, taken from the small-baseline derivation
+    ``B ~= r * tan(alpha)``, which holds only for small angles: it reported
+    **zero** uncertainty at exactly 90 degrees, making a point infinitely well
+    known, and **negative** uncertainty beyond it. ``1 / sin(alpha)`` agrees
+    with ``1 / tan(alpha)`` to 0.4% at 5 degrees, so the narrow-angle regime
+    that dominates a drone pass is unchanged, and it stays correct over the
+    whole domain :func:`contributing_parallax_deg` can return.
 
     ``parallax_deg`` supplies the measured angle per point (see
     :func:`contributing_parallax_deg`). Where it is absent or below
-    :data:`MIN_PARALLAX_DEG` the point is treated as unconstrained in depth
-    rather than given a flattering number.
+    :data:`MIN_PARALLAX_DEG` the point is reported as ``inf`` -- unconstrained
+    in depth, which the measurement layer already reads as "not observable".
+    Clamping the angle up to the threshold instead, as the previous version
+    did, turned an unmeasurable point into a finite number and contradicted
+    this paragraph.
 
     Contributing views reduce the result, but only up to
     :data:`MAX_INDEPENDENT_VIEWS` -- past which they are the same look from
@@ -223,20 +232,24 @@ def depth_uncertainty(points, centres, n_views, *, sigma_px: float,
     n = np.clip(np.asarray(n_views, float).reshape(-1)
                 if n_views is not None else 2.0, 2.0, MAX_INDEPENDENT_VIEWS)
 
-    if parallax_deg is None:
-        # No contributing-view geometry available. Rather than assume a
-        # convenient angle, assume the weakest one that still counts as
-        # measured, so the number errs the way an unknown should.
-        ang = np.full(len(pts), MIN_PARALLAX_DEG)
-    else:
-        ang = np.asarray(parallax_deg, float).reshape(-1).copy()
-        ang[~np.isfinite(ang)] = MIN_PARALLAX_DEG
-        ang = np.maximum(ang, MIN_PARALLAX_DEG)
-    tan = np.tan(np.radians(ang))
+    # Transverse localisation of a single ray, before any triangulation.
+    eps = rng * float(sigma_px) / max(float(focal), 1e-9) / np.sqrt(n)
 
-    stereo = rng * float(sigma_px) / max(float(focal), 1e-9) / tan / np.sqrt(n)
+    if parallax_deg is None:
+        ang = np.full(len(pts), np.nan)
+    else:
+        ang = np.asarray(parallax_deg, float).reshape(-1).astype(float)
+
+    # No measured angle, or one too small to constrain depth: the point is
+    # unconstrained, not merely uncertain. Reporting inf is what lets the
+    # measurement layer refuse it rather than quote a number for it.
+    unconstrained = ~np.isfinite(ang) | (ang < MIN_PARALLAX_DEG)
+    sin = np.sin(np.radians(np.where(unconstrained, 90.0, ang)))
+    stereo = np.where(unconstrained, np.inf, eps / sin)
+
     if floor is None:
         return stereo
+    # hypot(inf, floor) is inf, so an unconstrained point stays unconstrained.
     return np.hypot(stereo, float(floor))
 
 

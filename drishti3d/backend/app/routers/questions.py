@@ -68,54 +68,33 @@ def _snapped_provenance(cloud, points, allow_inferred: bool):
 
 def _answer(project_id: str, row: MeasurementQuestion,
             db: Session) -> Measurement:
-    """Compute the measurement and its verdict, and store both."""
+    """Compute the measurement and its verdict, and store both.
+
+    This used to hold its own copy of the whole computation. DEC-021 extracted
+    `results.compute` and pointed `/measurements` at it, but left this copy in
+    place -- so the decision was written down and only half applied, and the
+    two routes still disagreed on the one case the extraction existed to fix:
+    an ungeoreferenced reconstruction answered here in "m" and there in
+    "reconstruction units".
+    """
     cloud = load_cloud(project_id)
-    rec = _evidence_for(project_id)
-    scale_sigma_rel = 0.0
-    if rec is not None and np.isfinite(rec.scale_sigma_rel):
-        scale_sigma_rel = float(rec.scale_sigma_rel)
-
-    m = _measure(cloud, row.kind, row.points_enu, row.allow_inferred,
-                 scale_sigma_rel)
-
-    provs = _snapped_provenance(cloud, row.points_enu, row.allow_inferred)
-    if rec is not None:
-        ev = rec.for_points(m.points_enu, provenances=provs)
-    else:
-        # No trajectory artifact: nothing is known about view support, and an
-        # unknown must not be scored as adequate.
-        ev = qmod.Evidence(endpoints_observed=False)
-
-    question = qmod.MeasurementQuestion(
-        kind=row.kind, tolerance_m=row.tolerance_m, level=row.interval_level,
-        threshold_m=row.threshold_m,
+    r = results.compute(
+        project_id, cloud, kind=row.kind, points=row.points_enu,
+        allow_inferred=row.allow_inferred, tolerance_m=row.tolerance_m,
+        interval_level=row.interval_level, threshold_m=row.threshold_m,
         threshold_direction=row.threshold_direction, label=row.label or "")
-    # No validated calibration profile exists for any capture regime yet; see
-    # TESTS_AND_RESULTS.md. Passing None is what makes every verdict at most
-    # ESTIMATED_ONLY, which is the accurate state of the system.
-    verdict = qmod.evaluate(question, value=m.value, sigma=m.sigma,
-                            evidence=ev, profile=None)
-
-    vd = verdict.to_dict()
     result = Measurement(
-        project_id=project_id, question_id=row.id, kind=m.kind, value=m.value,
-        unit=m.unit,
-        points_enu=[list(map(float, p)) for p in m.points_enu],
-        confidence_note=m.confidence_note, used_inferred=m.used_inferred,
-        warnings=m.warnings,
-        sigma=float(m.sigma) if m.sigma is not None and np.isfinite(m.sigma)
-        else None,
-        interval_half_width=vd["interval_half_width"],
-        interval_level=verdict.interval_level,
-        interval_basis=verdict.interval_basis,
-        status=verdict.status.value,
-        status_reasons=vd["reasons"],
-        dominant_limitation=verdict.dominant_limitation,
-        threshold_result=verdict.threshold_result,
-        evidence=ev.to_dict(),
-        artifact_version=_artifact_version(project_id),
-        calibration_profile=None,
-    )
+        project_id=project_id, question_id=row.id, kind=r["kind"],
+        value=r["value"], unit=r["unit"], points_enu=r["points_enu"],
+        confidence_note=r["confidence_note"],
+        used_inferred=r["used_inferred"], warnings=r["warnings"],
+        sigma=r["sigma"], interval_half_width=r["interval_half_width"],
+        interval_level=r["interval_level"],
+        interval_basis=r["interval_basis"], status=r["status"],
+        status_reasons=r["status_reasons"],
+        dominant_limitation=r["dominant_limitation"],
+        threshold_result=r["threshold_result"], evidence=r["evidence"],
+        artifact_version=r["artifact_version"], calibration_profile=None)
     db.add(result)
     db.commit()
     db.refresh(result)
@@ -251,9 +230,26 @@ def update_question(project_id: str, question_id: str, body: QuestionUpdate,
     row = db.get(MeasurementQuestion, question_id)
     if not row or row.project_id != project_id:
         raise HTTPException(404, "question not found")
+
+    # Validate everything before touching the row. This used to assign first
+    # and validate never: an unsupported interval level was committed, and the
+    # failure surfaced as a 500 from evaluate() further down -- leaving the
+    # question stored with a level the system cannot answer, so every later
+    # read of it failed too. A rejected request must leave the stored question
+    # exactly as it was.
+    if body.tolerance_m is not None and body.tolerance_m <= 0:
+        raise HTTPException(400, "tolerance must be positive")
+    if (body.interval_level is not None
+            and body.interval_level not in SUPPORTED_INTERVAL_LEVELS):
+        raise HTTPException(
+            400, f"interval level {body.interval_level} is not supported; "
+                 f"choose one of {sorted(SUPPORTED_INTERVAL_LEVELS)}")
+    if (body.threshold_direction is not None
+            and body.threshold_direction not in ("at_least", "at_most")):
+        raise HTTPException(
+            400, "threshold_direction must be 'at_least' or 'at_most'")
+
     if body.tolerance_m is not None:
-        if body.tolerance_m <= 0:
-            raise HTTPException(400, "tolerance must be positive")
         row.tolerance_m = body.tolerance_m
     if body.interval_level is not None:
         row.interval_level = body.interval_level
@@ -278,7 +274,9 @@ def update_question(project_id: str, question_id: str, body: QuestionUpdate,
         kind=row.kind, tolerance_m=row.tolerance_m, level=row.interval_level,
         threshold_m=row.threshold_m,
         threshold_direction=row.threshold_direction, label=row.label or "")
-    ev = qmod.Evidence(**(prior.evidence or {}))
+    # Filtered, not splatted: the stored record also carries refinement
+    # diagnostics, which are not gate inputs and are not Evidence fields.
+    ev = qmod.Evidence.from_dict(prior.evidence)
     verdict = qmod.evaluate(question, value=prior.value,
                             sigma=prior.sigma if prior.sigma is not None
                             else float("inf"),
@@ -474,10 +472,14 @@ def refine_question(project_id: str, question_id: str,
                       "n_supporting_views": after["n_supporting_views"],
                       "max_ray_separation_deg": after["max_ray_separation_deg"],
                       "view_support_basis": after["view_support_basis"],
-                      "endpoints_moved_m": [
-                          float(np.linalg.norm(np.asarray(a, float)
-                                               - np.asarray(b, float)))
-                          for a, b in zip(refined_pts, pts)]},
+                      # Diagnostics, kept under their own key so they are
+                      # visibly not gate inputs. Evidence.from_dict ignores
+                      # them on the way back in either way.
+                      "diagnostics": {
+                          "endpoints_moved_m": [
+                              float(np.linalg.norm(np.asarray(a, float)
+                                                   - np.asarray(b, float)))
+                              for a, b in zip(refined_pts, pts)]}},
             artifact_version=prior.artifact_version,
             calibration_profile=None, refined_from_id=prior.id)
         db.add(result)

@@ -67,12 +67,25 @@ SNAP_SPACING_FACTOR = 3.0
 MIN_SNAP_TOLERANCE_M = 0.10
 
 
-def snap_tolerance(cloud, *, allow_inferred: bool = True) -> float:
+def snap_tolerance(cloud) -> float:
     """How far a selection may be from measurable geometry, in metres.
 
     Derived from the cloud's own median nearest-neighbour spacing rather than
     fixed, because the same absolute displacement means different things in a
     0.10 m dense cloud and a 0.17 m sparse one.
+
+    A cloud too small to estimate spacing from returns
+    :data:`MIN_SNAP_TOLERANCE_M`, not infinity. Returning infinity meant "no
+    bound", so a one-point cloud accepted a selection 1,000 m away and called
+    it resolved -- the original defect restored for exactly the case with the
+    least evidence to support it. Not knowing the spacing is a reason to be
+    strict, not permissive.
+
+    Spacing is estimated from a random subset on large clouds, which biases the
+    estimate *upward*: neighbours in the full cloud can be closer than the
+    nearest sampled one. The result is therefore a slightly generous bound on a
+    large cloud, which is the safe direction for a tolerance but is worth
+    knowing when reading one.
     """
     cached = getattr(cloud, "_snap_tolerance_m", None)
     if cached is not None:
@@ -80,7 +93,7 @@ def snap_tolerance(cloud, *, allow_inferred: bool = True) -> float:
     from scipy.spatial import cKDTree
     pts = np.asarray(cloud.points, float)
     if len(pts) < 2:
-        return float("inf")
+        return MIN_SNAP_TOLERANCE_M
     rng = np.random.default_rng(0)
     sample = pts if len(pts) <= 20000 else pts[rng.choice(len(pts), 20000, replace=False)]
     d, _ = cKDTree(sample).query(sample, k=2)

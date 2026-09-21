@@ -2195,3 +2195,83 @@ closed it. And I restarted the API against old code twice before noticing that
 `serve.sh` skips a port that is already listening; `--restart` resolves ports to
 PIDs and kills by PID, because a `pkill -f` pattern broad enough to match the
 server also matches the shell running the script.
+
+## 2026-09-21 — A verification of the fixes found nine failures, two of them mine
+
+`docs/CRITICAL_REVIEW_VERIFICATION_2026-09-21.md` checked the DEC-021…030 work
+against `61939db` and ran fifteen independent checks. **Nine failed**, including
+two crashes the fixes themselves introduced. I reproduced all nine before
+changing anything; all nine held. Its central judgement — that my "Closed by
+DEC-021 … DEC-030" table overstated closure — was correct, and the sharpest
+finding is about how I test rather than what I wrote.
+
+### The two crashes
+
+`refine()` raised `NameError: name 'rec' is not defined` the moment it actually
+recovered a frame. The engine's evidence object is `self.ev`; I had been reading
+the API router, where the same object is called `rec`, and carried the name
+across. The success path had no coverage at all.
+
+**Why 422 tests missed it, which is the part worth keeping:**
+`test_refinement_record.py` defined its own `_aggregate` helper that
+reimplemented the engine's loop and asserted against the reimplementation. It
+confirmed the algorithm was right and could never confirm the code was. A test
+containing its own copy of the logic can only show the copy is self-consistent.
+The test now drives the real `refine()` through its post-recovery branch,
+controlling only image I/O, registration and the local fit.
+
+The second: `report.get("alignment", {}).get("scale_source")` in the export
+sidecar. `build_report` emits `alignment=None` for a relative-scale run, and the
+`{}` default applies to an absent key, not a null value. A video-only
+reconstruction crashed after cloud, PLY and LAS were on disk — a partial set
+that looks complete.
+
+**The crash was hiding something worse.** A relative-scale run still builds
+`ENUFrame(0, 0, 0)` as a placeholder, and my exporter treated any frame as a
+geographic origin. Fixing `.get()` alone would have projected an arbitrary-scale
+reconstruction into UTM off the coast of Africa and labelled it in metres.
+Geographic eligibility now comes from the alignment, never from a frame object
+existing.
+
+### The uncertainty model was wrong a third time
+
+Two checks failed on `depth_uncertainty`. A genuine 120° contributing angle gave
+a **negative** sigma; 0° parallax gave a finite 4.05 because I clamped the angle
+up to the threshold, contradicting the docstring I had written.
+
+`1/tan` came from the small-baseline derivation `B ≈ r·tan(α)`, valid only for
+small angles. At exactly 90° it is **zero** — the model asserted a point could be
+known with zero uncertainty — and negative beyond. A supplied floor hid the sign
+through `hypot`, which is why the saved cloud has no negative values and nobody
+noticed.
+
+The correct general form is `eps / sin(α)`: diverges as rays become parallel,
+smallest at 90° where it equals `eps`, symmetric about it, so rays 120° apart
+constrain a point exactly as well as rays 60° apart. It agrees with `1/tan` to
+0.4% at 5°, so the drone-pass regime is essentially unchanged. Below the
+threshold the answer is now `inf` — unconstrained — rather than a flattering
+finite number.
+
+**Three successive versions of this one function have been wrong**, each
+optimistic differently: no angle, then an angle valid only in a narrow regime,
+now a form correct over the domain its input can take. The recurring mistake is
+applying a small-angle approximation without checking the range of its argument.
+
+### Four contracts that were half-applied
+
+DEC-021 said both routes call `results.compute`. Only `/measurements` did; I had
+extracted the service, pointed one route at it, and written the decision record
+as though the work were finished. An ungeoreferenced reconstruction answered
+`m` on one route and `reconstruction units` on the other.
+
+Refinement wrote `endpoints_moved_m` into stored evidence; `PATCH` rebuilt the
+gate input with `Evidence(**stored)` and returned 500 on the next tolerance
+change after any successful refinement. `PATCH` also committed an unsupported
+interval level before the code that rejects it ran, leaving a question stored in
+a state that failed every later read. And `artifact_version` tracked only the
+manifest while caches tracked file bytes, so replacing `cloud.npz` without
+rewriting the manifest gave new geometry while stored answers looked current.
+
+All 15 audit checks pass. 431 tests, up from 422. Production frontend build
+passes. Rebuilding the dense artifacts again so the demo matches the corrected
+angular model.

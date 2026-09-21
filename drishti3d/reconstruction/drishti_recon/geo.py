@@ -99,7 +99,13 @@ class ENUFrame:
         return (self._R @ (ecef - self._origin_ecef).T).T
 
     def enu_to_geodetic(self, enu) -> np.ndarray:
-        enu = np.atleast_2d(np.asarray(enu, float))
+        enu = np.asarray(enu, float).reshape(-1, 3)
+        if len(enu) == 0:
+            # atleast_2d turns an empty array into shape (1, 0), which then
+            # fails the matmul with a dimension error rather than returning
+            # nothing. A reconstruction that registered no cameras reaches here
+            # through the GeoJSON exporter and crashed at the last stage.
+            return np.zeros((0, 3))
         ecef = (self._R.T @ enu.T).T + self._origin_ecef
         return ecef_to_geodetic(ecef)
 

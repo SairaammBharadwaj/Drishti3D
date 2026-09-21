@@ -1142,14 +1142,33 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
                                                    else -1], np.int32))
         artifacts["observations_npz"] = str(art_dir / "observations.npz")
     artifacts["ply"] = exports.export_ply(art_dir / "point_cloud.ply", cloud)
+
+    # Whether this cloud may be placed on the earth is decided by the
+    # alignment, never by the presence of a frame object. A relative-scale run
+    # still builds an ENUFrame -- ENUFrame(0, 0, 0), a placeholder so later
+    # stages have one -- and handing that to the exporter would project an
+    # arbitrary-scale reconstruction into UTM off the coast of Africa and
+    # label the result in metres. `build_report` also emits alignment=None for
+    # such a run, so `.get("alignment", {})` returns None rather than the
+    # default: the key is present, its value is not a dict.
+    alignment = report.get("alignment") or {}
+    scale_source = alignment.get("scale_source")
+    georeferenced = bool(alignment) and scale_source not in (
+        None, "", "none", "relative", "arbitrary")
+    export_frame = enu_frame if georeferenced else None
+
     try:
-        artifacts["las"] = exports.export_las(art_dir / "point_cloud.las", cloud, enu_frame)
+        artifacts["las"] = exports.export_las(art_dir / "point_cloud.las",
+                                              cloud, export_frame)
     except Exception as e:
         report.setdefault("warnings", []).append(f"LAS export skipped: {e}")
-    # Every cloud export is local ENU; the sidecar is what makes it placeable.
+    # Every cloud export is local ENU; the sidecar is what makes it placeable,
+    # or states plainly that it is not.
     artifacts["georeference"] = exports.export_georeference_sidecar(
-        art_dir / "georeference.json", cloud, enu_frame,
-        extra={"scale_source": report.get("alignment", {}).get("scale_source")})
+        art_dir / "georeference.json", cloud, export_frame,
+        extra={"scale_source": scale_source,
+               "georeferenced": georeferenced,
+               "units": "metres" if georeferenced else "reconstruction units"})
 
     # web viewer payload: downsample to <= 120k points for the browser
     n = len(cloud)

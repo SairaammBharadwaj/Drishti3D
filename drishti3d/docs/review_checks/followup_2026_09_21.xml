@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="9" skipped="0" tests="15" time="1.869" timestamp="2026-09-21T20:15:52.751082+05:30" hostname="archlinux"><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_original_polyline_counterexample_fixed" time="0.001" /><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_original_remote_snap_counterexample_fixed" time="0.000" /><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_single_point_cloud_must_also_refuse_remote_snap" time="0.001"><failure message="AssertionError: {'requested_enu': [1000.0, 0.0, 0.0], 'resolved_enu': [0.0, 0.0, 0.0], 'snap_displacement_m': 1000.0, 'snap_tolerance_m': None, ...}&#10;assert not True&#10; +  where True = Snap(requested=array([1000.,    0.,    0.]), position=array([0., 0., 0.]), provenance=0, sigma_major=0.0, displacement_m=1000.0, tolerance_m=inf, resolved=True).resolved">docs/review_checks/test_followup_2026_09_21.py:99: in test_single_point_cloud_must_also_refuse_remote_snap
+    assert not sn.resolved, sn.to_dict()
+E   AssertionError: {'requested_enu': [1000.0, 0.0, 0.0], 'resolved_enu': [0.0, 0.0, 0.0], 'snap_displacement_m': 1000.0, 'snap_tolerance_m': None, ...}
+E   assert not True
+E    +  where True = Snap(requested=array([1000.,    0.,    0.]), position=array([0., 0., 0.]), provenance=0, sigma_major=0.0, displacement_m=1000.0, tolerance_m=inf, resolved=True).resolved</failure></testcase><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_original_las_crs_and_sigma_counterexample_fixed" time="0.015" /><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_original_cache_counterexample_fixed" time="0.043" /><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_original_global_offset_counterexample_fixed" time="0.001" /><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_original_distortion_field_counterexample_fixed" time="0.000" /><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_both_routes_use_nonmetric_units_without_scale" time="0.043"><failure message="AssertionError: ('reconstruction units', 'm')&#10;assert 'reconstruction units' == 'm'&#10;  &#10;  - m&#10;  + reconstruction units">docs/review_checks/test_followup_2026_09_21.py:138: in test_both_routes_use_nonmetric_units_without_scale
+    assert m["unit"] == q["unit"] == "reconstruction units", (m["unit"], q["unit"])
+E   AssertionError: ('reconstruction units', 'm')
+E   assert 'reconstruction units' == 'm'
+E     
+E     - m
+E     + reconstruction units</failure></testcase><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_invalid_patch_level_is_rejected_without_persisting" time="0.036"><failure message="AssertionError: {'http_status': 500, 'stored_level': 97, 'response': 'Internal Server Error'}&#10;assert (500 in (400, 422))&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">docs/review_checks/test_followup_2026_09_21.py:146: in test_invalid_patch_level_is_rejected_without_persisting
+    assert r.status_code in (400, 422) and listed["interval_level"] == 95, {
+E   AssertionError: {'http_status': 500, 'stored_level': 97, 'response': 'Internal Server Error'}
+E   assert (500 in (400, 422))
+E    +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code</failure></testcase><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_refined_result_metadata_does_not_break_tolerance_changes" time="0.025"><failure message="AssertionError: Internal Server Error&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">docs/review_checks/test_followup_2026_09_21.py:160: in test_refined_result_metadata_does_not_break_tolerance_changes
+    assert r.status_code == 200, r.text
+E   AssertionError: Internal Server Error
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code</failure></testcase><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_video_only_artifact_export_completes" time="0.003"><failure message="AttributeError: 'NoneType' object has no attribute 'get'">docs/review_checks/test_followup_2026_09_21.py:167: in test_video_only_artifact_export_completes
+    pipeline._write_artifacts(art, cloud(), [], ENUFrame(0., 0., 0.),
+reconstruction/drishti_recon/pipeline.py:1152: in _write_artifacts
+    extra={"scale_source": report.get("alignment", {}).get("scale_source")})
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'get'</failure></testcase><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_cloud_replacement_marks_stored_question_superseded" time="0.019"><failure message="AssertionError: aaaaaaaaaaaa@1700000000&#10;assert False">docs/review_checks/test_followup_2026_09_21.py:177: in test_cloud_replacement_marks_stored_question_superseded
+    assert listed["result"]["superseded"], listed["result"]["artifact_version"]
+E   AssertionError: aaaaaaaaaaaa@1700000000
+E   assert False</failure></testcase><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_dense_depth_sigma_is_positive_for_obtuse_view_angle" time="0.001"><failure message="AssertionError: array([-0.04082483])&#10;assert np.float64(-0.04082482904638628) &gt; 0">docs/review_checks/test_followup_2026_09_21.py:188: in test_dense_depth_sigma_is_positive_for_obtuse_view_angle
+    assert sigma[0] &gt; 0, sigma
+E   AssertionError: array([-0.04082483])
+E   assert np.float64(-0.04082482904638628) &gt; 0</failure></testcase><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_dense_near_parallel_geometry_is_not_reported_finitely_constrained" time="0.001"><failure message="AssertionError: array([4.05132058])&#10;assert not np.True_&#10; +  where np.True_ = &lt;ufunc 'isfinite'&gt;(np.float64(4.051320577672379))&#10; +    where &lt;ufunc 'isfinite'&gt; = np.isfinite">docs/review_checks/test_followup_2026_09_21.py:194: in test_dense_near_parallel_geometry_is_not_reported_finitely_constrained
+    assert not np.isfinite(sigma[0]), sigma
+E   AssertionError: array([4.05132058])
+E   assert not np.True_
+E    +  where np.True_ = &lt;ufunc 'isfinite'&gt;(np.float64(4.051320577672379))
+E    +    where &lt;ufunc 'isfinite'&gt; = np.isfinite</failure></testcase><testcase classname="docs.review_checks.test_followup_2026_09_21" name="test_successful_frame_recovery_finishes_real_refinement_method" time="0.002"><failure message="NameError: name 'rec' is not defined">docs/review_checks/test_followup_2026_09_21.py:223: in test_successful_frame_recovery_finishes_real_refinement_method
+    run = eng.refine(qmod.MeasurementQuestion("distance", tolerance_m=.5),
+reconstruction/drishti_recon/refinement.py:1502: in refine
+    o = rec.observations_of(q)
+        ^^^
+E   NameError: name 'rec' is not defined</failure></testcase></testsuite></testsuites>

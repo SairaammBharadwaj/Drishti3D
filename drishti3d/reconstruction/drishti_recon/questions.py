@@ -25,7 +25,7 @@ code is a useful answer; a silent failure or an invented number is not.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict, replace
+from dataclasses import dataclass, field, asdict, replace, fields
 from enum import Enum
 
 import numpy as np
@@ -362,6 +362,27 @@ class Evidence:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict | None) -> "Evidence":
+        """Rebuild from a stored record, ignoring anything that is not a field.
+
+        A stored evidence record is not only gate input. The refinement route
+        adds diagnostics to it -- how far each endpoint moved, for instance --
+        and ``Evidence(**stored)`` then raised ``TypeError`` on the next
+        tolerance change, turning a successful refinement into an HTTP 500 the
+        next time the operator touched the question.
+
+        Filtering here rather than at each call site means a future diagnostic
+        cannot reintroduce that failure. Unknown keys are dropped rather than
+        rejected: they are someone's record of something, and refusing to read
+        the rest of a perfectly good evidence record because of one is worse
+        than ignoring it.
+        """
+        if not d:
+            return cls()
+        allowed = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in d.items() if k in allowed})
 
 
 #: Below this ray separation, depth is weakly observable regardless of how many

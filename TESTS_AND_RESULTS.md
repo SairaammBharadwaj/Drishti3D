@@ -947,3 +947,52 @@ geometry; only measured reference dimensions can show the resulting numbers are
 right. Every question here still reports `interval_not_calibrated`.
 
 Suite: **422 passed**.
+
+## 2026-09-21 — Follow-up verification of the DEC-021…030 fixes
+
+`docs/CRITICAL_REVIEW_VERIFICATION_2026-09-21.md` ran fifteen independent checks
+against `61939db`. **Nine failed.** All nine were reproduced here before any
+change; all nine held.
+
+| ID | Check | Before | After |
+|---|---|---|---|
+| F01 | `refine()` through its successful-recovery branch | `NameError: 'rec' is not defined` | passes |
+| F02 | video-only artifact export completes | `AttributeError: 'NoneType'` | passes |
+| F03 | both routes report non-metric units without scale | `/questions` returned `m` | both return `reconstruction units` |
+| F04 | tolerance change after a refinement | HTTP 500 | HTTP 200 |
+| F05 | invalid PATCH level rejected without persisting | 500, level stored as 97 | 400, level unchanged |
+| F06 | `cloud.npz` replaced → stored answer superseded | `superseded=False` | `superseded=True` |
+| F07 | one-point cloud refuses a remote snap | accepted a 1,000 m move | refused |
+| F08 | sigma positive at an obtuse view angle | **negative** | positive |
+| F08 | near-parallel geometry not finitely constrained | finite 4.0513 | `inf` |
+
+**15 / 15 audit checks pass.** Suite: **431 passed** (was 422). Production
+frontend build (`npm run build`): passes.
+
+### Dense uncertainty across the angular domain
+
+`sigma_px = 1.0`, `focal = 1536`, range 20 m, 2 views:
+
+| Parallax | `1/tan` (DEC-025) | `1/sin` (DEC-031) |
+|---:|---:|---:|
+| 0.0° | 4.0513 (clamped) | **inf** |
+| 5° | 0.40411 | 0.40566 |
+| 26° | 0.07249 | 0.08065 |
+| 45° | 0.03536 | 0.05000 |
+| 90° | **0.00000** | 0.03536 |
+| 120° | **−0.02041** | 0.04082 |
+| 170° | **−0.20051** | 0.20360 |
+
+Checked over 400 angles in [0.5°, 179.5°]: strictly positive, finite,
+minimised at 90°, and exactly symmetric about it — `s(60°) == s(120°)` and
+`s(30°) == s(150°)` to 1e-9. Agreement with the previous form at 5° is within
+0.4%, so the narrow-angle regime that dominates a drone pass is unchanged.
+
+### NOT TESTED
+
+- Whether any interval covers a true dimension. Unchanged and still the
+  binding limitation.
+- Complete browser walkthrough. `tsc` and `npm run build` pass; neither is a
+  usability test.
+- The rebuilt artifacts under the `1/sin` model, at the time of writing. The
+  figures above are from the function, not from a mission.

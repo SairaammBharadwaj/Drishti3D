@@ -58,6 +58,30 @@ set of defects reachable.
 
 411 tests pass, up from 335. Seven new regression modules.
 
+### Reopened and closed again on 2026-09-21 by the follow-up verification
+
+[CRITICAL_REVIEW_VERIFICATION_2026-09-21.md](drishti3d/docs/CRITICAL_REVIEW_VERIFICATION_2026-09-21.md)
+checked the work above and found **nine failures in fifteen independent
+checks**, two of them crashes introduced by the fixes themselves. Its
+conclusion — that the table above "overstates closure" — was correct.
+
+| ID | Finding | Decision |
+|---|---|---|
+| F01 | `refine()` raised `NameError` on its success path | [DEC-032](DECISIONS.md) |
+| F02 | Video-only export crashed, and would have geo-placed arbitrary scale | [DEC-032](DECISIONS.md) |
+| F03 | `/questions` never used the shared result service | [DEC-033](DECISIONS.md) |
+| F04 | Refinement diagnostics broke the next tolerance change | [DEC-033](DECISIONS.md) |
+| F05 | `PATCH` persisted an interval level it then failed on | [DEC-033](DECISIONS.md) |
+| F06 | Cache identity and answer identity could disagree | [DEC-033](DECISIONS.md) |
+| F07 | A one-point cloud had no snap bound at all | [DEC-023](DECISIONS.md) |
+| F08 | `1/tan` gave zero sigma at 90° and negative beyond | [DEC-031](DECISIONS.md) |
+
+All 15 audit checks pass; 431 tests pass, up from 422.
+
+**The lesson is about the closure table, not the findings.** C01 was marked
+closed because the service existed and one route used it. Writing a decision
+record is not evidence the decision was applied everywhere.
+
 ### Still open at P0
 
 **The corrected numbers are not validated numbers.** C04 makes dense

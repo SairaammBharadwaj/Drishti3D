@@ -1499,9 +1499,9 @@ class RefinementEngine:
         # only that endpoint's count may move, and the minimum is retaken.
         per_views, per_sep = [], []
         for i, q in enumerate(points_enu):
-            o = rec.observations_of(q)
+            o = self.ev.observations_of(q)
             nv = int(len(set(o["frame_index"].tolist())))
-            sep = float(rec.measured_ray_separation_deg(q))
+            sep = float(self.ev.measured_ray_separation_deg(q))
             if i == target:
                 nv += int(added_rays)
                 sep = max(sep, float(max(a.parallax_gain_deg

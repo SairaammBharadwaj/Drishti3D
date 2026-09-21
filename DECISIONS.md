@@ -2402,3 +2402,209 @@ geometry is visible rather than inferred.
 `drishti3d/backend/app/routers/questions.py`,
 `drishti3d/reconstruction/drishti_recon/refinement.py`,
 `drishti3d/tests/test_refinement_record.py`
+
+---
+
+## DEC-031 — Dense depth uncertainty uses 1/sin, over the whole angular domain
+
+**Date:** 2026-09-21
+
+**Status:** Accepted · **supersedes the model in
+[DEC-025](#dec-025--dense-depth-uncertainty-responds-to-triangulation-angle)**
+
+### Context
+
+A follow-up verification
+([CRITICAL_REVIEW_VERIFICATION_2026-09-21.md](drishti3d/docs/CRITICAL_REVIEW_VERIFICATION_2026-09-21.md))
+checked the DEC-021…030 fixes and found nine failures in fifteen independent
+checks, two of them crashes I had introduced. Two of the nine were about this
+function, and both are real:
+
+- A genuine **120°** contributing angle produced a **negative** sigma.
+- Coincident cameras at **0°** parallax produced a finite **4.05**, because the
+  angle was clamped up to `MIN_PARALLAX_DEG` — directly contradicting the
+  docstring I had written, which said such a point was treated as
+  unconstrained.
+
+[DEC-025](#dec-025--dense-depth-uncertainty-responds-to-triangulation-angle)
+replaced a model that ignored the angle with `1 / tan(alpha)`, taken from the
+small-baseline stereo derivation `B ≈ r·tan(alpha)`. That derivation holds only
+for small angles. At exactly 90° `tan` diverges, so `1/tan` is **zero** — the
+model asserted a point could be known with zero uncertainty — and past 90° it
+goes negative. A supplied floor hid the sign through `hypot`, which is why the
+saved AGZ cloud contains no negative values and the error went unnoticed.
+
+### Decision
+
+Each contributing ray localises the point transversely to about
+`eps = r·sigma_px/f`. Two rays meeting at angle `alpha` fix it to
+
+```
+sigma ≈ eps / sin(alpha)
+```
+
+which diverges as the rays become parallel, is smallest at 90° where it equals
+`eps`, and is symmetric about that — rays 120° apart constrain a point exactly
+as well as rays 60° apart, which is geometrically true and which `1/tan` denied.
+
+`1/sin` agrees with `1/tan` to **0.4% at 5°**, so the narrow-angle regime that
+dominates a drone pass is essentially unchanged. The correction is at the wide
+end, where the previous form was not merely inaccurate but nonsensical.
+
+Below `MIN_PARALLAX_DEG`, or with no measured angle, the point now returns
+`inf` — genuinely unconstrained, which the measurement layer already reads as
+"not observable". Clamping produced a finite number for a point nothing is
+known about.
+
+### Consequences
+
+- Verified across the domain: sigma is strictly positive and finite for every
+  angle in [0.5°, 179.5°], minimised at 90°, and exactly symmetric about it.
+- Dense points whose contributing views are effectively collinear now export
+  `inf` and are refused rather than measured. This is the intended behaviour
+  and it will reduce the measurable fraction of a dense cloud.
+- **Three successive versions of this one function have been wrong**, each
+  optimistic in a different way: no angle at all, then an angle valid only in a
+  narrow regime, now a form correct over the domain the input can actually
+  take. The recurring error is not the formula — it is applying a
+  small-angle approximation without checking the range of its argument.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/mvs.py`, `drishti3d/tests/test_mvs.py`
+
+---
+
+## DEC-032 — Two regressions, and why 422 passing tests did not catch them
+
+**Date:** 2026-09-21
+
+**Status:** Accepted
+
+### Context
+
+The verification found two crashes introduced by the DEC-021…030 work. Neither
+was subtle once seen, and both were in code paths the suite never executed.
+
+**F01.** The per-endpoint aggregation added by
+[DEC-030](#dec-030--a-refined-result-records-the-geometry-that-produced-it)
+called `rec.observations_of(...)`. There is no `rec` in that method; the
+engine's evidence object is `self.ev`. I had been reading the API router, where
+the same object is named `rec`, and carried the name across. `refine()` raised
+`NameError` the moment it actually recovered a frame — the success path.
+
+**F02.** The export sidecar added by
+[DEC-027](#dec-027--exports-carry-their-crs-and-their-uncertainty) called
+`report.get("alignment", {}).get("scale_source")`. `build_report` emits
+`alignment=None` for a relative-scale run; the `{}` default applies when a key
+is *absent*, not when its value is `None`. A video-only reconstruction crashed
+after the cloud, PLY and LAS were written — leaving a partial artifact set.
+
+### Why the tests missed them
+
+**F01: the test contained its own copy of the logic.**
+`test_refinement_record.py` defined an `_aggregate` helper that reimplemented
+the engine's loop and asserted against the reimplementation. It confirmed the
+algorithm was right and could never confirm the code was. A test that
+reproduces the implementation can only show the copy is self-consistent.
+
+**F02: every integration fixture supplied telemetry.** The relative-scale path
+had no coverage at all, so the whole branch was untested rather than tested
+badly.
+
+### Decision
+
+The refinement test now drives the real `RefinementEngine.refine()` through its
+post-recovery branch, controlling only image I/O, registration and the local
+fit, so no video or GPU is needed and the orchestration under test is the
+engine's own.
+
+The export path decides geographic eligibility from the **alignment**, never
+from the presence of a frame object. This matters more than the crash: a
+relative-scale run still builds `ENUFrame(0, 0, 0)` as a placeholder, and the
+new exporter would have projected an arbitrary-scale reconstruction into UTM
+off the coast of Africa and labelled it in metres. **The crash was the only
+thing preventing that.** Fixing `.get()` alone would have shipped the worse
+bug.
+
+`export_report_html` now reads every section defensively. It is the last stage
+of artifact writing, so an exception there aborts a run whose cloud, PLY and
+LAS are already on disk — a partial set that looks complete.
+
+### Consequences
+
+- `ENUFrame.enu_to_geodetic` also crashed on an empty input, because
+  `atleast_2d` turns an empty array into shape (1, 0). A reconstruction that
+  registered no cameras reached this through the GeoJSON exporter. Fixed at the
+  source.
+- Rule taken from this: **a test must call the thing that ships.** Where a
+  fixture makes that hard, the difficulty is the finding.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/refinement.py`, `pipeline.py`,
+`exports.py`, `geo.py`, `drishti3d/tests/test_refinement_record.py`
+
+---
+
+## DEC-033 — Stored state survives a rejected request, and identity covers the bytes
+
+**Date:** 2026-09-21
+
+**Status:** Accepted · **completes
+[DEC-021](#dec-021--a-measurement-means-one-thing-whichever-route-produced-it)
+and [DEC-026](#dec-026--caches-key-by-artifact-revision-not-by-project)**
+
+### Context
+
+Four further findings, each a contract that was half-applied:
+
+- **F03.** DEC-021 said both routes call `results.compute`. They did not.
+  `/measurements` was rerouted; `/questions` kept its own copy, so an
+  ungeoreferenced reconstruction answered `m` on one route and
+  `reconstruction units` on the other. **The decision record was written as
+  though the work were finished.**
+- **F04.** The refinement route wrote `endpoints_moved_m` into the stored
+  evidence dict. `PATCH` rebuilt the gate input with `Evidence(**stored)`,
+  which has no such field: HTTP 500 on the next tolerance change after any
+  successful refinement.
+- **F05.** Question creation validated the interval level; `PATCH` did not. An
+  unsupported level was committed, then `evaluate()` raised — leaving the
+  question stored with a level the system cannot answer, so every later read
+  of it failed too.
+- **F06.** Caches keyed by `artifact_revision` (file sizes and mtimes); stored
+  answers by `artifact_version` (video hash plus manifest time). Replacing
+  `cloud.npz` without rewriting the manifest gave the loader new geometry while
+  every stored answer still looked current — the state a partial or failed
+  rerun produces, since artifacts are written in place.
+
+### Decision
+
+`_answer` calls `results.compute`. One implementation, as DEC-021 said.
+
+`Evidence.from_dict` keeps only its own fields, so no future diagnostic can
+reintroduce F04, and refinement diagnostics move under their own `diagnostics`
+key to make the separation visible as well as enforced.
+
+`PATCH` validates everything before touching the row. A rejected request leaves
+the stored question exactly as it was.
+
+`artifact_version` is now the manifest identity *and* the artifact revision:
+`{video_sha12}@{created}#{revision}`. The manifest half says which run it was;
+the revision half notices the bytes changing underneath it. Neither alone is
+enough.
+
+### Consequences
+
+- Every existing stored answer carries the old two-part version and is
+  therefore reported superseded until re-asked. That is correct: their exact
+  artifacts can no longer be identified.
+- Immutable run directories and atomic publication remain open (R01). Revision
+  keying makes a stale *read* impossible; it does not make a partial *write*
+  impossible.
+
+### Related Files
+
+`drishti3d/backend/app/routers/questions.py`, `results.py`,
+`drishti3d/reconstruction/drishti_recon/questions.py`,
+`drishti3d/tests/test_result_contract.py`

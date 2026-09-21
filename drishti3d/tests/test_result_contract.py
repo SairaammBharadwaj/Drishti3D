@@ -212,3 +212,60 @@ def test_unsupported_level_is_refused_by_the_library_too():
 def test_every_advertised_level_actually_works(level):
     from drishti_recon import questions as qmod
     assert qmod._Z(level) > 0
+
+
+# --------------------------------------------------------------------------- #
+# Follow-up verification findings (CRITICAL_REVIEW_VERIFICATION_2026-09-21)
+# --------------------------------------------------------------------------- #
+def test_both_routes_share_one_result_service():
+    """F03: DEC-021 claimed both routes called compute; only one did."""
+    import inspect
+    from app.routers import questions as qr
+    src = inspect.getsource(qr._answer)
+    assert "results.compute" in src, (
+        "_answer still holds its own copy of the computation")
+
+
+def test_evidence_ignores_stored_diagnostics():
+    """F04: refinement metadata broke the next tolerance change."""
+    from drishti_recon import questions as qmod
+    stored = {"n_supporting_views": 5, "max_ray_separation_deg": 30.0,
+              "view_support_basis": "triangulated_observations",
+              "endpoints_observed": True, "endpoints_within_coverage": True,
+              "dynamic_contamination": False, "scale_source": "gps",
+              "scale_sigma_rel": 0.01,
+              "diagnostics": {"endpoints_moved_m": [0.1, 0.0]},
+              "endpoints_moved_m": [0.1, 0.0]}
+    ev = qmod.Evidence.from_dict(stored)
+    assert ev.n_supporting_views == 5
+    assert ev.scale_source == "gps"
+    assert not hasattr(ev, "endpoints_moved_m")
+
+
+def test_evidence_from_empty_record_is_the_pessimistic_default():
+    from drishti_recon import questions as qmod
+    ev = qmod.Evidence.from_dict(None)
+    assert ev.endpoints_observed is False
+    assert ev.view_support_basis == "frustum_upper_bound"
+
+
+def test_artifact_version_tracks_the_files_not_only_the_manifest():
+    """F06: replacing cloud.npz left stored answers looking current."""
+    import inspect
+    from app import results
+    src = inspect.getsource(results.artifact_version)
+    assert "artifact_revision" in src
+
+
+def test_snap_tolerance_is_strict_when_spacing_is_unknowable():
+    """F07: a one-point cloud returned infinity, i.e. no bound at all."""
+    from drishti_recon import measure
+    from drishti_recon.fusion import PointCloud
+    from drishti_recon.provenance import Provenance
+    one = PointCloud(np.zeros((1, 3)), np.full((1, 3), 200, np.uint8),
+                     np.full(1, 0.9),
+                     np.full(1, int(Provenance.OBSERVED_HIGH_CONFIDENCE)),
+                     None, np.zeros(1), np.zeros(1))
+    assert measure.snap_tolerance(one) == measure.MIN_SNAP_TOLERANCE_M
+    m = measure.measure_point(one, [1000.0, 0, 0])
+    assert m.extra["all_selections_resolved"] is False
