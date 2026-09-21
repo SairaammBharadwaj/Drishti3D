@@ -881,3 +881,69 @@ New regression modules: `test_measurement_contract.py` (20),
   respond to geometry; it does not show the resulting numbers are right.
 - A browser walkthrough. `tsc` passing is not a usability test.
 - Clean-machine offline install, restart recovery, or concurrent-job behaviour.
+
+## 2026-09-21 — AGZ dense rebuilt against the corrected uncertainty model
+
+The dense reconstruction was rebuilt so the demo artifacts reflect
+[DEC-025](DECISIONS.md) (depth uncertainty from measured triangulation angle)
+and [DEC-029](DECISIONS.md) (observation rows labelled by kind). 1,271 s wall,
+252,127 points, 1,388,164 dense points before fusion, no error.
+
+### What the corrected model changed
+
+Per-point `sigma_major`, same flight, same settings:
+
+| | median | p10 | p90 | p99 |
+|---|---:|---:|---:|---:|
+| previous (pre-C04) | 0.0363 m | 0.0355 m | 0.0437 m | 0.0832 m |
+| rebuilt (C04) | 0.0385 m | 0.0345 m | **0.0909 m** | **0.3255 m** |
+
+**The median barely moves; the tail widens 2–4×.** That is the correction
+behaving as it should. Well-observed points are dominated by the sparse-model
+floor either way, so their figures are almost unchanged. The points that change
+are the ones whose contributing views are nearly collinear — which the previous
+model could not distinguish at all, because it consulted a view count and never
+the angle.
+
+### Observation lineage, now labelled
+
+1,332,620 rows: **20,143** `sparse_feature_observation` and **1,312,477**
+`dense_fusion_contributor`. The evidence API and the Tolerance Lens report the
+split per endpoint, and a sampled endpoint shows 3 views all of which are dense
+contributors — support that establishes the images contributed, with pixels
+projected rather than measured there.
+
+### Questions re-answered on the rebuilt geometry
+
+All 27 stored questions flagged `superseded` on the artifact change and were
+re-asked. Sparse is unchanged and shown for comparison.
+
+| 27 / 25 answered | Sparse | Dense (rebuilt) |
+|---|---:|---:|
+| median sigma | 0.2480 m | 0.2009 m |
+| median interval half-width | 0.4860 m | 0.4008 m |
+| median supporting views | 3 | **4** |
+| median parallax | 15.0° | **31.1°** |
+| `view_support_basis` | triangulated 25/25 | triangulated 27/27 |
+| `insufficient_views` | 4 | **0** |
+| `not_observable` | 0 | **3** |
+
+**The dense advantage survives the correction.** Sigma widened from 0.1843 m to
+0.2009 m against the pre-C04 artifacts, and is still narrower than sparse.
+
+**Three questions became `not_observable`**, all `outside_established_coverage`.
+This is **not** caused by the fixes. COLMAP's incremental mapping is not
+deterministic, and the rebuilt coverage volume is (145, 217, 77) voxels against
+(143, 217, 76) before — three endpoints that sat near the boundary fell outside
+it in this run. The system refuses them rather than extrapolating, which is the
+intended behaviour, but it does mean **question outcomes near a coverage edge
+are not reproducible across rebuilds of the same flight.** That is a property of
+the pipeline worth knowing before any result is quoted.
+
+### NOT TESTED
+
+Whether the widened intervals are *correct*. C04 makes uncertainty respond to
+geometry; only measured reference dimensions can show the resulting numbers are
+right. Every question here still reports `interval_not_calibrated`.
+
+Suite: **422 passed**.

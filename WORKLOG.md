@@ -2154,3 +2154,44 @@ typechecks clean.
 not a verified one. No measured reference dimension exists for any capture here,
 which is exactly what `interval_not_calibrated` reports on every question in the
 system.
+
+## 2026-09-21 — Dense rebuilt and re-imported under the corrected model
+
+21 minutes of GPU to make the demo artifacts agree with DEC-025 and DEC-029,
+then re-imported into the same project so the seeded questions stayed attached.
+
+The uncertainty correction landed exactly where it should. Median `sigma_major`
+moved 0.0363 → 0.0385 m, which is almost nothing, because well-observed points
+are dominated by the sparse-model floor either way. The p90 went 0.0437 →
+0.0909 m and the p99 0.0832 → 0.3255 m. The correction lives in the tail: points
+whose contributing views are nearly collinear, which the previous model could
+not distinguish from well-triangulated ones because it consulted a view count
+and never an angle.
+
+Lineage is labelled now: 20,143 sparse feature observations against 1,312,477
+dense fusion contributors, and a sampled endpoint reports three views that are
+all dense contributors — images that genuinely contributed, with pixels
+projected rather than measured there.
+
+Re-importing exercised the supersede path for real. All 27 stored questions
+flagged `superseded` the moment the artifacts changed, and re-asking them gave
+median sigma 0.2009 m against sparse's 0.2480 m, 4 views against 3, 31.1° of
+parallax against 15.0°. The dense advantage survives the correction; it is
+smaller than the 0.1843 m the pre-C04 artifacts reported, which is the point.
+
+**Three questions became `not_observable`, and it is not the fixes.** All three
+are `outside_established_coverage`. COLMAP's incremental mapping is not
+deterministic: the rebuilt coverage volume is (145, 217, 77) voxels against
+(143, 217, 76) before, and three endpoints near the boundary fell outside it
+this time. The system refuses rather than extrapolating, which is right — but it
+means question outcomes near a coverage edge are **not reproducible across
+rebuilds of the same flight**, and that is worth knowing before quoting any
+result from one.
+
+Two process notes. The superseded flag existed only because I checked whether
+the re-import would silently present stale answers as current — it would have,
+and the review had listed that under C07's acceptance criteria without my having
+closed it. And I restarted the API against old code twice before noticing that
+`serve.sh` skips a port that is already listening; `--restart` resolves ports to
+PIDs and kills by PID, because a `pkill -f` pattern broad enough to match the
+server also matches the shell running the script.
