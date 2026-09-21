@@ -99,6 +99,72 @@ before/after that does not name the frames the refinement actually added.
 ## P1 — Important
 
 
+### Get data that can actually validate a calibration profile
+
+**Status:** READY TO DOWNLOAD — no drone needed
+**Priority:** P1, and the longest lead time of anything in this backlog
+
+**Why it matters**
+
+Every measurement in the system reports `interval_not_calibrated`, and that is
+the only thing still between it and an accepted measurement. Fitting a profile
+needs reference dimensions measured by something that is **not** this pipeline,
+with a stated instrument uncertainty. Nothing on disk has that.
+
+What is on disk, re-checked 2026-09-21: five AGZ entries, all derived from
+**one Zurich flight**, whose reference is Pix4D photogrammetry — the dataset
+authors' own words, not survey truth. Plus `goetheanum`, `gym_pass`,
+`lambertus` (video, no truth at all), `monterey_strip` and `odm_data_bellus`.
+631 MB total. There is no second independent flight and no measured dimension.
+
+**Recommended downloads, in order**
+
+1. **UseGeo** — <https://github.com/3DOM-FBK/UseGeo>. Three UAV strips (224 /
+   328 / 277 images), each with a **LiDAR reference point cloud** (~50 pts/m²),
+   ground-truth depth maps and camera poses. Direct download links, no
+   registration. This is the highest-value single download: three *independent*
+   flights (F4 generalisation, currently tested only on partitions of one
+   flight) **and** a reference surface (validates DEC-031's dense uncertainty
+   and V04's surface accuracy, neither of which anything here can check).
+   Expect tens of GB — the images are 7952x5304.
+
+2. **ISPRS/EuroSDR Benchmark on Multi-Platform Photogrammetry** —
+   <https://www2.isprs.org/commissions/comm2/icwg-2-1a/benchmark_main/>.
+   Dortmund and Zurich, with TLS, ALS **and surveyed check points from
+   topographic networks and GNSS**. This is the only listed source of truly
+   independent measured coordinates, which is what a calibration profile needs
+   and what a LiDAR surface only approximates. **Requires a registration form,
+   so start it now** — the same reasoning the original review gave for starting
+   field arrangements alongside the code work.
+
+3. **Hessigheim 3D (H3D)** —
+   <https://ifpwww.ifp.uni-stuttgart.de/benchmark/hessigheim/default.aspx>.
+   UAV LiDAR at 800 pts/m² over three epochs. A much denser reference surface
+   than UseGeo, but it is built for semantic segmentation and is more work to
+   reduce to what we need. Worth it only if UseGeo's reference proves too
+   coarse.
+
+**The caveat that applies to all three**
+
+They are **image sets, not video**. Drishti3D's premise is single-pass video,
+and a pipeline validated only on stills has not validated its video-specific
+parts: PTS timing ([DEC-005](DECISIONS.md)), rolling-shutter detection,
+keyframe selection, or motion blur. These datasets can validate the
+*geometry and uncertainty* claims, which is the binding constraint today. They
+cannot retire V01, and the backlog should not pretend otherwise.
+
+**Done when**
+
+A calibration profile is fitted on one mission, evaluated on a disjoint one
+([DEC-028](DECISIONS.md) enforces the disjointness), released, and some
+measurement somewhere legitimately reads `meets_requirement`.
+
+**Relevant files**
+
+`drishti3d/scripts/inventory_datasets.py`, `build_agz_mission.py`,
+`drishti3d/eval/`, `drishti3d/reconstruction/drishti_recon/questions.py`
+
+
 ### Seed questions on the remaining missions
 
 **Status:** READY — `scripts/seed_questions.py`
