@@ -63,11 +63,35 @@ def test_area_of_unit_square():
 
 
 def test_measurement_excludes_inferred_by_default():
+    """Selecting AI geometry with inference off must refuse, not substitute.
+
+    This test used to assert the opposite -- that the pick snapped 100 m down
+    to the observed grid -- which is the silent substitution C03 describes: the
+    operator selects a roof and is quietly given the ground beneath it. Hiding
+    the AI point is necessary but not sufficient; the nearest *observed* point
+    is not automatically what was meant.
+    """
     c = _grid_cloud()
-    # add an AI-assisted point far above; default measurement must not snap to it
     c.points = np.vstack([c.points, [5, 5, 100.0]])
     c.provenance = np.append(c.provenance, int(Provenance.AI_ASSISTED))
     c.confidence = np.append(c.confidence, 0.0)
     c.colors = np.vstack([c.colors, [155, 89, 182]])
     m = measure.measure_point(c, [5, 5, 100], allow_inferred=False)
-    assert m.points_enu[0][2] < 50   # snapped to observed grid, not the AI point
+    assert m.extra["all_selections_resolved"] is False
+    assert m.extra["max_snap_displacement_m"] > 50
+    assert not np.isfinite(m.sigma)
+    assert any("not on measurable geometry" in w for w in m.warnings)
+    # The AI point is still excluded: it was never the resolved provenance.
+    assert not m.used_inferred
+
+
+def test_inferred_point_is_usable_when_explicitly_allowed():
+    c = _grid_cloud()
+    c.points = np.vstack([c.points, [5, 5, 100.0]])
+    c.provenance = np.append(c.provenance, int(Provenance.AI_ASSISTED))
+    c.confidence = np.append(c.confidence, 0.0)
+    c.colors = np.vstack([c.colors, [155, 89, 182]])
+    m = measure.measure_point(c, [5, 5, 100], allow_inferred=True)
+    assert m.extra["all_selections_resolved"] is True
+    assert m.used_inferred
+    assert any("AI-assisted" in w for w in m.warnings)

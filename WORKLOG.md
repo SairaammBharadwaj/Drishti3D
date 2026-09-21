@@ -2048,3 +2048,109 @@ system rather than a line in a document: 2 of 25 dense questions reach
 `estimated_only`, the rest are held at `needs_refinement`, and none can reach
 `meets_requirement` until a calibration profile is fitted against independently
 measured dimensions. 335 tests pass.
+
+## 2026-09-21 — Ten findings from a critical review, six with counterexamples
+
+A simulated critical evaluator review of `d94ec29` landed as
+`docs/NTRO_CRITICAL_REVIEW_AND_IMPROVEMENTS_2026-09-21.md`. Its verdict: enough
+substance to justify serious attention, and it would still withhold a
+recommendation for operational use until a reported measurement is tied to the
+correct reconstruction revision, survives refinement and export, and agrees with
+independent truth.
+
+I reproduced all six executable counterexamples before changing anything. All
+six held. Working through them found two more defects of the same kind that the
+review had not seen.
+
+### What was actually wrong
+
+The system had **two definitions of a measurement**. `POST /measurements`
+computed without scale uncertainty, never checked that metric scale existed, and
+stored a row with no sigma, no interval basis, no status and no artifact
+identity. `POST /questions` stored all of it. Both returned a number labelled in
+metres and the Workspace offered both buttons. The acceptance gate was never
+admitting bad measurements — there was simply a second, quieter answer to what a
+measurement is, and it was the default one. One result service now (DEC-021).
+
+**Scale was applied per segment.** A 10 m line at 10% scale uncertainty reported
+1.000 m; adding a midpoint reported 0.707 m. Inserting a vertex manufactured
+confidence about a line whose geometry had not changed. Propagating the length
+function itself fixes both that and the shared-vertex double count: the
+derivative at an interior vertex is `u[i-1] - u[i]`, which vanishes when the
+vertex lies straight between its neighbours. Validated by Monte Carlo over 20k
+trials with one shared scale draw, within 5% on straight, right-angled and
+wandering polylines (DEC-022).
+
+**Snapping was unbounded.** A selection at `[1000,0,0]` against a cloud ending at
+`[10,0,0]` moved 990 m and was then measured, with evidence assembled, where the
+operator never pointed. The distance was computed and thrown away. A test
+asserted the old behaviour — picking an AI point with inference off was expected
+to snap 100 m down to the ground — which is the substitution restated as a
+requirement (DEC-023).
+
+**`as_georeferenced` subtracted the offset it was reporting.** A reference
+shifted by [100,200,30] m scored zero. The docstring's reasoning was right for a
+local frame and false here, because `score()` has already put both sides in UTM.
+Rescoring offline: the real absolute median is **5.270 m**, not the 3.764 m this
+project has been quoting. Onboard GPS is 5.155 m against the same reference, so
+the reconstruction sits at the accuracy of the signal it was georeferenced from
+— the honest ceiling, invisible while the offset was being removed. The removed
+translation is a −3.91 m northing component common to both engines and the raw
+GPS: systematic, not reconstruction error (DEC-024).
+
+**Dense depth uncertainty never consulted the triangulation angle.** The formula
+was `r·σ/f`, a transverse localisation scale, used as a depth error — which
+silently asserts every dense point was seen from 45° apart. At this mission's
+26° median the true figure is 2.1× larger; at 5°, 11× larger. Always optimistic,
+and most optimistic where the geometry was weakest. The contributing-camera list
+was already on disk and was not being read (DEC-025). This is the fourth
+instance of the DEC-019 pattern: an uncertainty that looked implausibly small
+because something held fixed was not actually known.
+
+**LAS accepted a frame and ignored it** — `parse_crs()` returned None — while the
+overview said exported clouds carried sigma. They carried neither sigma nor
+provenance (DEC-027). **Caches keyed by project id** returned superseded geometry
+after a rebuild; an `invalidate` helper existed and nothing called it (DEC-026).
+**Calibration marked itself validated from a sample count** (DEC-028).
+**Refinement stored the operator's original endpoints beside the refined value**,
+and added a one-endpoint view gain to a measurement-wide *minimum*, so 3 + 4
+reported 7 for a measurement whose other end still had 3 (DEC-030).
+
+### Mistakes I made inside this work
+
+Three, each caught by a test rather than by reading.
+
+Writing the shared result service, I read `status_reasons` off
+`Verdict.to_dict()`. It names that field `reasons`. Every stored refusal kept
+its status and lost every word explaining why — and the shape was right, so
+nothing failed. The same dict has no `evidence` key either, so
+`vd.get("evidence", {})` would have stored empty evidence on every measurement.
+Both only surfaced because the test asserted the fields were *populated* rather
+than present.
+
+Wiring the parallax computation, I mapped `vis_images` through `frame_order` —
+following the docstring on `DenseResult.vis_images`, which describes the
+untranslated form. `run_colmap` translates before returning, so that would have
+double-translated and attributed every dense point to the wrong cameras,
+silently, since wrong cameras still yield a plausible angle. The fourth
+appearance of the keyframe/decoded-index hazard and the first caused by our own
+documentation, which is now corrected.
+
+And twice I killed my own shell with `pkill -f` on a pattern that matched the
+command running it. `scripts/serve.sh --restart` resolves ports to PIDs and
+kills by PID instead.
+
+### Corrected claims
+
+`PROJECT_OVERVIEW.md` now says 14× *point count* rather than 14× density, states
+that unchanged camera-trajectory agreement is not evidence of unchanged dense
+surface accuracy, and labels exported heights as WGS84 ellipsoidal. P0 in
+`NEXT_STEPS.md` is reopened; "P0: Nothing" was wrong.
+
+411 tests pass, up from 335, across seven new regression modules. Frontend
+typechecks clean.
+
+**Still not validated:** every corrected number is a better-founded estimate,
+not a verified one. No measured reference dimension exists for any capture here,
+which is exactly what `interval_not_calibrated` reports on every question in the
+system.

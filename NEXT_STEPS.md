@@ -35,11 +35,40 @@ code.
 
 ## P0 — Critical
 
-Nothing. Dense multi-view stereo, the previous P0, ran successfully on
-2026-09-21 — see [DEC-019](DECISIONS.md) and the
-[benchmark](drishti3d/docs/benchmarks/2026-09-21_dense_mvs/RESULTS.md). What is
-left of it is validation, which needs field data, so it sits at P1 with the
-calibration work it shares a site visit with.
+**Reopened 2026-09-21.** "P0: Nothing" was wrong, and a critical review
+([docs/NTRO_CRITICAL_REVIEW_AND_IMPROVEMENTS_2026-09-21.md](drishti3d/docs/NTRO_CRITICAL_REVIEW_AND_IMPROVEMENTS_2026-09-21.md))
+found ten correctness findings, six with counterexamples that all reproduced.
+Dense MVS having landed does not make the system correct; it made a different
+set of defects reachable.
+
+### Closed by DEC-021 … DEC-030 on 2026-09-21
+
+| ID | Finding | Decision |
+|---|---|---|
+| C01 | Two incompatible definitions of a stored measurement | [DEC-021](DECISIONS.md) |
+| C02 | Scale uncertainty applied per segment; subdividing a line narrowed it | [DEC-022](DECISIONS.md) |
+| C03 | Unbounded snapping relocated a selection 990 m without refusal | [DEC-023](DECISIONS.md) |
+| C04 | Dense depth uncertainty ignored triangulation angle | [DEC-025](DECISIONS.md) |
+| C05 | Projected dense pixels indistinguishable from measured feature pixels | [DEC-029](DECISIONS.md) |
+| C06 | Refined results stored the operator's original endpoints | [DEC-030](DECISIONS.md) |
+| C07 | Caches keyed by project id returned superseded geometry | [DEC-026](DECISIONS.md) |
+| C08 | LAS ignored its frame, declared no CRS, dropped sigma | [DEC-027](DECISIONS.md) |
+| C09 | `as_georeferenced` removed the offset it was reporting | [DEC-024](DECISIONS.md) |
+| C10 | Calibration marked itself validated from a sample count | [DEC-028](DECISIONS.md) |
+
+411 tests pass, up from 335. Seven new regression modules.
+
+### Still open at P0
+
+**The corrected numbers are not validated numbers.** C04 makes dense
+uncertainty respond to geometry and C09 reports absolute error honestly; neither
+shows the resulting figures are right. That needs field data, and it is the same
+site visit as the calibration work below.
+
+Two parts of C06 remain: the evidence endpoint rebuilds from on-disk lineage
+that does not contain recovered frames, and the frontend caches its evidence
+response across a refinement. Both are visible to an operator as a
+before/after that does not name the frames the refinement actually added.
 
 ---
 

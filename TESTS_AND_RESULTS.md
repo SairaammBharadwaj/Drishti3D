@@ -787,3 +787,97 @@ independently measured reference dimension exists for this flight, which is
 exactly what `interval_not_calibrated` is reporting.
 
 Suite: 335 passed.
+
+## 2026-09-21 — Critical review findings: reproduction and regression
+
+A simulated critical evaluator review
+([docs/NTRO_CRITICAL_REVIEW_AND_IMPROVEMENTS_2026-09-21.md](drishti3d/docs/NTRO_CRITICAL_REVIEW_AND_IMPROVEMENTS_2026-09-21.md))
+was run against `d94ec29` and reported ten P0 correctness findings, six with
+executable counterexamples. **Each of the six was independently reproduced here
+before any change was made**, rather than accepted on the review's word.
+
+### Reproduced before the fix
+
+| Check | Observed | Finding |
+|---|---|---|
+| 10 m line, 10% scale, zero endpoint noise; 2 vs 3 vertices | sigma 1.000 m → **0.707 m** | C02 |
+| Select `[1000,0,0]`, nearest cloud point `[10,0,0]` | snapped **990 m**, no refusal, no warning | C03 |
+| `export_las(..., frame=...)` then `header.parse_crs()` | **`None`**; no provenance/sigma dimensions | C08 |
+| Replace `cloud.npz` after a cached `load_cloud` | returned the **previous** points | C07 |
+| Reference trajectory shifted `[100,200,30]` m | `as_georeferenced` returned **0** at every statistic | C09 |
+| `Intrinsics` with distortion coefficients | validated, **distortion silently dropped** | U02 |
+
+### After the fix
+
+| Check | Result |
+|---|---|
+| Subdividing a straight line (2, 3 and 5 vertices) | sigma 1.000 m, unchanged |
+| Monte Carlo, 20k trials, one shared scale draw | predicted vs sampled sigma within **5%**, on straight, right-angled and wandering polylines |
+| Collinear interior vertex | contributes exactly zero endpoint variance |
+| Corner vertex | contributes strictly more than a collinear one |
+| Selection 990 m from geometry | refused; sigma `inf`; displacement and tolerance reported |
+| Ordinary grid-aligned pick | resolved, displacement < 1e-6 m, no warnings |
+| LAS with a Zurich frame | `EPSG:32632`; origin round-trips within **0.05 m**; 100 m offset preserved within **0.2 m** |
+| LAS/PLY fields | `provenance`, `confidence`, `sigma` present; NaN where the cloud carried none |
+| `cloud.npz` replaced | new points returned; one cache entry retained per project |
+| Global `[100,200,30]` m offset | `as_georeferenced` median **225.61 m**; `after_translation_fit` 0 and reports the removed vector |
+| Distortion, camera model, source resolution | survive validation; unknown fields **refused**, not dropped |
+| 4K calibration on 1080p video | rescaled by source resolution, substitution reported |
+| Mismatched aspect ratio | flagged rather than scaled |
+
+### Dense depth uncertainty against triangulation geometry (C04)
+
+At 50 m range, `sigma_px = 1.0`, `focal = 1000`:
+
+| Baseline | Parallax | sigma |
+|---:|---:|---:|
+| 50 m | 53.13° | 0.030 m |
+| 20 m | 22.62° | 0.087 m |
+| 5 m | 5.72° | 0.353 m |
+| 1 m | 1.15° | 1.768 m |
+
+Tighter baselines can no longer look more certain. Previously all four returned
+the same value, because the model consulted a view *count* and never the angle.
+
+### Absolute position error, rescored (C09)
+
+Offline from saved artifacts, AGZ dense pass, 80 scored cameras. **No
+reconstruction was re-run for this**; only the metric changed.
+
+| | COLMAP | OpenCV | onboard GPS |
+|---|---:|---:|---:|
+| `as_georeferenced` median | **5.270 m** | **5.547 m** | **5.155 m** |
+| `after_translation_fit` median | 3.764 m | 3.702 m | 4.595 m |
+| `after_similarity_fit` median | 0.322 m | 0.679 m | — |
+| removed translation | 4.111 m | 4.112 m | — |
+
+The 3.764 m this project has been quoting as georeferenced accuracy is the
+**translation-fitted** figure. The absolute figure is 5.270 m, and the
+reconstruction is at the accuracy of the GPS it was georeferenced from (5.155 m),
+which is the honest ceiling. The removed translation is dominated by a −3.91 m
+northing component common to both engines *and* the raw GPS — a systematic
+offset, not a reconstruction error.
+
+**NOT INDEPENDENT:** the reference is Pix4D photogrammetry, not survey truth.
+This was true before the change and remains true.
+
+### Suite
+
+**411 passed** (was 335 at `d94ec29`), 49 warnings, 113 s.
+Frontend `tsc --noEmit`: clean.
+
+New regression modules: `test_measurement_contract.py` (20),
+`test_export_georeference.py` (12), `test_result_contract.py` (13),
+`test_calibration_lifecycle.py` (10), `test_artifact_revision.py` (6),
+`test_refinement_record.py` (6), `test_observation_kinds.py` (4).
+
+### NOT TESTED
+
+- Whether any reported interval covers a true dimension. No independently
+  measured reference dimension exists for any capture here. This is what
+  `interval_not_calibrated` reports on every question in the system.
+- Dense surface accuracy and completeness against a held-out reference.
+- The corrected dense uncertainty against measured error. C04 makes the model
+  respond to geometry; it does not show the resulting numbers are right.
+- A browser walkthrough. `tsc` passing is not a usability test.
+- Clean-machine offline install, restart recovery, or concurrent-job behaviour.

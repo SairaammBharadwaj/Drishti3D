@@ -1,0 +1,186 @@
+"""C01/U02: one definition of a measurement, and calibration that survives.
+
+The review's findings: `POST /measurements` computed without scale uncertainty
+and persisted a row with no sigma, interval basis, status or artifact identity,
+so the same geometry meant different things through different routes; and
+`ProcessRequest.intrinsics` silently dropped distortion coefficients.
+"""
+import numpy as np
+import pytest
+
+from app.schemas import Intrinsics, MeasurementOut, ProcessRequest
+
+
+# --------------------------------------------------------------------------- #
+# U02 -- calibration must not lose fields in transit
+# --------------------------------------------------------------------------- #
+def test_distortion_survives_validation():
+    i = Intrinsics(fx=1000, fy=1000, cx=960, cy=540,
+                   model="OPENCV", distortion=[-0.1, 0.02, 0.0, 0.0, 0.0])
+    assert i.distortion == [-0.1, 0.02, 0.0, 0.0, 0.0]
+    assert i.model == "OPENCV"
+
+
+def test_source_resolution_survives_validation():
+    i = Intrinsics(fx=1000, fy=1000, cx=960, cy=540,
+                   source_width=1920, source_height=1080)
+    assert (i.source_width, i.source_height) == (1920, 1080)
+
+
+def test_unknown_calibration_fields_are_refused_not_dropped():
+    """Silently discarding a field the caller believed was applied is worse
+    than refusing it: the operator gets no signal either way."""
+    with pytest.raises(Exception):
+        Intrinsics(fx=1000, fy=1000, cx=960, cy=540, k1=-0.1)
+
+
+def test_default_is_an_explicit_pinhole_claim():
+    i = Intrinsics(fx=1000, fy=1000, cx=960, cy=540)
+    assert i.model == "PINHOLE"
+    assert i.distortion == []
+
+
+def test_process_request_carries_distortion_through():
+    r = ProcessRequest(intrinsics=Intrinsics(
+        fx=1000, fy=1000, cx=960, cy=540, distortion=[-0.1, 0.02]))
+    assert r.intrinsics.distortion == [-0.1, 0.02]
+
+
+# --------------------------------------------------------------------------- #
+# C01 -- both routes must report the same contract
+# --------------------------------------------------------------------------- #
+def test_measurement_out_exposes_the_trust_fields():
+    fields = MeasurementOut.model_fields
+    for name in ("sigma", "interval_half_width", "interval_basis",
+                 "status", "status_reasons", "artifact_version"):
+        assert name in fields, f"MeasurementOut drops {name}"
+
+
+def test_measurement_out_defaults_are_not_falsely_confident():
+    """A missing sigma must read as 'not propagated', never as zero."""
+    m = MeasurementOut(id="x", project_id="y", kind="distance", value=1.0,
+                       unit="m", points_enu=[[0, 0, 0], [1, 0, 0]],
+                       confidence_note="", used_inferred=False, warnings=[],
+                       created_at="2026-09-21T00:00:00")
+    assert m.sigma is None
+    assert m.interval_basis == "uncalibrated_sensitivity"
+    assert m.status is None
+
+
+def test_non_metric_scale_is_not_reported_in_metres(monkeypatch):
+    """A reconstruction with no georeferencing has arbitrary scale."""
+    from app import results
+    monkeypatch.setattr(results, "scale_status",
+                        lambda pid: {"scale_source": None,
+                                     "scale_sigma_rel": None,
+                                     "is_metric": False})
+    monkeypatch.setattr(results, "evidence_for", lambda pid: None)
+    monkeypatch.setattr(results, "artifact_version", lambda pid: "test@0")
+
+    from drishti_recon.fusion import PointCloud
+    from drishti_recon.provenance import Provenance
+    xs, ys = np.meshgrid(np.linspace(0, 10, 40), np.linspace(0, 10, 40))
+    pts = np.stack([xs.ravel(), ys.ravel(), np.zeros(xs.size)], 1)
+    n = len(pts)
+    cloud = PointCloud(pts, np.full((n, 3), 200, np.uint8), np.full(n, 0.9),
+                       np.full(n, int(Provenance.OBSERVED_HIGH_CONFIDENCE)),
+                       None, np.full(n, 0.01), np.full(n, 0.02))
+
+    r = results.compute("a" * 32, cloud, kind="distance",
+                        points=[[0, 0, 0], [10, 0, 0]], allow_inferred=False)
+    assert r["unit"] == "reconstruction units"
+    assert any("not metres" in w or "arbitrary" in w for w in r["warnings"])
+    assert r["artifact_version"] == "test@0"
+
+
+# --------------------------------------------------------------------------- #
+# U02 -- calibration resolution must be honoured, not assumed
+# --------------------------------------------------------------------------- #
+def _K(intr, ow, oh, pw, ph):
+    from drishti_recon.pipeline import _resolve_intrinsics
+    warns = []
+    return _resolve_intrinsics(intr, ow, oh, pw, ph, pw / ow, warns), warns
+
+
+def test_calibration_at_the_video_resolution_scales_as_before():
+    K, warns = _K({"fx": 1000, "fy": 1000, "cx": 960, "cy": 540},
+                  1920, 1080, 960, 540)
+    assert K[0, 0] == pytest.approx(500.0)
+    assert warns == []
+
+
+def test_calibration_measured_at_another_resolution_is_rescaled():
+    """4K calibration, 1080p video, 960-wide processing."""
+    K, warns = _K({"fx": 4000, "fy": 4000, "cx": 1920, "cy": 1080,
+                   "source_width": 3840, "source_height": 2160},
+                  1920, 1080, 960, 540)
+    assert K[0, 0] == pytest.approx(1000.0)     # 4000 * 960/3840
+    assert any("measured at 3840x2160" in w for w in warns)
+
+
+def test_mismatched_aspect_ratio_is_flagged_not_silently_scaled():
+    K, warns = _K({"fx": 1000, "fy": 1000, "cx": 640, "cy": 640,
+                   "source_width": 1280, "source_height": 1280},
+                  1920, 1080, 960, 540)
+    assert any("aspect ratio" in w for w in warns)
+
+
+def test_compute_returns_every_field_it_promises(monkeypatch):
+    """Each key must come from where that information actually lives.
+
+    Verdict.to_dict() carries the judgement, not the measurement: it has no
+    `sigma`, no `evidence`, and names the reason list `reasons`. Reading
+    `status_reasons` and `evidence` off it silently produced an empty list and
+    an empty dict -- a stored refusal with nothing saying why.
+    """
+    from app import results
+    from drishti_recon.fusion import PointCloud
+    from drishti_recon.provenance import Provenance
+
+    monkeypatch.setattr(results, "scale_status",
+                        lambda pid: {"scale_source": "gps",
+                                     "scale_sigma_rel": 0.01,
+                                     "is_metric": True})
+    monkeypatch.setattr(results, "evidence_for", lambda pid: None)
+    monkeypatch.setattr(results, "artifact_version", lambda pid: "v@1")
+
+    xs, ys = np.meshgrid(np.linspace(0, 10, 40), np.linspace(0, 10, 40))
+    pts = np.stack([xs.ravel(), ys.ravel(), np.zeros(xs.size)], 1)
+    n = len(pts)
+    cloud = PointCloud(pts, np.full((n, 3), 200, np.uint8), np.full(n, 0.9),
+                       np.full(n, int(Provenance.OBSERVED_HIGH_CONFIDENCE)),
+                       None, np.full(n, 0.01), np.full(n, 0.02))
+
+    r = results.compute("a" * 32, cloud, kind="distance",
+                        points=[[0, 0, 0], [10, 0, 0]], allow_inferred=False,
+                        tolerance_m=0.05)
+    # With no trajectory artifact the endpoints are unverifiable, which is a
+    # hard refusal and short-circuits the softer checks -- so the reason here
+    # is endpoint_not_observed, and the point is that a reason is present at
+    # all rather than the empty list the wrong key produced.
+    assert r["status_reasons"], "a refusal with no reasons explains nothing"
+    assert "endpoint_not_observed" in r["status_reasons"]
+    assert isinstance(r["evidence"], dict) and r["evidence"]
+    assert r["evidence"]["endpoints_observed"] is False
+    assert r["sigma"] is not None and r["sigma"] > 0
+    assert r["status"] == "not_observable"
+    assert r["dominant_limitation"] == "endpoint_not_observed"
+    assert r["unit"] == "m"
+
+
+def test_uncalibrated_is_reported_once_the_hard_refusals_clear(monkeypatch):
+    """The reason that actually blocks this system, with evidence present."""
+    from app import results
+    from drishti_recon import questions as qmod
+
+    good = qmod.Evidence(
+        n_supporting_views=6, max_ray_separation_deg=30.0,
+        view_support_basis="triangulated_observations",
+        endpoints_observed=True, endpoints_within_coverage=True,
+        scale_source="gps", scale_sigma_rel=0.001)
+    verdict = qmod.evaluate(
+        qmod.MeasurementQuestion(kind="distance", tolerance_m=5.0),
+        value=10.0, sigma=0.05, evidence=good, profile=None)
+    reasons = verdict.to_dict()["reasons"]
+    assert "interval_not_calibrated" in reasons
+    assert verdict.status.value == "estimated_only"

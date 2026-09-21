@@ -51,13 +51,25 @@ def _git_commit() -> str:
 
 
 def _rigid_and_similarity_error(est: np.ndarray, ref: np.ndarray) -> dict:
-    """Per-camera 3D error under (a) translation only and (b) a Sim(3) fit.
+    """Per-camera 3D error at three levels of how much has been fitted away.
 
-    (a) keeps the reconstruction's own scale and orientation, so it measures the
-    georeferenced product.  Only the common translation is removed, since it is
-    the choice of local origin and carries no information about the geometry.
-    (b) removes rotation and scale as well via Umeyama, which answers the
-    narrower question "is the *shape* right", and is not an accuracy claim.
+    ``est`` and ``ref`` both arrive in the same projected CRS (UTM 32N, via
+    :func:`score`), which is what makes the first of these meaningful:
+
+    * **as_georeferenced** -- raw residuals in the common CRS. Nothing is
+      removed. This is absolute positioning accuracy, and a mission that lands
+      100 m from where it claims scores 100 m here.
+    * **after_translation_fit** -- the common offset removed. Answers "is the
+      geometry right, ignoring where it was placed", and reports the offset it
+      removed so the discarded quantity stays visible.
+    * **after_similarity_fit** -- rotation and scale removed too, via Umeyama.
+      Answers the narrowest question, "is the *shape* right".
+
+    Only the third was ever labelled as a fit. The first two were one metric:
+    ``as_georeferenced`` subtracted each trajectory's mean before comparing, so
+    a reference shifted by [100, 200, 30] m scored exactly zero and the label
+    said the result was georeferenced accuracy. The offset is not a choice of
+    local origin once both sides are in UTM -- it is the error.
     """
     out = {}
 
@@ -72,8 +84,20 @@ def _rigid_and_similarity_error(est: np.ndarray, ref: np.ndarray) -> dict:
                     np.linalg.norm(d[:, :2], axis=1))),
                 "vertical_median_m": float(np.median(np.abs(d[:, 2])))}
 
-    out["as_georeferenced"] = stats(
+    out["as_georeferenced"] = stats(est - ref)
+    out["as_georeferenced"]["note"] = (
+        "raw residuals in the common projected CRS; nothing removed")
+
+    offset = est.mean(0) - ref.mean(0)
+    out["after_translation_fit"] = stats(
         (est - est.mean(0)) - (ref - ref.mean(0)))
+    out["after_translation_fit"]["removed_translation_m"] = [
+        float(v) for v in offset]
+    out["after_translation_fit"]["removed_translation_norm_m"] = float(
+        np.linalg.norm(offset))
+    out["after_translation_fit"]["note"] = (
+        "common offset removed and reported above; geometry only, not "
+        "absolute position")
 
     ec, rc = est - est.mean(0), ref - ref.mean(0)
     H = ec.T @ rc / len(ec)
@@ -82,6 +106,8 @@ def _rigid_and_similarity_error(est: np.ndarray, ref: np.ndarray) -> dict:
     R = Vt.T @ D @ U.T
     scale = float((S * np.diag(D)).sum() / (ec ** 2).sum() * len(ec))
     out["after_similarity_fit"] = stats((scale * (R @ ec.T)).T - rc)
+    # Applied to the estimate to bring it onto the reference: a reconstruction
+    # 5% too large fits at 1/1.05, so scale < 1 means the estimate was too big.
     out["after_similarity_fit"]["fitted_scale"] = scale
     out["after_similarity_fit"]["note"] = (
         "shape-only; scale and orientation were solved against the reference, "

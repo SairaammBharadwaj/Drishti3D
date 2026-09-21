@@ -43,6 +43,15 @@ def submit(job_id: str, project_id: str, params: dict) -> None:
     _executor.submit(_run, job_id, project_id, params)
 
 
+def _drop_caches(project_id: str) -> None:
+    """Release in-memory geometry and lineage for a project, best effort."""
+    try:
+        from .routers.measurements import invalidate
+        invalidate(project_id)
+    except Exception:                                      # noqa: BLE001
+        pass
+
+
 def _run(job_id: str, project_id: str, params: dict) -> None:
     db = SessionLocal()
     try:
@@ -82,6 +91,11 @@ def _run(job_id: str, project_id: str, params: dict) -> None:
                               str(telem) if telem else None,
                               params=pp, progress=cb)
 
+        # The artifacts on disk have just been replaced. Caches key themselves
+        # by artifact revision so a stale read is already impossible, but drop
+        # the superseded entries here rather than hold them until someone asks.
+        _drop_caches(project_id)
+
         job.status = "done"
         job.stage = "done"
         job.progress = 1.0
@@ -103,6 +117,9 @@ def _run(job_id: str, project_id: str, params: dict) -> None:
             db.commit()
         except Exception:
             pass
+        # A failed run can still have written part of an artifact set before
+        # stopping, so anything held from before it is not trustworthy either.
+        _drop_caches(project_id)
         _set_state(job_id, status="failed", error=str(e), message="failed")
         print("[job] failed:", tb)
     finally:

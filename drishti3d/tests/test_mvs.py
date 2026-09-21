@@ -138,14 +138,19 @@ def test_the_floor_dominates_when_stereo_looks_implausibly_good():
     The stereo term alone reported a 5 mm median on a model good to 36 mm.
     Cameras are known only to the bundle adjustment's accuracy, so nothing
     triangulated from them can be better known than that.
+
+    45 degrees is passed explicitly because that is what the original formula
+    assumed without saying so -- it omitted the tan(parallax) factor entirely,
+    which is the same as asserting every dense point was seen from 45 degrees
+    apart. Stating it here keeps the historical number reproducible while the
+    model no longer assumes it.
     """
     centres = np.array([[0.0, 0.0, 0.0]])
     p = np.array([[0.0, 20.0, 0.0]])
-    bare = mvs.depth_uncertainty(p, centres, np.array([5]),
-                                 sigma_px=1.0, focal=1536.0)[0]
+    kw = dict(sigma_px=1.0, focal=1536.0, parallax_deg=np.array([45.0]))
+    bare = mvs.depth_uncertainty(p, centres, np.array([5]), **kw)[0]
     floored = mvs.depth_uncertainty(p, centres, np.array([5]),
-                                    sigma_px=1.0, focal=1536.0,
-                                    floor=0.0364)[0]
+                                    floor=0.0364, **kw)[0]
     assert bare < 0.01, "the stereo term alone is millimetres"
     assert floored >= 0.0364
     assert floored == pytest.approx(np.hypot(bare, 0.0364))
@@ -155,11 +160,52 @@ def test_views_stop_helping_once_they_stop_being_independent():
     """Fusion's supporting images are consecutive frames of one pass."""
     centres = np.array([[0.0, 0.0, 0.0]])
     p = np.array([[0.0, 20.0, 0.0]])
-    four = mvs.depth_uncertainty(p, centres, np.array([4]), sigma_px=1.0,
-                                 focal=1536.0)[0]
-    twenty = mvs.depth_uncertainty(p, centres, np.array([20]), sigma_px=1.0,
-                                   focal=1536.0)[0]
+    kw = dict(sigma_px=1.0, focal=1536.0, parallax_deg=np.array([30.0]))
+    four = mvs.depth_uncertainty(p, centres, np.array([4]), **kw)[0]
+    twenty = mvs.depth_uncertainty(p, centres, np.array([20]), **kw)[0]
     assert twenty == pytest.approx(four), "beyond the cap, more views buy nothing"
+
+
+# --- C04: depth uncertainty must respond to triangulation geometry --------- #
+def test_shrinking_the_baseline_widens_depth_uncertainty():
+    """The review's requirement: a controlled baseline reduction must show."""
+    p = np.array([[0.0, 0.0, 0.0]])
+    out = []
+    for b in (50.0, 20.0, 5.0, 1.0):
+        c = np.array([[-b / 2, 0.0, 50.0], [b / 2, 0.0, 50.0]])
+        par = mvs.contributing_parallax_deg(p, c, [[0, 1]])
+        out.append(mvs.depth_uncertainty(p, c, np.array([2]), sigma_px=1.0,
+                                         focal=1000.0, parallax_deg=par)[0])
+    assert out == sorted(out), "tighter baselines must not look more certain"
+    assert out[-1] > 10 * out[0]
+
+
+def test_parallax_is_measured_from_the_contributing_cameras():
+    p = np.array([[0.0, 0.0, 0.0]])
+    c = np.array([[-50.0, 0.0, 50.0], [50.0, 0.0, 50.0], [0.0, 0.0, 50.0]])
+    # Only the two outer cameras contribute: 90 degrees apart.
+    assert mvs.contributing_parallax_deg(p, c, [[0, 1]])[0] == pytest.approx(90.0)
+    # The middle camera alone with one outer: 45 degrees.
+    assert mvs.contributing_parallax_deg(p, c, [[0, 2]])[0] == pytest.approx(45.0)
+
+
+def test_a_single_contributing_view_has_no_measurable_parallax():
+    p = np.array([[0.0, 0.0, 0.0]])
+    c = np.array([[0.0, 0.0, 50.0], [10.0, 0.0, 50.0]])
+    assert np.isnan(mvs.contributing_parallax_deg(p, c, [[0]])[0])
+
+
+def test_unknown_parallax_is_treated_as_the_weakest_that_still_counts():
+    """Absent geometry must not be assumed convenient."""
+    p = np.array([[0.0, 20.0, 0.0]])
+    c = np.array([[0.0, 0.0, 0.0]])
+    unknown = mvs.depth_uncertainty(p, c, np.array([5]), sigma_px=1.0,
+                                    focal=1536.0)[0]
+    floor_angle = mvs.depth_uncertainty(
+        p, c, np.array([5]), sigma_px=1.0, focal=1536.0,
+        parallax_deg=np.array([mvs.MIN_PARALLAX_DEG]))[0]
+    assert unknown == pytest.approx(floor_angle)
+    assert unknown > 0.5, "an unmeasured angle must not look well constrained"
 
 
 def test_dense_pixel_sigma_is_not_the_sparse_reprojection_residual():

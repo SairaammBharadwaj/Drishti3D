@@ -31,6 +31,7 @@ from ..models import (Project, Measurement, MeasurementQuestion,
 from ..schemas import (QuestionCreate, QuestionUpdate, QuestionOut,
                        QuestionEvidenceOut, RefineRequest, RefinementOut)
 from .. import storage
+from .. import results
 from .measurements import load_cloud
 
 from drishti_recon import measure as measmod
@@ -40,67 +41,29 @@ from drishti_recon.evidence import ReconstructionEvidence
 
 router = APIRouter(prefix="/api/projects", tags=["questions"])
 
-_evidence_cache: dict = {}
+#: Retained so existing callers keep working; the cache itself now lives in
+#: app.results, which is the single owner of evidence loading.
+_evidence_cache = results._evidence_cache
 
 
 def invalidate(project_id: str) -> None:
-    _evidence_cache.pop(project_id, None)
+    results.invalidate(project_id)
 
 
 def _evidence_for(project_id: str) -> ReconstructionEvidence | None:
-    if project_id in _evidence_cache:
-        return _evidence_cache[project_id]
-    art = storage.artifacts_dir(project_id)
-    if not (art / "trajectory.json").exists():
-        return None
-    try:
-        ev = ReconstructionEvidence.load(art)
-    except (OSError, ValueError, KeyError):
-        return None
-    _evidence_cache[project_id] = ev
-    return ev
+    return results.evidence_for(project_id)
 
 
 def _artifact_version(project_id: str) -> str | None:
-    """Identity of the reconstruction a verdict was computed against.
-
-    The source video hash plus the manifest's creation time: reprocessing the
-    same video produces a new value, so a stored verdict can be recognised as
-    belonging to superseded geometry instead of being read as current.
-    """
-    man = storage.artifacts_dir(project_id) / "manifest.json"
-    if not man.exists():
-        return None
-    try:
-        m = json.loads(man.read_text())
-        return f"{m.get('video_sha256', '?')[:12]}@{m.get('created', 0):.0f}"
-    except (OSError, ValueError):
-        return None
+    return results.artifact_version(project_id)
 
 
 def _measure(cloud, kind: str, pts, allow_inferred: bool, scale_sigma_rel: float):
-    if kind == "distance" and len(pts) >= 2:
-        return measmod.measure_distance(cloud, pts, allow_inferred=allow_inferred,
-                                        scale_sigma_rel=scale_sigma_rel)
-    if kind == "height" and len(pts) >= 2:
-        return measmod.measure_height(cloud, pts[0], pts[1],
-                                      allow_inferred=allow_inferred,
-                                      scale_sigma_rel=scale_sigma_rel)
-    if kind == "area" and len(pts) >= 3:
-        return measmod.measure_area(cloud, pts, allow_inferred=allow_inferred,
-                                    scale_sigma_rel=scale_sigma_rel)
-    if kind == "point" and len(pts) >= 1:
-        return measmod.measure_point(cloud, pts[0], allow_inferred=allow_inferred)
-    raise HTTPException(400, f"invalid question '{kind}' or too few points")
+    return results.measure(cloud, kind, pts, allow_inferred, scale_sigma_rel)
 
 
 def _snapped_provenance(cloud, points, allow_inferred: bool):
-    """Provenance class of the cloud point each selection snapped to."""
-    out = []
-    for p in points:
-        _, prov, _ = measmod._snap(cloud, p, allow_inferred)
-        out.append(int(prov))
-    return out
+    return results.snapped_provenance(cloud, points, allow_inferred)
 
 
 def _answer(project_id: str, row: MeasurementQuestion,
@@ -301,6 +264,14 @@ def question_evidence(project_id: str, question_id: str,
     endpoint, each row carrying the pixel it was measured at. Without it the
     rows are candidate frames established from camera geometry, and the
     parallax figures are upper bounds.
+
+    Each endpoint also reports ``observation_kinds``, splitting its support
+    into ``sparse_feature_observation`` (a pixel a detector measured in that
+    image) and ``dense_fusion_contributor`` (an image `stereo_fusion` recorded
+    as contributing, with the pixel obtained by projecting the fused point back
+    into it). Both establish that the image contributed; only the first is an
+    original image measurement, and the distinction was previously invisible
+    because both were stored in the same unlabelled ``uv`` array.
     """
     row = db.get(MeasurementQuestion, question_id)
     if not row or row.project_id != project_id:
@@ -332,6 +303,12 @@ def question_evidence(project_id: str, question_id: str,
             "max_ray_separation_deg": rec.max_ray_separation_deg(p),
             "within_established_coverage": rec.within_coverage(p),
             "frames": rec.supporting_frames(p),
+            # What kind of record the support is. A projected dense pixel and a
+            # measured sparse feature pixel are both genuine evidence of a
+            # contributing image, but only one is an original image
+            # measurement, and an operator opening the frames should be told
+            # which they are looking at rather than inferring it.
+            "observation_kinds": rec.observation_kinds_of(p),
         })
     has_lineage = rec.has_lineage and not any_fallback
     return {
@@ -426,10 +403,17 @@ def refine_question(project_id: str, question_id: str,
         # A refinement produces a new result rather than overwriting the old
         # one: the point of showing a before and after is that both survive.
         after = detail["after"]
+        # The endpoints the refined value was computed from -- not the ones the
+        # operator originally picked. Storing the originals meant recomputing
+        # from the saved row could not reproduce the saved value: the whole
+        # point of refinement is that an endpoint moved, and the record has to
+        # be of the geometry that produced the answer.
+        refined_pts = (detail.get("refined_points_enu")
+                       or [list(map(float, p)) for p in pts])
         result = Measurement(
             project_id=project_id, question_id=row.id, kind=prior.kind,
             value=after["value"], unit=prior.unit,
-            points_enu=[list(map(float, p)) for p in pts],
+            points_enu=[list(map(float, p)) for p in refined_pts],
             confidence_note=prior.confidence_note,
             used_inferred=prior.used_inferred,
             warnings=list(prior.warnings or []),
@@ -439,11 +423,18 @@ def refine_question(project_id: str, question_id: str,
             interval_basis="uncalibrated_sensitivity",
             status=after["status"], status_reasons=after["reasons"],
             dominant_limitation=after["dominant_limitation"],
-            threshold_result=prior.threshold_result,
+            # Recomputed against the new value and interval. Copying the prior
+            # verdict forward meant a refinement that moved the value across
+            # the threshold still reported the old side of it.
+            threshold_result=after.get("threshold_result"),
             evidence={**(prior.evidence or {}),
                       "n_supporting_views": after["n_supporting_views"],
                       "max_ray_separation_deg": after["max_ray_separation_deg"],
-                      "view_support_basis": after["view_support_basis"]},
+                      "view_support_basis": after["view_support_basis"],
+                      "endpoints_moved_m": [
+                          float(np.linalg.norm(np.asarray(a, float)
+                                               - np.asarray(b, float)))
+                          for a, b in zip(refined_pts, pts)]},
             artifact_version=prior.artifact_version,
             calibration_profile=None, refined_from_id=prior.id)
         db.add(result)

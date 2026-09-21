@@ -136,16 +136,22 @@ POST /api/projects/{id}/questions
  ↓  validate kind and tolerance          -> 400 on bad input
  ↓  persist MeasurementQuestion row      (the ask, stored apart from any answer)
  ↓
-_answer(project_id, row, db)
- ├─ measurements.load_cloud(pid)         cloud.npz incl. sigma, sigma_major
- ├─ _evidence_for(pid)                   ReconstructionEvidence.load(artifacts)
+_answer(project_id, row, db)  ──┐
+POST /measurements  ────────────┤  both routes, one service (DEC-021).
+ (no tolerance, so no verdict)  │  They differ only in whether a requirement
+                                │  was stated.
+                                ↓
+results.compute(project_id, cloud, ...)
+ ├─ scale_status(pid)                    metric, or "reconstruction units"
+ ├─ evidence_for(pid)                    keyed by artifact revision (DEC-026)
  ├─ measure.measure_distance|height|area|point
- │     └─ uncertainty.distance_uncertainty(...)  value + 1-sigma
- ├─ _snapped_provenance(...)             provenance of each snapped point
+ │     ├─ measure.snap(...)              resolve or REFUSE (DEC-023)
+ │     └─ uncertainty.polyline_length_uncertainty(...)  one scale term (DEC-022)
+ ├─ snapped_provenance(...)              provenance of each resolved point
  ├─ evidence.for_points(...)             views, parallax, coverage, scale
  ├─ questions.evaluate(question, value, sigma, evidence, profile=None)
  │     └─ Status + [Reason] + interval + threshold + dominant limitation
- └─ persist Measurement row              value, sigma, interval, status,
+ └─ persist Measurement row              value, sigma, interval, basis, status,
                                          reasons, evidence, artifact_version
  ↓
 QuestionOut: the ask, the result, and guidance for every reason code
@@ -339,10 +345,12 @@ POST /api/projects/{id}/process
 GET /api/projects/{id}/jobs      polled by the workspace for progress
 ```
 
-Completing a job invalidates the cached point cloud and the cached
-reconstruction evidence for that project
-(`routers/measurements.invalidate` → `routers/questions.invalidate`), so the
-next measurement reads the new geometry rather than the previous run's.
+Caches key by `(project_id, storage.artifact_revision(pid))`, so a rebuilt
+reconstruction cannot be answered from the previous cloud — the stale read is
+impossible rather than merely discouraged ([DEC-026](DECISIONS.md)). Completing
+*or failing* a job also calls `invalidate` to release the superseded entries; a
+failed run can leave a partial artifact set, so what was held from before it is
+not trustworthy either.
 
 ---
 
@@ -366,9 +374,16 @@ scripts/run_mission.py
  └─ score(mission_dir, truth_dir, artifacts)                       evaluator role
         ├─ trajectory.json ENU -> WGS84 -> EPSG:32632 via pyproj
         ├─ pair cameras to references through frame_index.csv
-        ├─ as_georeferenced      translation removed only
-        └─ after_similarity_fit  Umeyama; shape only, not an accuracy claim
+        ├─ as_georeferenced       raw residuals in the common CRS; nothing
+        │                         removed. This IS absolute accuracy.
+        ├─ after_translation_fit  offset removed, and reported alongside
+        └─ after_similarity_fit   Umeyama; shape only, not an accuracy claim
 ```
+
+Three levels, not two: `as_georeferenced` used to subtract each trajectory's
+mean, so a global offset scored zero under a label claiming georeferenced
+accuracy ([DEC-024](DECISIONS.md)). Both sides are already in UTM by this point,
+so the offset is the error, not a choice of origin.
 
 The two roles are kept apart in the call structure, not by convention. See
 [DEC-002](DECISIONS.md#dec-002--reference-data-is-physically-separated-from-mission-input).

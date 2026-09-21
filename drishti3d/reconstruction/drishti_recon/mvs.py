@@ -61,8 +61,12 @@ class DenseResult:
     colors: np.ndarray                  # (N,3) uint8
     #: How many images contributed to each point, when the backend reports it.
     n_views: np.ndarray | None = None
-    #: Ragged per-point lists of contributing image indices -- the dense
-    #: equivalent of a sparse point's track. Indices are into ``frame_order``.
+    #: Ragged per-point lists of contributing images -- the dense equivalent of
+    #: a sparse point's track. These are **keyframe indices**: `run_colmap`
+    #: translates COLMAP's visibility positions through ``frame_order`` before
+    #: returning, so consumers must not translate again. (This docstring used
+    #: to describe the untranslated form and caused exactly that double
+    #: translation.)
     vis_images: list | None = None
     #: Frame index of each workspace image, in visibility-index order.
     frame_order: list | None = None
@@ -128,14 +132,72 @@ DENSE_PIXEL_SIGMA = 1.0
 MAX_INDEPENDENT_VIEWS = 4.0
 
 
+#: Below this parallax a dense point is effectively unconstrained in depth and
+#: the estimate is reported as such rather than as a very large but precise
+#: number. Half a degree over a 50 m range is a 0.44 m baseline.
+MIN_PARALLAX_DEG = 0.5
+
+
+def contributing_parallax_deg(points, centres, view_indices) -> np.ndarray:
+    """Widest angle between the rays that actually produced each point.
+
+    ``view_indices`` is the ragged per-point list of contributing image indices
+    -- a dense point's track. This is the quantity that decides how well depth
+    is constrained, and it was previously not consulted at all: uncertainty was
+    computed from range and a view *count*, so two images 40 degrees apart and
+    two images half a degree apart produced the same number.
+
+    Returns NaN where a point has fewer than two contributing views.
+    """
+    pts = np.asarray(points, float).reshape(-1, 3)
+    c = np.asarray(centres, float).reshape(-1, 3)
+    out = np.full(len(pts), np.nan)
+    if not len(c) or view_indices is None:
+        return out
+    for i, idx in enumerate(view_indices):
+        idx = np.asarray(idx, int).ravel()
+        idx = idx[(idx >= 0) & (idx < len(c))]
+        if len(idx) < 2:
+            continue
+        d = c[idx] - pts[i]
+        n = np.linalg.norm(d, axis=1)
+        ok = n > 1e-9
+        if ok.sum() < 2:
+            continue
+        u = d[ok] / n[ok, None]
+        # Widest pair, which is what sets the depth constraint.
+        cos = np.clip(u @ u.T, -1.0, 1.0)
+        out[i] = float(np.degrees(np.arccos(cos.min())))
+    return out
+
+
 def depth_uncertainty(points, centres, n_views, *, sigma_px: float,
-                      focal: float, floor=None) -> np.ndarray:
+                      focal: float, floor=None, parallax_deg=None) -> np.ndarray:
     """1-sigma for a dense point, from the geometry that produced it.
 
-    A stereo point's error is dominated by depth along the view ray: a
-    disparity uncertain by ``sigma_px`` at focal length ``f`` and range ``r``
-    puts the point uncertain by about ``r * sigma_px / f`` across the ray.
-    Contributing views reduce that, but only up to
+    For two views separated by baseline ``B`` looking at range ``r``, a
+    disparity uncertain by ``sigma_px`` at focal length ``f`` puts the point
+    uncertain along the ray by ``r**2 * sigma_px / (f * B)``, and since
+    ``B ~= r * tan(alpha)`` for parallax angle ``alpha`` that is
+
+        sigma_depth ~= r * sigma_px / (f * tan(alpha))
+
+    The previous form omitted the ``tan(alpha)`` entirely, reporting
+    ``r * sigma_px / f``. That is the *transverse* localisation scale -- how
+    well the ray itself is placed -- not the depth error, and using it as the
+    depth error silently asserts ``tan(alpha) = 1``, i.e. that every dense
+    point was seen from 45 degrees apart. Real passes are far tighter: at the
+    AGZ mission's median dense parallax of about 26 degrees the true figure is
+    two times larger, and at 5 degrees it is eleven times larger. The error was
+    always in the optimistic direction, and it was largest exactly where the
+    geometry was weakest.
+
+    ``parallax_deg`` supplies the measured angle per point (see
+    :func:`contributing_parallax_deg`). Where it is absent or below
+    :data:`MIN_PARALLAX_DEG` the point is treated as unconstrained in depth
+    rather than given a flattering number.
+
+    Contributing views reduce the result, but only up to
     :data:`MAX_INDEPENDENT_VIEWS` -- past which they are the same look from
     almost the same place.
 
@@ -160,7 +222,19 @@ def depth_uncertainty(points, centres, n_views, *, sigma_px: float,
     rng = cKDTree(c).query(pts)[0] if len(c) else np.full(len(pts), np.nan)
     n = np.clip(np.asarray(n_views, float).reshape(-1)
                 if n_views is not None else 2.0, 2.0, MAX_INDEPENDENT_VIEWS)
-    stereo = rng * float(sigma_px) / max(float(focal), 1e-9) / np.sqrt(n)
+
+    if parallax_deg is None:
+        # No contributing-view geometry available. Rather than assume a
+        # convenient angle, assume the weakest one that still counts as
+        # measured, so the number errs the way an unknown should.
+        ang = np.full(len(pts), MIN_PARALLAX_DEG)
+    else:
+        ang = np.asarray(parallax_deg, float).reshape(-1).copy()
+        ang[~np.isfinite(ang)] = MIN_PARALLAX_DEG
+        ang = np.maximum(ang, MIN_PARALLAX_DEG)
+    tan = np.tan(np.radians(ang))
+
+    stereo = rng * float(sigma_px) / max(float(focal), 1e-9) / tan / np.sqrt(n)
     if floor is None:
         return stereo
     return np.hypot(stereo, float(floor))

@@ -25,6 +25,9 @@ _EXPORT_FILES = {
     "report_json": "quality_report.json",
     "report_html": "quality_report.html",
     "viewer": "viewer.json",
+    # Without this, every cloud export leaves as unreferenced local metres and
+    # the origin has to be communicated out of band.
+    "georeference": "georeference.json",
 }
 
 

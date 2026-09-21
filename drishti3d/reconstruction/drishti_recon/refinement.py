@@ -1489,10 +1489,28 @@ class RefinementEngine:
         # not yet know about. Reporting the stale count would understate what
         # the refinement achieved, while claiming the on-disk lineage contains
         # them would be false until the artifacts are rewritten.
-        ev1.n_supporting_views = int(ev1.n_supporting_views + added_rays)
-        ev1.max_ray_separation_deg = max(
-            ev1.max_ray_separation_deg,
-            float(max(a.parallax_gain_deg for a in run.added_frames)))
+        #
+        # Both of these are **minima over the endpoints**, not totals: a
+        # measurement is only as well supported as its weakest end. Adding the
+        # gain straight to the aggregate treated a gain at one endpoint as a
+        # gain everywhere -- two endpoints on three views each, one of them
+        # recovering four, reported seven supporting views for a measurement
+        # whose other end still had three. Refinement targets one endpoint, so
+        # only that endpoint's count may move, and the minimum is retaken.
+        per_views, per_sep = [], []
+        for i, q in enumerate(points_enu):
+            o = rec.observations_of(q)
+            nv = int(len(set(o["frame_index"].tolist())))
+            sep = float(rec.measured_ray_separation_deg(q))
+            if i == target:
+                nv += int(added_rays)
+                sep = max(sep, float(max(a.parallax_gain_deg
+                                         for a in run.added_frames)))
+            per_views.append(nv)
+            per_sep.append(sep if np.isfinite(sep) else 0.0)
+        if per_views:
+            ev1.n_supporting_views = int(min(per_views))
+            ev1.max_ray_separation_deg = float(min(per_sep))
         run.refined_points_enu = [np.asarray(p, float) for p in pts]
         run.after = _snapshot(question, v1, s1, ev1)
         run.after["endpoint_sigma"] = (None if sig_pt is None
@@ -1562,16 +1580,12 @@ def measurement_value_fn(kind: str, endpoint_sigmas, *,
             return np.eye(3) * s ** 2
 
         if kind == "distance" and len(P) >= 2:
-            total, var = 0.0, 0.0
-            for i in range(len(P) - 1):
-                d, s = unc.distance_uncertainty(P[i], P[i + 1], cov(i),
-                                                cov(i + 1),
-                                                scale_sigma_rel=scale_sigma_rel)
-                total += d
-                var = (np.inf if not (np.isfinite(s) and np.isfinite(var))
-                       else var + s * s)
-            return float(total), (float(np.sqrt(var)) if np.isfinite(var)
-                                  else float("inf"))
+            # Whole-polyline propagation, matching measure.measure_distance:
+            # one common scale term, shared interior vertices.
+            total, sigma = unc.polyline_length_uncertainty(
+                P, [cov(i) for i in range(len(P))],
+                scale_sigma_rel=scale_sigma_rel)
+            return float(total), float(sigma)
         if kind == "height" and len(P) >= 2:
             h, s = unc.height_uncertainty(P[0], P[1], cov(0), cov(1),
                                           scale_sigma_rel=scale_sigma_rel)
@@ -1616,6 +1630,10 @@ def _snapshot(question, value, sigma, evidence) -> dict:
         "max_ray_separation_deg": round(
             float(evidence.max_ray_separation_deg), 2),
         "view_support_basis": evidence.view_support_basis,
+        # Recomputed with the refined value and interval. Carrying the previous
+        # verdict forward meant a refinement that moved the value across the
+        # threshold still reported the old side of it.
+        "threshold_result": verdict.to_dict().get("threshold_result"),
     }
 
 

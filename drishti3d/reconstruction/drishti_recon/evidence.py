@@ -142,10 +142,21 @@ class ReconstructionEvidence:
         if obs_npz.exists():
             try:
                 d = np.load(obs_npz)
+                n = len(d["point_index"])
+                # Artifacts written before observation_kind existed hold only
+                # sparse feature rows, so that is the honest default -- but it
+                # is a default, and `has_observation_kinds` says whether the
+                # record actually distinguished them.
+                kinds = (d["observation_kind"].astype(np.uint8)
+                         if "observation_kind" in d.files
+                         else np.zeros(n, np.uint8))
                 observations = {"point_index": d["point_index"],
                                 "keyframe_index": d["keyframe_index"],
                                 "frame_index": d["frame_index"],
-                                "uv": d["uv"]}
+                                "uv": d["uv"],
+                                "observation_kind": kinds,
+                                "_kinds_recorded": bool(
+                                    "observation_kind" in d.files)}
             except (OSError, ValueError, KeyError):
                 observations = None
 
@@ -222,7 +233,8 @@ class ReconstructionEvidence:
         empty = {"point_index": -1,
                  "keyframe_index": np.zeros(0, np.int32),
                  "frame_index": np.zeros(0, np.int32),
-                 "uv": np.zeros((0, 2), np.float32)}
+                 "uv": np.zeros((0, 2), np.float32),
+                 "observation_kind": np.zeros(0, np.uint8)}
         if not self.has_lineage:
             return empty
         pi = self.lineage_point(point)
@@ -235,7 +247,25 @@ class ReconstructionEvidence:
         return {"point_index": pi,
                 "keyframe_index": obs["keyframe_index"][m],
                 "frame_index": obs["frame_index"][m],
-                "uv": obs["uv"][m]}
+                "uv": obs["uv"][m],
+                "observation_kind": obs["observation_kind"][m]}
+
+    def observation_kinds_of(self, point) -> dict:
+        """How many of a point's observations are of each kind.
+
+        An operator shown "7 supporting views" is entitled to know whether
+        those are seven measured feature pixels or seven images that
+        contributed to a fused depth estimate. Both are real support; they are
+        not the same claim, and the evidence panel should not have to guess.
+        """
+        from .pipeline import OBSERVATION_KIND_NAMES
+        obs = self.observations_of(point)
+        kinds = obs["observation_kind"]
+        out = {name: int((kinds == code).sum())
+               for code, name in OBSERVATION_KIND_NAMES.items()}
+        out["kinds_recorded"] = bool(
+            (self.observations or {}).get("_kinds_recorded", False))
+        return out
 
     def measured_ray_separation_deg(self, point) -> float:
         """Parallax actually provided by the measurements that made this point.

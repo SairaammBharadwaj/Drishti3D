@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProjectCreate(BaseModel):
@@ -12,10 +12,32 @@ class ProjectCreate(BaseModel):
 
 
 class Intrinsics(BaseModel):
+    """Camera calibration as supplied by the operator.
+
+    Distortion used to be dropped silently: the model declared only fx/fy/cx/cy,
+    so a request carrying coefficients validated cleanly and arrived at the
+    worker as a pinhole camera. The benchmark script passed distortion; the web
+    workflow could not, and nothing said so.
+
+    ``model`` and the source resolution are carried because intrinsics are only
+    meaningful against the image size they were calibrated at -- the pipeline
+    resizes frames, and a calibration applied at the wrong resolution is worse
+    than none.
+    """
+    model_config = ConfigDict(extra="forbid")
+
     fx: float
     fy: float
     cx: float
     cy: float
+    #: OpenCV camera model naming: PINHOLE, RADIAL, OPENCV, OPENCV_FISHEYE.
+    model: str = "PINHOLE"
+    #: k1, k2, p1, p2[, k3...] in OpenCV order. Empty means "no distortion",
+    #: which is a claim about the lens, not an absence of information.
+    distortion: list[float] = []
+    #: Image size the calibration was measured at, in pixels.
+    source_width: Optional[int] = None
+    source_height: Optional[int] = None
 
 
 class ProjectOut(BaseModel):
@@ -76,6 +98,17 @@ class MeasurementOut(BaseModel):
     used_inferred: bool
     warnings: list
     created_at: datetime
+    # A value without these is a number with no stated meaning. They were
+    # stored on the question path and omitted here, so the same measurement
+    # looked authoritative or provisional depending on which route returned it.
+    sigma: Optional[float] = None
+    interval_half_width: Optional[float] = None
+    interval_level: int = 95
+    interval_basis: str = "uncalibrated_sensitivity"
+    status: Optional[str] = None
+    status_reasons: list = []
+    dominant_limitation: Optional[str] = None
+    artifact_version: Optional[str] = None
 
     class Config:
         from_attributes = True

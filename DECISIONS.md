@@ -1879,3 +1879,526 @@ million rows, of which voxel downsampling keeps a fifth.
 `_workspace_frame_order`), `pipeline.py` (`_dense_observations`,
 `_remap_observations`), `drishti3d/tests/test_mvs.py`,
 `drishti3d/docs/benchmarks/2026-09-21_dense_mvs/RESULTS.md`
+
+---
+
+## DEC-021 — A measurement means one thing, whichever route produced it
+
+**Date:** 2026-09-21
+
+**Status:** Accepted
+
+### Context
+
+A simulated critical review
+([NTRO_CRITICAL_REVIEW_AND_IMPROVEMENTS_2026-09-21.md](drishti3d/docs/NTRO_CRITICAL_REVIEW_AND_IMPROVEMENTS_2026-09-21.md))
+examined the repository at `d94ec29` and reported ten correctness findings, six
+with executable counterexamples. Every one of the six reproduced locally before
+anything was changed. They are recorded here because they share a cause worth
+naming, not because they are individually large.
+
+The system had two definitions of a measurement. `POST /measurements` computed a
+length without passing scale uncertainty, never checked whether metric scale
+existed at all, and stored a row with `sigma` NULL, no interval basis, no
+acceptance status and no artifact identity. `POST /questions` computed the same
+geometry with scale propagated and stored the whole verdict. Both returned a
+number labelled in metres, and the Workspace offered both buttons side by side.
+
+The acceptance gate was never admitting bad measurements. The product simply had
+a second, quieter answer to "what is a measurement", and that answer was the
+default one.
+
+### Options Considered
+
+1. **Delete the legacy route.** Clean, and wrong: measuring before stating a
+   requirement is a real workflow, not a mistake.
+2. **Label the legacy route as provisional in the UI.** Cheapest. Rejected: the
+   two rows would still differ in the database, so the distinction would survive
+   every export and report that read them.
+3. **One result service, both routes.** Chosen. The difference between the two
+   routes becomes what it should always have been — whether a tolerance was
+   stated — and nothing else.
+
+### Decision
+
+`backend/app/results.py` is the single definition. Both routes call
+`compute()` and store every column it returns. The exploratory ruler still
+exists; it differs only in having no tolerance, so no verdict about meeting one.
+
+A reconstruction with no georeferencing now reports its unit as
+`reconstruction units`, not `m`. Calling arbitrary units metres was the most
+misleading thing the API could do and it did it by default.
+
+### Consequences
+
+- `MeasurementOut` exposes `sigma`, `interval_half_width`, `interval_basis`,
+  `status`, `status_reasons` and `artifact_version`. A value without them is a
+  number with no stated meaning.
+- Writing the service surfaced two further defects of the same kind. `Verdict.to_dict()`
+  names its reason list `reasons`; asking it for `status_reasons` returned `[]`,
+  so a stored refusal kept its status and lost every word explaining it. The same
+  dict has no `evidence` key, so `vd.get("evidence", {})` would have stored an
+  empty evidence record. Both were caught by a test asserting the fields are
+  populated rather than merely present — the shape was right in each case, which
+  is exactly why neither would have been noticed.
+
+### Related Files
+
+`drishti3d/backend/app/results.py`, `routers/measurements.py`,
+`routers/questions.py`, `schemas.py`, `drishti3d/tests/test_result_contract.py`
+
+---
+
+## DEC-022 — Scale is one error over a whole polyline, not one per segment
+
+**Date:** 2026-09-21
+
+**Status:** Accepted
+
+### Context
+
+`measure_distance` summed per-segment variances, and each segment's variance
+included its own `(d_segment * scale_sigma_rel)**2` term. Reproduced: a 10 m
+line with 10% scale uncertainty and zero endpoint noise reported **1.000 m**;
+adding a midpoint, changing nothing physical, reported **0.707 m**.
+
+Two errors, both flattering. A scale error stretches every segment *together*,
+so it contributes `L * sigma_scale` to the total rather than an independent term
+per segment. And an interior vertex ends one segment and begins the next, so
+treating the segments as independent double-counts it.
+
+### Decision
+
+`uncertainty.polyline_length_uncertainty` propagates the length function itself.
+For `L = sum |p[i+1] - p[i]|` the derivative at an interior vertex is
+`u[i-1] - u[i]`, the difference of adjacent unit vectors, which **vanishes when
+the vertex lies straight between its neighbours** — a point added along a
+straight line now contributes nothing, which is what the counterexample should
+always have shown. At a corner the directions do not cancel and the vertex
+contributes in proportion to how sharply the line turns. Scale is applied once,
+to the total.
+
+`refinement.measurement_value_fn` had its own copy of the same loop and the same
+bug; it now calls the shared function.
+
+### Consequences
+
+- Validated by Monte Carlo over 20,000 trials with one shared scale draw, on
+  straight, right-angled and wandering polylines. Predicted and sampled standard
+  deviations agree within 5%.
+- Endpoint covariances are still assumed independent *of each other* —
+  neighbouring triangulated points share cameras and so share error. That
+  remains an assumption, but it is now the only one and it is stated where it is
+  made.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/uncertainty.py`, `measure.py`,
+`refinement.py`, `drishti3d/tests/test_measurement_contract.py`
+
+---
+
+## DEC-023 — A selection that lands on nothing is refused, not relocated
+
+**Date:** 2026-09-21
+
+**Status:** Accepted
+
+### Context
+
+`_snap` took the nearest measurable cloud point however far away it was.
+Reproduced: a selection at `[1000, 0, 0]` against a cloud ending at `[10, 0, 0]`
+moved **990 m** and was then measured, with evidence assembled, at a place the
+operator never chose. The distance was computed and discarded.
+
+Ordinary point picking hides this, because a pick raycast onto rendered geometry
+lands within a point spacing of a real surface. Hidden layers, stale selections,
+API clients, and two surfaces at different depths do not.
+
+A test asserted the old behaviour: picking an AI-assisted point with inference
+disabled was expected to snap 100 m down to the observed grid. Excluding the AI
+point is necessary, but the nearest *observed* point is not therefore what was
+meant — that is the silent substitution restated.
+
+### Decision
+
+Selections resolve within a tolerance derived from the cloud's own median
+nearest-neighbour spacing (three spacings, floored at 0.10 m), because the same
+absolute displacement means different things in a 0.10 m dense cloud and a
+0.17 m sparse one. Beyond it the selection keeps the operator's own position,
+reports `UNOBSERVED` with infinite sigma — which the measurement layer already
+reads as "not observable" — and carries the displacement so the refusal can say
+how far the nearest geometry was.
+
+Every measurement now records `selection`: what was requested, what it resolved
+to, the displacement, and the tolerance applied.
+
+### Consequences
+
+- The measured value is unchanged for ordinary picks; displacement is below
+  1e-6 m on grid-aligned selections.
+- `measure_*` gained `max_snap_m` for callers that genuinely want a different
+  bound, so the default is a default rather than a hard limit.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/measure.py`,
+`drishti3d/tests/test_measurement_contract.py`, `tests/test_quality_measure.py`
+
+---
+
+## DEC-024 — Absolute position error is reported without fitting it away
+
+**Date:** 2026-09-21
+
+**Status:** Accepted · **supersedes the `as_georeferenced` figures in
+[DEC-019](#dec-019--a-dense-points-uncertainty-is-floored-by-the-model-it-rides-on)
+and every benchmark that quoted 3.764 m as absolute accuracy**
+
+### Context
+
+`_rigid_and_similarity_error` computed `(est - est.mean(0)) - (ref - ref.mean(0))`
+and labelled it `as_georeferenced`. Reproduced: a reference trajectory shifted by
+`[100, 200, 30]` m scored **zero** median, p90, maximum and RMSE.
+
+The docstring justified it — "only the common translation is removed, since it is
+the choice of local origin". That reasoning is sound for a local reconstruction
+and false here: `score()` has already transformed both sides into UTM 32N. Once
+both are in the same projected CRS the offset is not a choice of origin. It is
+the error.
+
+### Decision
+
+Three metrics, each named for how much has been fitted away:
+
+- `as_georeferenced` — raw residuals in the common CRS, nothing removed.
+- `after_translation_fit` — the offset removed *and reported*, so the discarded
+  quantity stays visible.
+- `after_similarity_fit` — rotation and scale removed too; shape only.
+
+### Consequences
+
+Rescoring the AGZ runs offline from saved artifacts, 80 cameras:
+
+| Metric | COLMAP | OpenCV |
+|---|---:|---:|
+| `as_georeferenced` median | **5.270 m** | **5.547 m** |
+| `after_translation_fit` median | 3.764 m | 3.702 m |
+| `after_similarity_fit` median | 0.322 m | 0.679 m |
+| removed translation | 4.111 m | 4.112 m |
+
+- **The number this project has been quoting as georeferenced accuracy, 3.764 m,
+  was the translation-fitted one.** The absolute figure is 5.270 m.
+- The removed translation is dominated by a −3.91 m northing component on both
+  engines and on the raw onboard GPS. A common systematic offset, not a
+  reconstruction error.
+- Onboard GPS scores 5.155 m absolute against the same reference. The
+  reconstruction is therefore **at the accuracy of the signal it was
+  georeferenced from**, which is the honest ceiling and was invisible while the
+  offset was being subtracted.
+- `fitted_scale` is applied to the estimate to bring it onto the reference, so a
+  reconstruction 5% too large fits at 1/1.05. Now documented; it reads backwards
+  otherwise.
+- The reference is Pix4D photogrammetry, not survey truth. It was not independent
+  before this change and is not now.
+
+### Related Files
+
+`drishti3d/scripts/run_mission.py`,
+`drishti3d/tests/test_measurement_contract.py`
+
+---
+
+## DEC-025 — Dense depth uncertainty responds to triangulation angle
+
+**Date:** 2026-09-21
+
+**Status:** Accepted · **supersedes the uncertainty model in
+[DEC-019](#dec-019--a-dense-points-uncertainty-is-floored-by-the-model-it-rides-on)**
+
+### Context
+
+`depth_uncertainty` computed `range * sigma_px / focal / sqrt(n_views)`. The
+review observed that this is a *transverse* ray-localisation scale — how well
+the ray itself is placed — and that depth sensitivity must respond to
+triangulation geometry. It is right.
+
+For two views separated by baseline `B` at range `r`, depth error is
+`r**2 * sigma_px / (f * B)`, and since `B ≈ r * tan(alpha)` for parallax angle
+`alpha`, that is `r * sigma_px / (f * tan(alpha))`. The implemented form omitted
+`tan(alpha)` entirely, which silently asserts `tan(alpha) = 1` — that every dense
+point was seen from **45° apart**.
+
+Real passes are far tighter. At the AGZ mission's median dense parallax of 25.8°
+the true figure is 2.1× larger; at 5° it is 11× larger. The error was always in
+the optimistic direction, and largest exactly where the geometry was weakest.
+
+[DEC-019](#dec-019--a-dense-points-uncertainty-is-floored-by-the-model-it-rides-on)
+found the dense sigma seven times too optimistic and fixed three causes. This is
+a fourth, and the same pattern: an uncertainty that looked implausibly small
+because something held fixed was not actually known.
+
+### Decision
+
+`mvs.contributing_parallax_deg` computes the widest angle between the rays that
+actually produced each point, from `vis_images` — the dense point's own track,
+which was already on disk and was not being consulted. `depth_uncertainty` takes
+it and divides by `tan(alpha)`.
+
+Where the angle is unavailable or below `MIN_PARALLAX_DEG` (0.5°) the point is
+treated as unconstrained in depth rather than given a flattering number. An
+unmeasured angle must not look well constrained.
+
+### Consequences
+
+- Controlled check: at 50 m range, baselines of 50/20/5/1 m give 0.030 / 0.087 /
+  0.353 / 1.768 m. Tighter baselines can no longer look more certain.
+- Dense uncertainties widen by roughly 2× on this mission. That is the correction,
+  not a regression.
+- **A fourth instance of the keyframe/decoded-index hazard, and the first caused
+  by our own documentation.** `DenseResult.vis_images` was documented as
+  "indices into `frame_order`", but `run_colmap` translates them before
+  returning, so they are already keyframe indices. Following the docstring
+  double-translated and would have attributed every point to the wrong cameras —
+  silently, since wrong cameras still produce a plausible angle. The docstring is
+  corrected.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/mvs.py`, `pipeline.py`,
+`drishti3d/tests/test_mvs.py`
+
+---
+
+## DEC-026 — Caches key by artifact revision, not by project
+
+**Date:** 2026-09-21
+
+**Status:** Accepted
+
+### Context
+
+`load_cloud` cached by project id. An `invalidate` helper existed; nothing
+called it. Reproduced: replace `cloud.npz` after a cached load and the loader
+returns the previous points, so the manifest describes one reconstruction while
+measurements come from another.
+
+### Decision
+
+`storage.artifact_revision` digests the size and modification time of the files
+a measurement depends on. Both caches key by `(project_id, revision)`.
+
+This is deliberately not a hook to remember. Wiring `invalidate` into the job
+path would have fixed the reported case and left every future path free to
+forget; keying by revision makes a stale read **impossible by construction**.
+`invalidate` remains, now as a memory-release call and defence in depth, and is
+wired into job completion *and* job failure — a failed run can leave a partial
+artifact set, so what was held from before it is not trustworthy either.
+
+### Consequences
+
+- Size and mtime are a cache key, not a tamper seal. Content hashes belong in the
+  measurement passport, which is not built yet.
+- Superseded entries are dropped on the next lookup, so a long-lived process
+  holds one cloud per project rather than accumulating.
+
+### Related Files
+
+`drishti3d/backend/app/storage.py`, `routers/measurements.py`,
+`routers/questions.py`, `jobs.py`, `drishti3d/tests/test_artifact_revision.py`
+
+---
+
+## DEC-027 — Exports carry their CRS and their uncertainty
+
+**Date:** 2026-09-21
+
+**Status:** Accepted · **corrects the claim that exported point clouds carry sigma**
+
+### Context
+
+`export_las(path, cloud, frame=...)` accepted a frame and ignored it. Reproduced:
+`header.parse_crs()` on the generated file returns `None`. It also wrote no
+provenance and no uncertainty, while `PROJECT_OVERVIEW.md` said exported clouds
+carried sigma. PLY carried confidence and provenance but not sigma.
+
+Uncertainty was computed, written into `cloud.npz`, and then dropped from every
+advertised export — the one field that says how much to trust a point.
+
+### Decision
+
+With a frame, LAS points are projected into the WGS84 UTM zone of the frame
+origin and that CRS is written into the header. Without one the file stays in
+local metres and says so: an unreferenced local file is a legitimate output,
+silently unreferenced is not.
+
+`provenance`, `confidence` and `sigma` are LAS extra dimensions under those
+names; PLY gains a `sigma` property. `sigma_major` is exported, not `sigma`,
+because measurements use the worst-constrained axis and an export reporting the
+optimistic one would disagree with the measurements taken from it.
+
+`georeference.json` accompanies every run with the ENU origin, the projected
+CRS, the vertical reference and the field meanings.
+
+### Consequences
+
+- Verified: the frame origin round-trips to its own geodetic position within
+  0.05 m, and a 100 m offset survives projection within 0.2 m (UTM in-zone scale
+  factor).
+- **Exported heights are WGS84 ellipsoidal, not orthometric.** The sidecar says
+  so explicitly. Reading them as MSL elevations would be wrong by the local geoid
+  separation, tens of metres in places.
+- Points with no uncertainty export as NaN, never as a plausible number.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/exports.py`, `pipeline.py`,
+`backend/app/routers/artifacts.py`,
+`drishti3d/tests/test_export_georeference.py`
+
+---
+
+## DEC-028 — Calibration is a release process, not a sample count
+
+**Date:** 2026-09-21
+
+**Status:** Accepted
+
+### Context
+
+`CalibrationProfile.from_calibration` set `validated=True` from
+`n >= MIN_CALIBRATION_SAMPLES`. Reaching twenty measurements was therefore
+equivalent to having been independently validated. Regime matching was left
+entirely to callers, so nothing would object to a profile fitted for one camera
+and capture pattern being applied to another.
+
+No profile exists yet — the production question route passes `profile=None`
+deliberately — so nothing was wrong in practice. This is the gate that will one
+day let a measurement read `meets_requirement`, and it had to be fixed before
+anything depended on it, not after.
+
+### Decision
+
+Three explicit states. `FITTED`: numbers exist, measured on the fitting set.
+`EVALUATED`: checked against held-out missions, which must be disjoint from the
+fitting set — the constructor refuses overlap rather than trusting the caller.
+`RELEASED`: a named person approved it. Only `RELEASED` is usable.
+
+`validated` is now derived from the state, so it cannot be set at construction.
+In-sample coverage and held-out coverage are stored in separate fields, because
+in-sample coverage is always flattering and must not stand in for the other.
+
+An unsupported interval level is refused rather than answered with a
+95%-shaped factor. Substituting one confidence level for another is exactly the
+silent approximation this subsystem exists to stop.
+
+### Consequences
+
+- The review's objection stands and is recorded: "59/60 blocked only by
+  calibration" does not imply 59/60 pass once calibrated. Fitted intervals may
+  *widen* and expose tolerance failures currently hidden behind the refusal.
+- Reference-instrument sigma is stored, because a calibration that cannot
+  separate its own error from the tape measure's is not a calibration.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/questions.py`,
+`drishti3d/tests/test_calibration_lifecycle.py`, `tests/test_questions.py`
+
+---
+
+## DEC-029 — Dense contributor records are labelled as such
+
+**Date:** 2026-09-21
+
+**Status:** Accepted · **refines
+[DEC-020](#dec-020--dense-points-carry-observation-lineage-attributed-spatially)**
+
+### Context
+
+[DEC-020](#dec-020--dense-points-carry-observation-lineage-attributed-spatially)
+gave dense points lineage by projecting each surviving point into the cameras
+that fused it. The pixel goes into the same `uv` array a sparse feature
+measurement uses, with nothing distinguishing them.
+
+They are not the same evidence. A sparse row's pixel is where a detector
+measured a feature. A dense row's pixel is where the fused point reprojects in
+an image `stereo_fusion` recorded as contributing. Both establish that the image
+contributed — that is what licenses acceptance, and DEC-020 stands — but only the
+first is an original image measurement.
+
+The review put it precisely: "99.9% project inside the image" is a useful
+indexing check, not an accuracy validation. It was stated correctly in DEC-020
+and would not have stayed that way once an operator saw seven frames listed
+identically.
+
+### Decision
+
+`observation_kind` per row: `sparse_feature_observation` or
+`dense_fusion_contributor`, written into `observations.npz` and surfaced through
+`ReconstructionEvidence.observation_kinds_of` and the evidence API.
+
+Artifacts written before the field existed hold only sparse rows, so that is the
+honest default — but it *is* a default, and `kinds_recorded` says whether the
+record actually distinguished them. Absence is not reported as knowledge.
+
+### Consequences
+
+- The approximations DEC-020 documented are unchanged: spatial attribution
+  within one voxel diagonal, nearest-dense-input matching. What changes is that
+  a consumer can now tell which kind of record it holds.
+- Evidence Replay (U03, not built) depends on this: it cannot put a crosshair on
+  a raw frame without knowing whether the pixel was measured there.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/pipeline.py`, `evidence.py`,
+`backend/app/routers/questions.py`,
+`drishti3d/tests/test_observation_kinds.py`
+
+---
+
+## DEC-030 — A refined result records the geometry that produced it
+
+**Date:** 2026-09-21
+
+**Status:** Accepted
+
+### Context
+
+Three connected defects in the refinement record:
+
+- The engine put moved endpoints in `run.refined_points_enu`; the API persisted
+  the operator's **original** `pts`. A changed value was stored beside endpoints
+  that do not reproduce it.
+- `threshold_result` was copied from the previous measurement even when value
+  and interval had changed, so a refinement that moved a value across its
+  threshold still reported the old side of it.
+- `added_rays` was added to `n_supporting_views`, which is the **minimum over
+  the endpoints**. Two endpoints on three views each, one recovering four,
+  reported *seven* supporting views for a measurement whose other end still had
+  three. The analogous parallax update hid the weaker endpoint the same way.
+
+### Decision
+
+The refined endpoints are stored. The threshold is recomputed from the new value
+and interval. Per-endpoint view counts and parallaxes are recomputed with only
+the refined endpoint's own figures changed, and the minimum retaken — a
+measurement is only as well supported as its weakest end.
+
+`endpoints_moved_m` is stored per endpoint, so how far refinement moved the
+geometry is visible rather than inferred.
+
+### Consequences
+
+- Recomputing from a stored refined row now reproduces its stored value. It did
+  not before, and that is the property an independent verifier needs.
+- The evidence endpoint still rebuilds from on-disk lineage, which does not yet
+  contain recovered frames; the frontend still caches its evidence response
+  across a refinement. Both remain open (U03/U08 in the review).
+
+### Related Files
+
+`drishti3d/backend/app/routers/questions.py`,
+`drishti3d/reconstruction/drishti_recon/refinement.py`,
+`drishti3d/tests/test_refinement_record.py`

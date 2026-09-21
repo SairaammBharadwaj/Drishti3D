@@ -361,10 +361,32 @@ def run(project_dir, video_path, telemetry_path, *,
                     floor = None
                     if _ps is not None and np.any(np.isfinite(_ps)):
                         floor = float(np.median(_ps[np.isfinite(_ps)]))
+                    # The cameras that actually fused each point, so depth
+                    # uncertainty responds to the triangulation angle instead
+                    # of assuming one.
+                    #
+                    # `run_colmap` has already translated visibility indices
+                    # into keyframe indices, so these are keyframe numbers, the
+                    # same space `Camera.frame_index` uses -- mapping them
+                    # through `frame_order` a second time would translate
+                    # twice and attribute every point to the wrong cameras.
+                    # This is the fourth place the two numbering schemes have
+                    # had to be separated deliberately (DEC-009, DEC-015,
+                    # DEC-020), and the first where the stale docstring on
+                    # `DenseResult.vis_images` was what suggested the error.
+                    _par = None
+                    if dr.vis_images is not None:
+                        _cam_of_kf = {int(c.frame_index): i
+                                      for i, c in enumerate(recon.cameras)}
+                        _vis_cam = [
+                            np.array([_cam_of_kf.get(int(k), -1) for k in v], int)
+                            for v in dr.vis_images]
+                        _par = mvsmod.contributing_parallax_deg(
+                            dr.points, centres, _vis_cam)
                     mvs_sigma = mvsmod.depth_uncertainty(
                         dr.points, centres, dr.n_views,
                         sigma_px=mvsmod.DENSE_PIXEL_SIGMA, focal=focal,
-                        floor=floor)
+                        floor=floor, parallax_deg=_par)
                     # Confidence from how many images actually agreed. A point
                     # two images agree on is real but weakly held; one that
                     # survives many is the dense equivalent of a long track.
@@ -850,8 +872,30 @@ def _adopt_pts(frames, pts_s, fps, *, pts_post=None):
 
 
 def _resolve_intrinsics(intr, ow, oh, pw, ph, sf, warnings):
+    """Build the processing-resolution camera matrix from supplied calibration.
+
+    Intrinsics are only meaningful against the image size they were measured
+    at. The scaling here used to assume that size was the video's own, which
+    is right when the operator calibrated this camera at this resolution and
+    silently wrong otherwise -- a calibration measured at 4K and applied to
+    1080p footage is off by a factor of two in every term, and nothing said so.
+    ``source_width``/``source_height`` let the operator state the calibration
+    resolution; when they disagree with the video, the ratio is taken from the
+    stated size and the substitution is recorded.
+    """
     if intr and all(k in intr for k in ("fx", "fy", "cx", "cy")):
-        s = pw / ow
+        cw = intr.get("source_width") or ow
+        ch = intr.get("source_height") or oh
+        if abs(cw / max(ch, 1) - ow / max(oh, 1)) > 0.02:
+            warnings.append(
+                f"calibration aspect ratio {cw}x{ch} does not match the video "
+                f"{ow}x{oh}; a cropped or anamorphic source cannot be "
+                "corrected by scaling alone and the result may be wrong")
+        elif cw != ow:
+            warnings.append(
+                f"calibration was measured at {cw}x{ch} and the video is "
+                f"{ow}x{oh}; intrinsics scaled by {pw / cw:.4f}")
+        s = pw / cw
         return np.array([[intr["fx"] * s, 0, intr["cx"] * s],
                          [0, intr["fy"] * s, intr["cy"] * s],
                          [0, 0, 1.0]], float)
@@ -890,6 +934,20 @@ def _maybe_gt_eval(video_path, telemetry_path, enu_frame, cloud):
             cloud.points, gt_pts_ours, refs_ours, cloud)
     except Exception:
         return None
+
+
+#: How a single observation row came to exist. Recorded per row because the
+#: two are different evidence: a sparse row's pixel was measured in that image
+#: by a feature detector, while a dense row's pixel is the fused point
+#: projected back into an image that `stereo_fusion` recorded as contributing
+#: to it. Both name a genuine contributing image; only one is an original
+#: image measurement.
+OBS_SPARSE_FEATURE = 0
+OBS_DENSE_FUSION_CONTRIBUTOR = 1
+OBSERVATION_KIND_NAMES = {
+    OBS_SPARSE_FEATURE: "sparse_feature_observation",
+    OBS_DENSE_FUSION_CONTRIBUTOR: "dense_fusion_contributor",
+}
 
 
 def _dense_observations(recon, cloud, n_sparse, dense_vis,
@@ -1026,8 +1084,17 @@ def _remap_observations(recon, cloud, sel, *, n_sparse=None, dense_vis=None,
     sel_arr = np.asarray(sel, np.int32)
     decoded = np.where(kf < len(sel_arr), sel_arr[np.clip(kf, 0, len(sel_arr) - 1)],
                        -1).astype(np.int32)
+    # Sparse and dense rows are not the same kind of record and must not be
+    # readable as one. A sparse row's `uv` is the pixel a feature detector
+    # measured and the solver triangulated from; a dense row's `uv` is that
+    # point projected back into an image known to have contributed to it. Both
+    # identify a real contributing image -- that is what licenses acceptance --
+    # but only the first is an original image measurement, and evidence that
+    # shows them to an operator has to say which it is holding.
     out = {"point_index": pts_out, "keyframe_index": kf.astype(np.int32),
-           "frame_index": decoded, "uv": uv_out}
+           "frame_index": decoded, "uv": uv_out,
+           "observation_kind": np.full(len(pts_out),
+                                       OBS_SPARSE_FEATURE, np.uint8)}
     if dense_rows is not None:
         d_pt, d_kf, d_uv = dense_rows
         d_dec = np.where(d_kf < len(sel_arr),
@@ -1036,7 +1103,10 @@ def _remap_observations(recon, cloud, sel, *, n_sparse=None, dense_vis=None,
         out = {"point_index": np.concatenate([out["point_index"], d_pt]),
                "keyframe_index": np.concatenate([out["keyframe_index"], d_kf]),
                "frame_index": np.concatenate([out["frame_index"], d_dec]),
-               "uv": np.vstack([out["uv"], d_uv])}
+               "uv": np.vstack([out["uv"], d_uv]),
+               "observation_kind": np.concatenate([
+                   out["observation_kind"],
+                   np.full(len(d_pt), OBS_DENSE_FUSION_CONTRIBUTOR, np.uint8)])}
     return out
 
 
@@ -1065,6 +1135,7 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
                             keyframe_index=observations["keyframe_index"],
                             frame_index=observations["frame_index"],
                             uv=observations["uv"],
+                            observation_kind=observations["observation_kind"],
                             image_width=np.array([image_size[0] if image_size
                                                   else -1], np.int32),
                             image_height=np.array([image_size[1] if image_size
@@ -1075,6 +1146,10 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
         artifacts["las"] = exports.export_las(art_dir / "point_cloud.las", cloud, enu_frame)
     except Exception as e:
         report.setdefault("warnings", []).append(f"LAS export skipped: {e}")
+    # Every cloud export is local ENU; the sidecar is what makes it placeable.
+    artifacts["georeference"] = exports.export_georeference_sidecar(
+        art_dir / "georeference.json", cloud, enu_frame,
+        extra={"scale_source": report.get("alignment", {}).get("scale_source")})
 
     # web viewer payload: downsample to <= 120k points for the browser
     n = len(cloud)

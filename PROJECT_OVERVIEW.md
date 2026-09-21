@@ -36,7 +36,7 @@ dimensions and coverage information before leaving a site.
 
 | Output | File | Notes |
 |---|---|---|
-| Colour point cloud | `point_cloud.ply`, `point_cloud.las`, `cloud.npz` | Per-point provenance class and propagated 1-sigma. Sparse by default; `densify="mvs"` adds dense stereo geometry, `densify="depth"` adds inferred points excluded from measurement |
+| Colour point cloud | `point_cloud.ply`, `point_cloud.las`, `cloud.npz`, `georeference.json` | Per-point provenance class and propagated 1-sigma, in all three formats ([DEC-027](DECISIONS.md)); LAS declares its UTM CRS when the capture is georeferenced. Heights are WGS84 ellipsoidal, not orthometric. Sparse by default; `densify="mvs"` adds dense stereo geometry, `densify="depth"` adds inferred points excluded from measurement |
 | Supported-surface mesh | `mesh.glb` | Visualisation; not measurement evidence |
 | Camera trajectory | `trajectory.json/.csv/.geojson` | ENU poses, GNSS track, intrinsics |
 | Coverage field | `coverage.npz`, `coverage.json` | Per-voxel observed / weak / occluded / unseen / verified-empty |
@@ -64,15 +64,23 @@ exactly the same rules as the sparse points. Kept strictly distinct from
 from measurement.
 **Where:** `mvs.py`, `pipeline.py` densify stage, `colmap_adapter.keep_workspace`.
 **Measured on the AGZ mission:** 251,998 points at 0.099 m spacing against
-17,898 at 0.167 m sparse — 14× denser, `AI_ASSISTED: 0`, reconstruction accuracy
-unchanged. 20.5 minutes, ~19 of it patch-match stereo on the GPU.
+17,898 at 0.167 m sparse — **14× the point count**, median spacing 0.167 m →
+0.099 m, `AI_ASSISTED: 0`. 20.5 minutes, ~19 of it patch-match stereo on the
+GPU. Point count is not a measured 14× gain in geometric resolution, and
+**camera-trajectory agreement being unchanged is not evidence that dense surface
+accuracy is unchanged** — no held-out surface reference has been scored
+([DEC-024](DECISIONS.md), [DEC-025](DECISIONS.md)).
 **Requires** a CUDA-enabled `colmap` executable; the PyPI `pycolmap` wheels are
 CPU-only and dense stereo refuses without CUDA. `/api/capabilities` reports
 which of those two cases applies.
 **Lineage:** dense points carry observation tracks like sparse ones — the images
 `stereo_fusion` fused each point from — so they are measurable rather than
 refused for unverified support. All 251,785 points have one; 1,331,016
-observations, median 5 per point ([DEC-020](DECISIONS.md)).
+observations, median 5 per point ([DEC-020](DECISIONS.md)). Each row is labelled
+`sparse_feature_observation` or `dense_fusion_contributor`: a dense row's pixel
+is **projected** from the fused point, not a pixel a detector measured there
+([DEC-029](DECISIONS.md)). "99.9% reproject inside the image that claims them"
+is an indexing check, not an accuracy validation.
 **Effect on measurement:** on a 60-measurement sample, **59 of 60 are blocked
 only by calibration** on the dense cloud against 40 of 60 on the sparse one;
 median supporting views 3 → 4 and measured parallax 16.6° → 27.9°.
@@ -123,9 +131,18 @@ observed geometry by default and flag anything else.
 height and area measurements including the metric-scale term. Both SfM engines
 produce it, using the same MAD-based pixel-noise estimator so an engine
 comparison is not also a comparison of two noise models.
-**Where:** `uncertainty.py` (`point_covariances`, `distance_uncertainty`,
-`height_uncertainty`, `area_uncertainty`, `calibrate`), `measure.py`,
-`colmap_adapter._point_uncertainty`.
+**Where:** `uncertainty.py` (`point_covariances`,
+`polyline_length_uncertainty`, `height_uncertainty`, `area_uncertainty`,
+`calibrate`), `measure.py`, `colmap_adapter._point_uncertainty`.
+**One scale error per measurement, not per segment.** A polyline's length is
+propagated whole, so subdividing a straight line leaves its uncertainty
+unchanged and a shared interior vertex is not counted twice
+([DEC-022](DECISIONS.md)).
+**One definition of a result.** Both the question route and the exploratory
+ruler go through `backend/app/results.py`, so a measurement carries its sigma,
+interval basis, acceptance status and artifact version whichever way it was
+created — and a reconstruction with no georeference reports
+`reconstruction units`, never metres ([DEC-021](DECISIONS.md)).
 **Measured on the AGZ mission:** median measurement sigma 0.064 m (COLMAP),
 0.069 m (in-repo).
 

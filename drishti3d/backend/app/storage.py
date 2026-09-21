@@ -39,6 +39,39 @@ def artifacts_dir(project_id: str) -> Path:
     return project_dir(project_id) / "artifacts"
 
 
+#: Artifact files whose contents decide what a measurement means. A change to
+#: any of them invalidates geometry, lineage or coverage held in memory.
+_REVISION_FILES = ("cloud.npz", "observations.npz", "manifest.json",
+                   "trajectory.json", "coverage.npz")
+
+
+def artifact_revision(project_id: str) -> str:
+    """A token that changes whenever the measurable artifacts change.
+
+    Caches used to be keyed by project id alone, with an ``invalidate`` helper
+    that the reconstruction and upload paths never called. Replacing
+    ``cloud.npz`` and measuring again returned the previous geometry -- the new
+    manifest said one thing while the answer came from the old cloud.
+
+    Keying by revision instead makes that failure impossible rather than
+    merely discouraged: a cache entry for a superseded artifact set can no
+    longer be looked up, whether or not anything remembered to clear it. Size
+    and modification time are enough to detect a rewritten artifact; this is a
+    cache key, not a tamper seal, and the measurement passport (C05/U05) is
+    where content hashes belong.
+    """
+    art = artifacts_dir(project_id)
+    h = hashlib.sha256()
+    for name in _REVISION_FILES:
+        f = art / name
+        try:
+            st = f.stat()
+            h.update(f"{name}:{st.st_size}:{st.st_mtime_ns}".encode())
+        except FileNotFoundError:
+            h.update(f"{name}:absent".encode())
+    return h.hexdigest()[:16]
+
+
 def _check_ext(filename: str, allowed: set[str], kind: str) -> str:
     ext = Path(filename).suffix.lower()
     if ext not in allowed:

@@ -11,6 +11,24 @@ cd "$(dirname "$0")/.."
 LOG="${TMPDIR:-/tmp}/drishti3d"
 mkdir -p "$LOG"
 
+# `serve.sh --restart` after a code change. Without it the script sees the port
+# taken and leaves the old process serving the old code, which looks exactly
+# like a fix that did not work.
+#
+# Ports are resolved to PIDs and killed by PID rather than by `pkill -f`: a
+# pattern broad enough to match the server also matches the shell running this
+# script, which kills the script instead.
+if [ "${1:-}" = "--restart" ]; then
+  for port in 8000 5173; do
+    pids=$(ss -ltnp 2>/dev/null | awk -v p=":$port" '''$4 ~ p'''            | grep -oP '''pid=\K[0-9]+''' | sort -u || true)
+    for pid in $pids; do
+      echo "stopping pid $pid on :$port"
+      kill "$pid" 2>/dev/null || true
+    done
+  done
+  sleep 2
+fi
+
 if ss -ltn | grep -q ':8000'; then
   echo "api    already listening on 8000"
 else

@@ -232,6 +232,73 @@ def distance_uncertainty(a, b, cov_a, cov_b, *, scale_sigma_rel: float = 0.0
     return d, float(np.sqrt(max(var, 0.0)))
 
 
+def polyline_length_uncertainty(points, covs, *, scale_sigma_rel: float = 0.0
+                                ) -> tuple[float, float]:
+    """1-sigma uncertainty of the total length of a polyline.
+
+    Returns ``(length, sigma)``.
+
+    Summing per-segment variances is wrong twice over, and both errors make the
+    answer look better than it is:
+
+    * **Scale is common to the whole line.** One scale error stretches every
+      segment together, so it contributes ``L * sigma_scale`` to the total, not
+      an independent term per segment. Summed in quadrature, splitting a 10 m
+      line at its midpoint dropped its scale-only sigma from 1.000 m to
+      0.707 m -- inserting a vertex manufactured confidence about a line whose
+      geometry had not changed.
+    * **Interior vertices are shared.** A vertex ends one segment and begins the
+      next, so its error enters both. Treating the segments as independent
+      double-counts it.
+
+    Both are fixed by propagating the length function itself. For
+    ``L = sum |p_{i+1} - p_i|`` the derivative with respect to an interior
+    vertex is ``u_{i-1} - u_i`` (the difference of the adjacent unit vectors),
+    which vanishes when the vertex lies straight between its neighbours: a
+    point added along a straight line contributes nothing, which is the
+    behaviour the counterexample above should have had. At a corner the two
+    directions do not cancel and the vertex contributes in proportion to how
+    sharply the line turns.
+
+    Endpoint covariances are still assumed independent *of each other*. That
+    remains an assumption -- neighbouring triangulated points share cameras and
+    so share some error -- but it is now the only one, and it is stated.
+    """
+    P = np.asarray(points, float).reshape(len(points), 3)
+    if len(P) < 2:
+        return 0.0, float("inf")
+
+    seg = P[1:] - P[:-1]
+    lens = np.linalg.norm(seg, axis=1)
+    length = float(lens.sum())
+    if length < 1e-12:
+        return 0.0, float("inf")
+    if np.any(lens < 1e-12):
+        # A zero-length segment has no direction, so dL/dp is undefined there.
+        return length, float("inf")
+    u = seg / lens[:, None]
+
+    # dL/dp_i, vertex by vertex: -u_0 at the start, u_{n-1} at the end, and
+    # u_{i-1} - u_i in between.
+    grad = np.zeros_like(P)
+    grad[0] = -u[0]
+    grad[-1] = u[-1]
+    if len(P) > 2:
+        grad[1:-1] = u[:-1] - u[1:]
+
+    var = 0.0
+    for g, c in zip(grad, covs):
+        if c is None:
+            continue
+        c = np.asarray(c, float)
+        if not np.all(np.isfinite(c)):
+            return length, float("inf")
+        var += float(g @ c @ g)
+
+    var += (length * float(scale_sigma_rel)) ** 2
+    return length, float(np.sqrt(max(var, 0.0)))
+
+
 def height_uncertainty(a, b, cov_a, cov_b, *, scale_sigma_rel: float = 0.0
                        ) -> tuple[float, float]:
     """1-sigma uncertainty of a vertical difference (the ENU up component)."""

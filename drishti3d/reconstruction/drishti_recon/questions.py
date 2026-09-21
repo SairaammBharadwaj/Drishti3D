@@ -25,7 +25,7 @@ code is a useful answer; a silent failure or an invented number is not.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from enum import Enum
 
 import numpy as np
@@ -149,6 +149,20 @@ REASON_GUIDANCE = {
 MIN_CALIBRATION_SAMPLES = 20
 
 
+class CalibrationState:
+    """Lifecycle of an interval calibration, in order.
+
+    Kept as three explicit states because collapsing them is exactly the error
+    the review identified: a profile with enough samples to fit is not a
+    profile anyone has checked, and a profile someone has checked is not one
+    anyone has approved for use.
+    """
+
+    FITTED = "fitted"          # numbers exist, measured on the fitting set
+    EVALUATED = "evaluated"    # checked against held-out missions
+    RELEASED = "released"      # a person approved it for operational use
+
+
 @dataclass
 class CalibrationProfile:
     """A fitted, regime-scoped interval calibration.
@@ -165,31 +179,105 @@ class CalibrationProfile:
     scale_factor: float = 1.0
     coverage_observed: dict = field(default_factory=dict)   # level -> fraction
     source: str = ""
-    validated: bool = False
+    #: Where this profile is in its lifecycle. ``FITTED`` means numbers exist;
+    #: ``EVALUATED`` means they were checked on data not used to fit them;
+    #: ``RELEASED`` means a person approved it for operational use. Only the
+    #: last licenses acceptance -- see :data:`CalibrationState`.
+    state: str = "fitted"
+    #: Missions whose measurements were used to fit. Held so a later evaluation
+    #: can be checked for disjointness rather than asserted to be independent.
+    fit_missions: tuple = ()
+    #: Missions used for held-out evaluation. Must not intersect fit_missions.
+    eval_missions: tuple = ()
+    #: Coverage measured on the held-out set, level -> fraction. Distinct from
+    #: coverage_observed, which is in-sample and always flattering.
+    coverage_heldout: dict = field(default_factory=dict)
+    #: 1-sigma of the reference instrument the errors were measured against.
+    #: Without it a calibration cannot distinguish its own error from the
+    #: tape measure's.
+    reference_sigma_m: float | None = None
+    approved_by: str = ""
 
     @classmethod
     def from_calibration(cls, result: unc.CalibrationResult, *, regime: str,
-                         source: str = "") -> "CalibrationProfile":
+                         source: str = "",
+                         fit_missions: tuple = ()) -> "CalibrationProfile":
+        """Fit a profile. The result is FITTED -- never validated.
+
+        ``validated`` used to be set here from the sample count alone, so
+        reaching twenty measurements made a profile claim it had been
+        validated. Sample count is a precondition for a meaningful fit, not
+        evidence that the fit predicts anything: the samples it was measured on
+        are the samples it was tuned to. Promotion now requires held-out
+        evaluation (:meth:`evaluated`) and then a person (:meth:`released`).
+        """
         return cls(regime=regime, n_samples=result.n,
                    conformal_factors={int(k): float(v) for k, v
                                       in result.conformal_factors.items()},
                    scale_factor=float(result.scale_factor),
                    coverage_observed={int(k): float(v) for k, v
                                       in result.coverage_conformal.items()},
-                   source=source,
-                   validated=result.n >= MIN_CALIBRATION_SAMPLES)
+                   source=source, state=CalibrationState.FITTED,
+                   fit_missions=tuple(fit_missions))
+
+    def evaluated(self, *, coverage_heldout: dict, eval_missions: tuple,
+                  reference_sigma_m: float | None = None) -> "CalibrationProfile":
+        """Record a held-out evaluation, refusing overlapping missions."""
+        overlap = set(self.fit_missions) & set(eval_missions)
+        if overlap:
+            raise ValueError(
+                "evaluation missions overlap the fitting set "
+                f"({sorted(overlap)}); a profile cannot be evaluated on data "
+                "it was fitted to")
+        if not eval_missions:
+            raise ValueError("held-out evaluation needs at least one mission")
+        return replace(self, state=CalibrationState.EVALUATED,
+                       eval_missions=tuple(eval_missions),
+                       coverage_heldout={int(k): float(v)
+                                         for k, v in coverage_heldout.items()},
+                       reference_sigma_m=reference_sigma_m)
+
+    def released(self, *, approved_by: str) -> "CalibrationProfile":
+        """Approve an evaluated profile for operational use."""
+        if self.state != CalibrationState.EVALUATED:
+            raise ValueError(
+                f"only an evaluated profile can be released (state={self.state})")
+        if not approved_by:
+            raise ValueError("release requires a named approver")
+        return replace(self, state=CalibrationState.RELEASED,
+                       approved_by=approved_by)
+
+    @property
+    def validated(self) -> bool:
+        """Kept for callers that ask the old question; now means RELEASED."""
+        return self.state == CalibrationState.RELEASED
 
     def usable(self) -> bool:
-        return bool(self.validated and self.n_samples >= MIN_CALIBRATION_SAMPLES
+        return bool(self.state == CalibrationState.RELEASED
+                    and self.n_samples >= MIN_CALIBRATION_SAMPLES
                     and self.conformal_factors)
 
+    def applies_to(self, regime: str) -> bool:
+        """Whether this profile may be used for a capture in ``regime``.
+
+        Regime matching was left entirely to callers, which is how a profile
+        fitted for one camera and capture pattern gets applied to another
+        without anything objecting.
+        """
+        return bool(regime) and str(regime) == str(self.regime)
+
     def interval(self, sigma: float, level: int = 95) -> float:
-        """Calibrated half-width for a predicted sigma, or ``inf`` if unknown."""
+        """Calibrated half-width for a predicted sigma, or ``inf`` if unknown.
+
+        An unsupported level is refused rather than quietly answered with a
+        95%-shaped factor: substituting one confidence level for another is
+        the kind of silent approximation this whole subsystem exists to stop.
+        """
         if sigma is None or not np.isfinite(sigma):
             return float("inf")
         k = self.conformal_factors.get(int(level))
         if k is None:
-            k = 1.96 * self.scale_factor
+            return float("inf")
         return float(k) * float(sigma)
 
     def to_dict(self) -> dict:

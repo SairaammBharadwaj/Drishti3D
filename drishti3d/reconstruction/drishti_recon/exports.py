@@ -14,40 +14,154 @@ from .provenance import Provenance
 
 
 def export_ply(path, cloud) -> str:
-    """ASCII PLY with RGB and a confidence + provenance scalar per point."""
+    """ASCII PLY with RGB, confidence, provenance and per-point sigma.
+
+    ``sigma`` is the worst-axis 1-sigma positional uncertainty in metres, the
+    same quantity measurements use. It was previously computed, written into
+    ``cloud.npz`` and then dropped from every advertised export, so a cloud
+    opened anywhere else lost the one field that says how much to trust it.
+    Points with no uncertainty are written as NaN rather than a plausible
+    number.
+    """
     path = Path(path)
     pts, cols, conf, prov = cloud.points, cloud.colors, cloud.confidence, cloud.provenance
+    sig = getattr(cloud, "sigma_major", None)
+    if sig is None:
+        sig = getattr(cloud, "sigma", None)
     n = len(pts)
+    sig = np.full(n, np.nan) if sig is None else np.asarray(sig, float)
     with open(path, "w") as f:
         f.write("ply\nformat ascii 1.0\n")
+        f.write("comment coordinates are local ENU metres; see the "
+                "georeference sidecar for the origin and CRS\n")
+        f.write("comment sigma is worst-axis 1-sigma metres, uncalibrated\n")
         f.write(f"element vertex {n}\n")
         f.write("property float x\nproperty float y\nproperty float z\n")
         f.write("property uchar red\nproperty uchar green\nproperty uchar blue\n")
         f.write("property float confidence\nproperty uchar provenance\n")
+        f.write("property float sigma\n")
         f.write("end_header\n")
         for i in range(n):
             x, y, z = pts[i]
             r, g, b = cols[i]
             f.write(f"{x:.4f} {y:.4f} {z:.4f} {int(r)} {int(g)} {int(b)} "
-                    f"{conf[i]:.4f} {int(prov[i])}\n")
+                    f"{conf[i]:.4f} {int(prov[i])} {sig[i]:.6f}\n")
     return str(path)
 
 
+def utm_epsg(lat: float, lon: float) -> int:
+    """EPSG code of the WGS84 UTM zone containing a geodetic position."""
+    zone = int((float(lon) + 180.0) // 6.0) + 1
+    zone = min(max(zone, 1), 60)
+    return (32600 if float(lat) >= 0 else 32700) + zone
+
+
+def enu_to_utm(frame: ENUFrame, points) -> tuple[np.ndarray, int]:
+    """Project local ENU metres into the WGS84 UTM zone of the frame origin.
+
+    Returns ``(points_utm, epsg)``. The third column is **ellipsoidal height**
+    (WGS84), because that is what the ENU up axis is measured against; it is
+    not an orthometric elevation and must not be read as one.
+    """
+    import pyproj
+    pts = np.asarray(points, float).reshape(-1, 3)
+    geo = frame.enu_to_geodetic(pts)                  # (lat, lon, alt)
+    epsg = utm_epsg(frame.lat0, frame.lon0)
+    tr = pyproj.Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True)
+    x, y = tr.transform(geo[:, 1], geo[:, 0])
+    return np.column_stack([x, y, geo[:, 2]]), epsg
+
+
 def export_las(path, cloud, frame: ENUFrame | None = None) -> str:
-    """LAS point cloud (requires laspy). Stores confidence in intensity."""
+    """LAS point cloud (requires laspy), georeferenced when a frame is given.
+
+    ``frame`` used to be accepted and ignored: the file held local ENU metres
+    with no CRS at all, so ``header.parse_crs()`` returned ``None`` and an
+    analyst opening it in GIS had to be told the origin out of band, or guess.
+    Provenance and uncertainty were dropped entirely, while the overview said
+    exported clouds carried sigma.
+
+    With a frame, points are projected into the WGS84 UTM zone of the frame
+    origin and that CRS is written into the header. Without one, the file stays
+    in local metres and says so -- an unreferenced local file is a legitimate
+    output, silently unreferenced is not.
+
+    Per-point ``provenance``, ``confidence`` and ``sigma`` (worst-axis, metres)
+    are written as LAS extra dimensions under those names, so the trust
+    information survives the trip into another tool.
+    """
     import laspy
     path = Path(path)
-    pts = cloud.points.astype(np.float64)
-    header = laspy.LasHeader(point_format=3, version="1.2")
+
+    pts = np.asarray(cloud.points, float)
+    epsg = None
+    if frame is not None:
+        pts, epsg = enu_to_utm(frame, pts)
+
+    header = laspy.LasHeader(point_format=3, version="1.4")
     header.offsets = pts.min(0)
     header.scales = np.array([0.001, 0.001, 0.001])
+    header.add_extra_dims([
+        laspy.ExtraBytesParams(name="provenance", type=np.uint8),
+        laspy.ExtraBytesParams(name="confidence", type=np.float32),
+        laspy.ExtraBytesParams(name="sigma", type=np.float32),
+    ])
+    if epsg is not None:
+        import pyproj
+        header.add_crs(pyproj.CRS.from_epsg(epsg))
+
     las = laspy.LasData(header)
     las.x, las.y, las.z = pts[:, 0], pts[:, 1], pts[:, 2]
     las.red = (cloud.colors[:, 0].astype(np.uint16)) * 257
     las.green = (cloud.colors[:, 1].astype(np.uint16)) * 257
     las.blue = (cloud.colors[:, 2].astype(np.uint16)) * 257
-    las.intensity = (cloud.confidence * 65535).astype(np.uint16)
+    las.intensity = (np.asarray(cloud.confidence, float) * 65535).astype(np.uint16)
+    las.provenance = np.asarray(cloud.provenance, np.uint8)
+    las.confidence = np.asarray(cloud.confidence, np.float32)
+    # sigma_major, not sigma: measurements use the worst-constrained axis, and
+    # an export that reported the optimistic one would disagree with them.
+    sig = getattr(cloud, "sigma_major", None)
+    if sig is None:
+        sig = getattr(cloud, "sigma", None)
+    las.sigma = (np.full(len(pts), np.nan, np.float32) if sig is None
+                 else np.asarray(sig, np.float32))
     las.write(str(path))
+    return str(path)
+
+
+def export_georeference_sidecar(path, cloud, frame: ENUFrame | None,
+                                *, extra: dict | None = None) -> str:
+    """JSON describing how to place a local-coordinate export on the earth.
+
+    Written beside every cloud export so a local file is still usable: it
+    carries the ENU origin, the projected CRS the georeferenced exports use,
+    the vertical reference, and the field meanings that LAS extra dimensions
+    and PLY scalars abbreviate.
+    """
+    path = Path(path)
+    doc = {
+        "coordinate_frame": "local ENU metres" if frame is None else "local ENU metres, with a georeferenced twin",
+        "units": "metres",
+        "local_origin_wgs84": None if frame is None else {
+            "lat": frame.lat0, "lon": frame.lon0, "alt_ellipsoidal_m": frame.alt0},
+        "projected_crs": None if frame is None else f"EPSG:{utm_epsg(frame.lat0, frame.lon0)}",
+        "vertical_reference": (
+            "WGS84 ellipsoidal height; NOT an orthometric/MSL elevation"),
+        "fields": {
+            "provenance": "Provenance enum: "
+                          + ", ".join(f"{int(p)}={p.name}" for p in Provenance),
+            "confidence": "0-1 fusion confidence, not a probability of correctness",
+            "sigma": "worst-axis 1-sigma positional uncertainty, metres; "
+                     "NaN where the reconstruction carried none",
+        },
+        "caveat": (
+            "Uncertainty here is the propagated geometric estimate. It is not "
+            "a calibrated interval: no validated calibration profile has been "
+            "fitted for this capture."),
+    }
+    if extra:
+        doc.update(extra)
+    path.write_text(json.dumps(doc, indent=2))
     return str(path)
 
 

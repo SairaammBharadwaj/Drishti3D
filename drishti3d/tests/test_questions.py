@@ -24,10 +24,21 @@ def good_evidence(**kw):
 
 
 def usable_profile(n=40, k95=1.6):
-    return q.CalibrationProfile(regime="uav_oblique/gps", n_samples=n,
-                                conformal_factors={95: k95},
-                                coverage_observed={95: 0.95},
-                                source="test", validated=True)
+    """A profile that has been through the whole lifecycle.
+
+    `validated=True` used to be settable directly at construction. It is now
+    derived from the state, and reaching RELEASED requires a held-out
+    evaluation on missions disjoint from the fitting set and a named approver
+    -- so a test that wants a usable profile has to build one that could
+    actually exist.
+    """
+    return (q.CalibrationProfile(regime="uav_oblique/gps", n_samples=n,
+                                 conformal_factors={95: k95},
+                                 coverage_observed={95: 0.95},
+                                 source="test", fit_missions=("fit_a",))
+            .evaluated(coverage_heldout={95: 0.94}, eval_missions=("eval_b",),
+                       reference_sigma_m=0.002)
+            .released(approved_by="test"))
 
 
 # --- the central rule ------------------------------------------------------ #
@@ -59,7 +70,8 @@ def test_calibrated_profile_permits_acceptance():
 def test_small_calibration_sample_blocks_acceptance():
     """Ten samples cannot substantiate a 95% interval."""
     p = q.CalibrationProfile(regime="uav_oblique/gps", n_samples=10,
-                             conformal_factors={95: 1.6}, validated=True)
+                             conformal_factors={95: 1.6},
+                             state=q.CalibrationState.RELEASED)
     v = q.evaluate(q.MeasurementQuestion("distance", tolerance_m=0.20),
                    value=3.42, sigma=0.06, evidence=good_evidence(), profile=p)
     assert v.status is q.Status.ESTIMATED_ONLY
