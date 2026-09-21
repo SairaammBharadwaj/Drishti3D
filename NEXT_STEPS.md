@@ -119,14 +119,34 @@ authors' own words, not survey truth. Plus `goetheanum`, `gym_pass`,
 
 **Recommended downloads, in order**
 
-1. **UseGeo** — <https://github.com/3DOM-FBK/UseGeo>. Three UAV strips (224 /
-   328 / 277 images), each with a **LiDAR reference point cloud** (~50 pts/m²),
-   ground-truth depth maps and camera poses. Direct download links, no
-   registration. This is the highest-value single download: three *independent*
-   flights (F4 generalisation, currently tested only on partitions of one
-   flight) **and** a reference surface (validates DEC-031's dense uncertainty
-   and V04's surface accuracy, neither of which anything here can check).
-   Expect tens of GB — the images are 7952x5304.
+1. **UseGeo** — <https://github.com/3DOM-FBK/UseGeo> (README is on the
+   `master` branch, not `main`). Three datasets of 224 / 328 / 277 images,
+   **acquired over three different areas** — verified in the source paper, so
+   they are genuinely independent captures, not blocks of one flight. That is
+   what F4 generalisation needs and what nothing on disk provides.
+
+   Each carries a **LiDAR reference cloud** (~50 pts/m²) from a RIEGL
+   miniVUX-3UAV, ground-truth depth maps, camera poses and interior
+   parameters. Images are Sony A7R III, 7952x5304, GSD under 2 cm, 80/60%
+   overlap giving a minimum of 8 images per object point.
+
+   The LiDAR being a **separate instrument** is the point: it is the first
+   reference here not derived from photogrammetry, so it can validate
+   [DEC-031](DECISIONS.md)'s dense uncertainty and V04's surface accuracy,
+   neither of which anything in this repository can currently check.
+
+   **Verified 2026-09-21:** all three links return HTTP 200 and are live. Two
+   practical snags. The host's TLS certificate **expired on 30 August 2024**
+   (a genuine University of Twente certificate from GEANT, simply not renewed),
+   so a browser shows a warning to click through and `curl` needs `-k`. And the
+   authors note institutional firewalls often block port 5001 — use a home
+   connection if it stalls. Exact sizes need a browser session; expect tens of
+   GB for all three.
+
+   **Licence: CC BY-NC-SA 4.0.** Non-commercial and share-alike. Validation and
+   published numbers are fine; shipping the data, or clouds derived from it, as
+   part of anything commercial is not. Worth deciding before it is embedded in
+   a demo.
 
 2. **ISPRS/EuroSDR Benchmark on Multi-Platform Photogrammetry** —
    <https://www2.isprs.org/commissions/comm2/icwg-2-1a/benchmark_main/>.
