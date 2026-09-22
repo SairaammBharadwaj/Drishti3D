@@ -82,6 +82,10 @@ class ReconstructionEvidence:
     #: argument after it -- `points` becomes this flag, `observations` becomes
     #: `points`, and the failure surfaces far away as a KeyError on lineage.
     dynamic_status_known: bool = False
+    #: Whether the georeferencing fit was solved from a near-planar camera
+    #: path. Declared after the positional fields, for the reason DEC-034
+    #: records the hard way.
+    alignment_degenerate: bool = False
 
     # ---- construction ---------------------------------------------------- #
     @classmethod
@@ -109,6 +113,7 @@ class ReconstructionEvidence:
                                if "free_count" in d.files else None)
 
         scale_source, scale_sigma, masked = "none", float("nan"), False
+        degenerate = False
         man = art / "manifest.json"
         if man.exists():
             try:
@@ -130,6 +135,7 @@ class ReconstructionEvidence:
                 # Whether anything looked for moving surfaces on this run.
                 backend = (m.get("params") or {}).get("mask_backend")
                 masked = bool(backend) and str(backend) != "none"
+                degenerate = bool(al.get("degenerate", False))
             except (ValueError, KeyError, TypeError):
                 pass
         points = None
@@ -183,6 +189,7 @@ class ReconstructionEvidence:
         #: reporting a point as better known than the model it sits in.
         rec.sigma_major = sigma_major
         rec.dynamic_status_known = masked
+        rec.alignment_degenerate = degenerate
         return rec
 
     # ---- observation lineage ---------------------------------------------- #
@@ -414,6 +421,7 @@ class ReconstructionEvidence:
                 int(pr) == int(Provenance.DYNAMIC_EXCLUDED)
                 for pr in provenances)),
             dynamic_status_known=self.dynamic_status_known,
+            alignment_degenerate=self.alignment_degenerate,
             scale_source=self.scale_source,
             scale_sigma_rel=self.scale_sigma_rel,
         )

@@ -2770,11 +2770,21 @@ constrained and still reported 0.093 m sigma on geometry that was 1.25 m out.
 
 ### Decision
 
-Recorded as a finding, not yet fixed. The fix has to be designed rather than
-patched: a planar-trajectory degeneracy should widen the out-of-plane
-uncertainty component and produce a blocking acceptance reason, which means the
-uncertainty model needs to carry direction rather than a single scalar per
-point. That is a larger change than this record should pre-empt.
+**Half fixed the same day.** `Reason.ALIGNMENT_DEGENERATE` now blocks
+acceptance: `ReconstructionEvidence` reads `alignment.degenerate` from the
+manifest and carries it into every verdict, so a fit solved through coplanar
+cameras can no longer license a measurement. Verified on both real runs --
+UseGeo reports `alignment_degenerate` as its dominant limitation, AGZ is
+unaffected. It also outranks the calibration reasons in the priority order,
+because a degeneracy nobody is told about is one nobody acts on.
+
+**The other half is deliberately not patched.** Widening the interval requires
+knowing *by how much*, and a scalar sigma per point cannot express "well
+constrained horizontally, poorly constrained vertically" -- which is exactly
+this capture's condition. Picking an inflation factor that makes the UseGeo
+numbers look right would be fitting to the one dataset that exposed the
+problem. The uncertainty model needs to carry direction, and that is a design
+change, not a constant.
 
 What is decided now is that **the claim "3.2× too optimistic" is the honest
 headline, not 14.7×** — and that both must be quoted, because the debiased
@@ -2786,6 +2796,11 @@ the same week.
 
 ### Consequences
 
+- Measured after the fix: the offset is about **1.5% of the camera-to-ground
+  range** consistently across range bins. The available range span is narrow
+  (59-86 m, mostly 75-83 m), so the data **cannot** separate a proportional
+  depth bias from a constant vertical shift -- both fit. Saying which it is
+  would need a capture with real range variation.
 - The sigma from [DEC-031](#dec-031--dense-depth-uncertainty-uses-1sin-over-the-whole-angular-domain)
   is **not calibrated and is optimistic by at least 3×** on this capture. Every
   interval the system reports is currently narrower than the truth warrants.

@@ -219,3 +219,33 @@ def test_frustum_derived_view_support_cannot_license_acceptance():
                    profile=usable_profile())
     assert v.status is q.Status.ESTIMATED_ONLY
     assert q.Reason.VIEW_GEOMETRY_UNVERIFIED in v.reasons
+
+
+# --- a fit through coplanar cameras cannot license acceptance (DEC-036) ---- #
+def test_degenerate_alignment_blocks_acceptance():
+    """Measured: 5.7 cm vertical alignment RMSE, 1.25 m of actual error."""
+    v = q.evaluate(q.MeasurementQuestion("distance", tolerance_m=0.20),
+                   value=3.42, sigma=0.06,
+                   evidence=good_evidence(alignment_degenerate=True),
+                   profile=usable_profile(), regime=REGIME)
+    assert v.status is not q.Status.MEETS_REQUIREMENT
+    assert q.Reason.ALIGNMENT_DEGENERATE in v.reasons
+
+
+def test_a_sound_alignment_still_accepts():
+    v = q.evaluate(q.MeasurementQuestion("distance", tolerance_m=0.20),
+                   value=3.42, sigma=0.06,
+                   evidence=good_evidence(alignment_degenerate=False),
+                   profile=usable_profile(), regime=REGIME)
+    assert v.status is q.Status.MEETS_REQUIREMENT
+
+
+def test_degeneracy_is_the_reported_limitation_over_calibration():
+    """It has to outrank the softer reasons, or nobody acts on it."""
+    v = q.evaluate(q.MeasurementQuestion("distance", tolerance_m=0.20),
+                   value=3.42, sigma=0.06,
+                   evidence=good_evidence(alignment_degenerate=True),
+                   profile=None)
+    assert v.dominant_limitation == "alignment_degenerate"
+    codes = [g["reason"] for g in v.to_dict()["guidance"]]
+    assert "alignment_degenerate" in codes

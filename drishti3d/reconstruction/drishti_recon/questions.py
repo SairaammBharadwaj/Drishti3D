@@ -72,6 +72,7 @@ class Reason(str, Enum):
     #: a sensitivity estimate rather than a coverage-checked one.
     INTERVAL_NOT_CALIBRATED = "interval_not_calibrated"
     CALIBRATION_REGIME_MISMATCH = "calibration_regime_mismatch"
+    ALIGNMENT_DEGENERATE = "alignment_degenerate"
     #: A calibration profile exists but was fitted on too few missions.
     CALIBRATION_SAMPLE_TOO_SMALL = "calibration_sample_too_small"
     #: An endpoint lies in space the capture never established.
@@ -120,6 +121,15 @@ REASON_GUIDANCE = {
     Reason.INTERVAL_EXCEEDS_TOLERANCE: (
         "The measurement's interval is wider than the tolerance requested.",
         "Run 'Improve this measurement', or relax the tolerance."),
+    Reason.ALIGNMENT_DEGENERATE: (
+        "The flight path is too close to a plane for the georeferencing fit to "
+        "constrain geometry perpendicular to it. Camera positions can still "
+        "match their GNSS closely while the ground beneath them floats.",
+        "Fly with deliberate altitude variation, or cross-strips at a "
+        "different height, so the alignment sees out-of-plane structure. "
+        "Measured on UseGeo dataset 1: a constant-altitude nadir survey placed "
+        "cameras to 5.7 cm vertical RMSE while the surface sat 1.25 m too "
+        "high."),
     Reason.CALIBRATION_REGIME_MISMATCH: (
         "A calibration profile exists, but it was fitted for a different "
         "capture regime than this one -- a different camera, capture pattern "
@@ -371,6 +381,12 @@ class Evidence:
     #: so "no masking backend ran" and "masking ran and found nothing clean"
     #: were reported identically.
     dynamic_status_known: bool = False
+    #: The georeferencing fit was solved from a camera path too close to a
+    #: plane to constrain geometry perpendicular to it. Defaults False because
+    #: the alignment stage writes this flag whenever it runs at all, and a
+    #: reconstruction with no alignment is already refused for having no
+    #: established scale.
+    alignment_degenerate: bool = False
     scale_source: str = "none"           # gps | control | known_length | none
     scale_sigma_rel: float = float("nan")
 
@@ -459,6 +475,13 @@ def evaluate(question: MeasurementQuestion, *, value: float | None,
         reasons.append(Reason.VIEW_GEOMETRY_UNVERIFIED)
     if evidence.scale_source in ("none", "", None):
         reasons.append(Reason.SCALE_NOT_ESTABLISHED)
+    # A degenerate alignment was detected and written to the manifest long
+    # before anything read it, and DEC-036 is what that cost: 0.093 m of
+    # reported sigma on geometry 1.25 m out, 4.6% interval coverage against a
+    # nominal 95%. The residual of a fit through coplanar cameras says nothing
+    # about the ground below them, so it cannot license acceptance.
+    if evidence.alignment_degenerate:
+        reasons.append(Reason.ALIGNMENT_DEGENERATE)
 
     # Regime matching is enforced here, not left to the caller. A profile
     # cannot know where it is being used, and "the caller must match it" is
@@ -516,7 +539,8 @@ def evaluate(question: MeasurementQuestion, *, value: float | None,
 #: genuinely well supported by the remaining views.
 _BLOCKING = {
     Reason.INTERVAL_NOT_CALIBRATED, Reason.CALIBRATION_SAMPLE_TOO_SMALL,
-    Reason.CALIBRATION_REGIME_MISMATCH, Reason.SCALE_NOT_ESTABLISHED, Reason.SCALE_UNCERTAINTY_DOMINATES,
+    Reason.CALIBRATION_REGIME_MISMATCH, Reason.SCALE_NOT_ESTABLISHED,
+    Reason.ALIGNMENT_DEGENERATE, Reason.SCALE_UNCERTAINTY_DOMINATES,
     Reason.DEGENERATE_VIEW_GEOMETRY, Reason.INSUFFICIENT_VIEWS,
     Reason.TOUCHES_INFERRED_GEOMETRY, Reason.ENDPOINT_NOT_OBSERVED,
     Reason.OUTSIDE_ESTABLISHED_COVERAGE, Reason.UNCERTAINTY_UNDEFINED,
@@ -533,7 +557,8 @@ def _blocking(reasons) -> bool:
 _PRIORITY = [
     Reason.ENDPOINT_NOT_OBSERVED, Reason.OUTSIDE_ESTABLISHED_COVERAGE,
     Reason.UNCERTAINTY_UNDEFINED, Reason.TOUCHES_INFERRED_GEOMETRY,
-    Reason.SCALE_NOT_ESTABLISHED, Reason.SCALE_UNCERTAINTY_DOMINATES,
+    Reason.SCALE_NOT_ESTABLISHED, Reason.ALIGNMENT_DEGENERATE,
+    Reason.SCALE_UNCERTAINTY_DOMINATES,
     Reason.DEGENERATE_VIEW_GEOMETRY, Reason.INSUFFICIENT_VIEWS,
     Reason.VIEW_GEOMETRY_UNVERIFIED,
     Reason.DYNAMIC_CONTAMINATION, Reason.INTERVAL_EXCEEDS_TOLERANCE,
