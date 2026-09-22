@@ -2817,7 +2817,13 @@ the same week.
   the whole time. This is the first evidence of how wrong the numbers behind it
   would have been.
 
-### Addendum, same day: what this means for a *measurement*
+### Addendum, same day: what this means for a *measurement* — **WITHDRAWN, see [DEC-037](#dec-037--the-0088-m-dimensional-figure-is-withdrawn-the-method-could-not-measure-it)**
+
+> The figures in this addendum are withdrawn. Nearest-neighbour endpoint
+> matching against a dense reference cannot measure dimensional accuracy; a 5%
+> scale error scores as zero under it. The paragraph is kept so the withdrawal
+> is auditable.
+
 
 The 1.245 m figure is point-to-surface distance, and a measurement is not that.
 A measurement is a distance between two points, and a common offset cancels
@@ -2845,3 +2851,105 @@ correct, on this one capture.
 `drishti3d/scripts/score_against_lidar.py`,
 `drishti3d/scripts/build_usegeo_mission.py`, `fetch_usegeo.py`,
 `drishti3d/data/runs/usegeo_1__first/lidar_score.json`
+
+---
+
+## DEC-037 — The 0.088 m dimensional figure is withdrawn; the method could not measure it
+
+**Date:** 2026-09-22
+
+**Status:** Accepted · **supersedes the dimensional accuracy addendum in
+[DEC-036](#dec-036--the-first-independent-check-a-125-m-bias-the-system-could-not-see)
+and the corresponding section of TESTS_AND_RESULTS.md**
+
+### Context
+
+A review dated 22 September
+([docs/review_2026_09_22/CRITICAL_REVIEW.md](drishti3d/docs/review_2026_09_22/CRITICAL_REVIEW.md))
+supplied a counterexample against the dimensional-accuracy method I used the
+previous day. I reproduced it before accepting it. It holds, and it is fatal.
+
+The method matched each reconstructed endpoint to its **nearest LiDAR point**,
+then compared the distance between those two LiDAR points against our own. The
+counterexample: place truth endpoints at 0 m and 10 m on a densely sampled flat
+plane, reconstruct them with a 5% scale error at 0 m and 10.5 m. Nearest-
+neighbour matching returns reference points *at the reconstructed positions*,
+so the "reference length" is 10.5 m, and the method reports an error of
+**1.5e-13 m** against a real error of **0.5 m**.
+
+The reference does not have to be flat for this to bite. It has to be *dense*,
+which a 105.9 M-point LiDAR cloud emphatically is. For any reconstructed point
+there is a reference point essentially at it, so the reference distance is my
+own distance echoed back.
+
+### What I should have noticed
+
+The result was 0.031 m at 1–3 m baselines and 0.031 m at 200–400 m baselines —
+flat to three decimal places across a 130-fold range. I wrote that up as
+"endpoint noise with no detectable scale error". **A quantity that does not
+respond to its own independent variable is usually not measuring that
+variable.** It was the nearest-neighbour snap residual, which is constant by
+construction, and I had even noted it was "approaching the reference's own
+0.07 m sample spacing" without following that thought to its conclusion.
+
+### Decision
+
+The dimensional figures are **withdrawn**, not adjusted. There is no correction
+factor that rescues them, because the experiment never contained information
+about dimensional accuracy. Specifically withdrawn:
+
+- 0.088 m median / 0.261 m p90 "dimensional error on all points"
+- 0.031 m flat across 1–400 m baselines
+- "no detectable scale error"
+- "1.5× conservative" for dimensional measurement, and the table contrasting it
+  with the absolute-placement figure
+
+A valid replacement requires endpoints identified **independently in each
+cloud** — features extracted from the LiDAR by a procedure that has not seen
+our reconstruction, and vice versa — with a frozen pair manifest, seed and
+exclusions published. That is the review's Step 1 and it is the next piece of
+work, not a relabelling of this one.
+
+### Two further corrections from the same review
+
+**The planarity explanation was wrong.** DEC-036 said a Sim(3) fit through
+coplanar cameras cannot constrain the vertical. Non-collinear planar
+correspondences determine a full seven-parameter similarity: the probe shows a
+**rank-7** Jacobian and recovery to 1e-14 m. The production heuristic still
+flags the trajectory, and blocking remains the right conservative behaviour,
+but the stated *reason* was false. Planar nadir acquisition can genuinely weaken
+joint camera calibration and depth — that is a different claim, and it is the
+one that is still open.
+
+**A ratio of medians is not coverage.** The "3.2× / 0.65×" figures compare a
+median error against a median sigma, which says nothing about how often the
+interval contains the truth. The probe gives a case with a median ratio of
+**0.0** and only **60%** coverage. Coverage must be counted, not inferred.
+
+### What survives
+
+The raw surface comparison stands: median 1.360 m, RMSE 1.283 m, **+1.245 m
+vertical bias**. That used no correspondence identity — only distance to the
+nearest reference surface — and the counterexample does not touch it.
+
+Measured after the correction, and new: the bias **grows through the
+pipeline**. Cameras +0.268 m, sparse SfM-triangulated points +0.605 m, dense
+MVS points +1.250 m. Dense stereo roughly doubles what the sparse stage already
+carries, which makes it a concrete target rather than an unexplained constant.
+
+### Consequences
+
+- Three claims reached a committed record before a counterexample reached me.
+  The lesson is not "check harder" but **a result whose correspondences come
+  from the output under test cannot measure that output** — the same structural
+  error as `as_georeferenced` fitting away the offset it reported
+  ([DEC-024](#dec-024--absolute-position-error-is-reported-without-fitting-it-away)),
+  now for the third time.
+- The organiser's stated target is ≤ 1 m. The honest present position is
+  **1.283 m RMSE on one capture, compliance not demonstrated**, and no valid
+  dimensional figure at all.
+
+### Related Files
+
+`drishti3d/docs/review_2026_09_22/CRITICAL_REVIEW.md`,
+`drishti3d/docs/review_checks/measurement_validity_probe_2026_09_22.py`

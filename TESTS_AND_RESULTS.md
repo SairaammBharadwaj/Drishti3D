@@ -1160,7 +1160,15 @@ at all. **The degeneracy reaches the manifest and nothing downstream reads it**
   but is not yet a calibration.
 - Datasets 2 and 3 of UseGeo, which would make it three independent sites.
 
-## 2026-09-22 — Dimensional accuracy against LiDAR (UseGeo 1)
+## 2026-09-22 — Dimensional accuracy against LiDAR (UseGeo 1) — **WITHDRAWN**
+
+> **These figures are withdrawn. The method could not measure what it claimed.**
+> Endpoints were matched to their nearest LiDAR point, so with a dense
+> reference the "reference distance" is the reconstruction's own distance
+> echoed back. A 5% scale error scores as 1.5e-13 m under it. The flatness
+> across 1-400 m baselines was the nearest-neighbour snap residual, not
+> accuracy. See [DEC-037](DECISIONS.md). Retained below only so the withdrawal
+> is auditable; **do not quote any number in this section.**
 
 Point-to-surface distance is not what a measurement is. A measurement is a
 *distance between two points*, and a common offset cancels in one. The +1.245 m
@@ -1221,3 +1229,89 @@ misrepresents the system.
 - Correspondence is nearest-LiDAR-return, not a surveyed target. At 0.031 m the
   measurement is approaching the reference's own ~0.07 m sample spacing, so the
   best rows are near the floor of what this method can resolve.
+
+## 2026-09-22 — Dimensional accuracy, third attempt, this one validated
+
+Two methods were built and both failed. The rule they establish: **a
+correspondence located using the output under test cannot measure that output.**
+
+### Method 1 — nearest LiDAR point (withdrawn, [DEC-037](DECISIONS.md))
+
+Blind to a 5% scale error by construction against a dense reference.
+
+### Method 2 — planar patches fitted independently in each cloud (failed)
+
+Intended to remove the leakage. It did not: the reference patch is located at
+*our* patch's horizontal position, so our error moves both sides. Validated by
+injection and it failed:
+
+| injected error | pairs | median abs error | implied scale |
+|---|---:|---:|---:|
+| none (baseline) | 1,703 | 0.0448 m | −0.04% |
+| **+5% uniform scale** | 1,057 | **0.0428 m** | **+0.02%** |
+| +1% uniform scale | 1,546 | 0.0445 m | −0.01% |
+| +5% vertical only | 1,626 | 0.0458 m | −0.01% |
+| +2 m vertical shift | 1,703 | 0.0448 m | −0.04% |
+
+A 5% scale error scores *better* than no error. `scripts/score_dimensions.py`
+is retained with a do-not-use banner so the failure stays auditable.
+
+### Method 3 — camera centres paired by image filename (passes)
+
+A filename carries no geometry from the output, so the correspondence cannot
+absorb the error. **`scripts/score_camera_dimensions.py` re-runs the injection
+test on every invocation** rather than claiming validation once:
+
+| injected | detected | median abs error |
+|---|---:|---:|
+| +1.0% | **+0.967%** | 1.248 m |
+| +5.0% | **+4.966%** | 5.827 m |
+
+Result on `usegeo_1__first`, 60 cameras, 1,770 pairs, baselines 1.4–363.9 m:
+
+| | |
+|---|---:|
+| Signed median | **−0.027 m** (no length bias) |
+| Median absolute | **0.359 m** |
+| p90 absolute | 0.962 m |
+| RMSE | 0.598 m |
+| **Implied scale error** | **−0.033%** |
+
+| baseline | n | median abs | relative |
+|---|---:|---:|---:|
+| 0–25 m | 98 | 0.046 m | 0.333% |
+| 25–75 m | 471 | 0.307 m | 0.732% |
+| 75–200 m | 787 | 0.548 m | 0.406% |
+| 200–400 m | 414 | 0.420 m | 0.168% |
+
+**Scale is sound** — −0.033% over baselines to 364 m. The error is relative
+geometry within the camera network, not a scale or datum problem.
+
+**What this is not.** It measures the camera network, not scene features. The
+reference is the dataset authors' bundle adjustment, not survey, and on UseGeo
+that adjustment is partly derived from the same GNSS/INS trajectory used as our
+telemetry — so absolute agreement is not independent. Pairwise distances are
+much less affected by that sharing, which is why they are reported and the
+absolute figure is qualified.
+
+### Where the vertical bias enters
+
+Measured per stage against the LiDAR, which needs no correspondence identity:
+
+| stage | vertical bias |
+|---|---:|
+| camera centres | +0.268 m |
+| sparse SfM-triangulated points | **+0.605 m** |
+| dense MVS points | **+1.250 m** |
+
+Dense stereo roughly doubles the bias the sparse stage already carries. That
+makes MVS a concrete target rather than an unexplained constant, and it rules
+out scale (−0.033%) and datum as the cause.
+
+### NOT TESTED
+
+- Dimensional accuracy on **scene features**. No method here achieves it on
+  this dataset: the reference is a surface, not identified points, and every
+  position-based correspondence leaks. Surveyed landmarks are required.
+- Whether the reference bundle adjustment is accurate in absolute terms. It is
+  a different estimator over shared inputs, not ground truth.
