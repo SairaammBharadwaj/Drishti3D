@@ -59,7 +59,7 @@ def test_observations_are_remapped_onto_the_fused_indices():
     obs_uv = [[float(i), float(i)] for i in range(len(obs_point))]
 
     out = _remap_observations(_Recon(obs_point, obs_frame, obs_uv), c,
-                              sel=list(range(200)))
+                              decoded_of_keyframe=list(range(200)))
     assert out is not None
     # The discarded point's measurement is gone, not reassigned.
     assert len(out["point_index"]) == 40
@@ -113,6 +113,47 @@ def test_remap_ignores_inferred_rows_when_inverting():
     c2 = add_inferred_layer(c, np.array([[1.0, 1.0, 1.0]]))
     out = _remap_observations(
         _Recon([src0[5], src0[6]], [0, 1], [[0.0, 0.0], [1.0, 1.0]]), c2,
-        sel=list(range(10)))
+        decoded_of_keyframe=list(range(10)))
     assert out is not None
     assert list(out["point_index"]) == [5, 6]
+
+
+# --- keyframe index vs decoded frame index, for the fifth time -------------- #
+def test_camera_frame_index_is_decoded_not_an_analysis_position():
+    """A camera at 292 s must not be recorded as being at 16 s.
+
+    `sel` holds positions in the *analysed* frame array; the decoded video
+    frame index is `frames[i][0]`. They coincide only when every frame was
+    analysed, which is why `sel[k]` survived as a "frame index" until a long
+    video used --max-frames: there the two differ by the analysis stride.
+
+    Measured on a 5m46 clip subsampled to 1,153 of 20,751 frames: registered
+    cameras were written as frames 252..972, which reads as 4 s to 16 s. The
+    true span was 4,536..17,496 -- 76 s to 292 s.
+    """
+    stride = 18
+    # `frames` as the pipeline holds it: (decoded_index, timestamp, image).
+    frames = [(i * stride, i * stride / 60.0, None) for i in range(1153)]
+    sel = list(range(14, 55))                    # keyframes chosen from those
+    decoded_of_keyframe = [int(frames[i][0]) for i in sel]
+
+    # The bug was using sel[k] directly.
+    assert sel[0] == 14
+    assert decoded_of_keyframe[0] == 252
+    assert decoded_of_keyframe[-1] == 54 * stride
+
+    # The mapping must be strictly increasing and land inside the video.
+    assert all(b > a for a, b in zip(decoded_of_keyframe, decoded_of_keyframe[1:]))
+    assert max(decoded_of_keyframe) <= frames[-1][0]
+
+    # And it must not collapse the span, which is how the bug showed.
+    span_frames = decoded_of_keyframe[-1] - decoded_of_keyframe[0]
+    assert span_frames == (sel[-1] - sel[0]) * stride
+    assert span_frames > (sel[-1] - sel[0])      # strictly wider than positions
+
+
+def test_identity_when_every_frame_was_analysed():
+    """The case that hid the bug: no subsampling, so the spaces coincide."""
+    frames = [(i, i / 30.0, None) for i in range(60)]
+    sel = list(range(60))
+    assert [int(frames[i][0]) for i in sel] == sel

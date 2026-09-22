@@ -278,6 +278,17 @@ def run(project_dir, video_path, telemetry_path, *,
             sel, timeline = kf.select(frames, metrics, preset=params.preset,
                                       gps_enu=gps_enu_all)
         kf_frames = [frames[i][2] for i in sel]
+        # Keyframe index -> decoded video frame index, built once and named for
+        # what it is. `sel` holds positions in the *analysed* array, and
+        # `frames[i][0]` is the decoded index of that analysed frame. The two
+        # coincide only when every frame was analysed, which is why writing
+        # `sel[k]` as a frame index survived every mission until one used
+        # `--max-frames` on a long video: there `sel[k]` is off by the analysis
+        # stride, and a camera at 292 s was recorded as being at 16 s.
+        #
+        # Fifth time these two numbering schemes have had to be separated by
+        # hand (DEC-009, DEC-015, DEC-020, DEC-025).
+        decoded_of_keyframe = [int(frames[i][0]) for i in sel]
         kf_gps = gps_enu_all[sel] if gps_enu_all is not None else None
         kf_acc = [synced[i].gps_accuracy for i in sel] if synced is not None else None
         _emit(progress, "keyframes", 1.0, f"{len(sel)} keyframes")
@@ -759,12 +770,12 @@ def run(project_dir, video_path, telemetry_path, *,
         # under every camera, so the stored rotation is R_cam @ R_world^T --
         # the same composition the coverage grid uses. Exporting the raw R
         # would point every camera in the wrong direction downstream.
-        cameras_enu = [{"frame_index": int(sel[c.frame_index]),
+        cameras_enu = [{"frame_index": int(decoded_of_keyframe[c.frame_index]),
                         "C": list(map(float, ce)),
                         "R": (np.asarray(c.R, float)
                               @ R_world_for_cov.T).tolist()}
                        for c, ce in zip(recon.cameras, cams_enu)]
-        observations = _remap_observations(recon, cloud, sel,
+        observations = _remap_observations(recon, cloud, decoded_of_keyframe,
                                            n_sparse=len(recon.points),
                                            dense_vis=mvs_vis,
                                            dense_points=mvs_enu,
@@ -1042,8 +1053,9 @@ def _dense_observations(recon, cloud, n_sparse, dense_vis,
             np.asarray(uv, np.float32))
 
 
-def _remap_observations(recon, cloud, sel, *, n_sparse=None, dense_vis=None,
-                        dense_points=None, voxel=None, cameras_enu=None):
+def _remap_observations(recon, cloud, decoded_of_keyframe, *, n_sparse=None,
+                        dense_vis=None, dense_points=None, voxel=None,
+                        cameras_enu=None):
     """Re-express the reconstruction's observation lineage onto the fused cloud.
 
     The lineage `sfm`/`colmap_adapter` produce indexes the *pre-fusion* point
@@ -1084,15 +1096,15 @@ def _remap_observations(recon, cloud, sel, *, n_sparse=None, dense_vis=None,
     # Dense points carry their own tracks, already in fused-cloud indices and
     # in frame numbers rather than keyframe indices.
     dense_rows = (_dense_observations(recon, cloud, n_sparse, dense_vis,
-                                      dense_points, voxel, cameras_enu, sel)
+                                      dense_points, voxel, cameras_enu, decoded_of_keyframe)
                   if dense_vis is not None else None)
     if dense_rows is None and len(pts_out) == 0:
         return None
     # Two frame numberings exist and confusing them silently mislabels every
     # piece of evidence: `obs_frame` is the keyframe index the solver used,
-    # while `sel` maps that to the decoded frame index the operator and the
+    # while `decoded_of_keyframe` maps that to the decoded frame index the operator
     # mission's frame_index.csv speak in. Both are stored.
-    sel_arr = np.asarray(sel, np.int32)
+    sel_arr = np.asarray(decoded_of_keyframe, np.int32)
     decoded = np.where(kf < len(sel_arr), sel_arr[np.clip(kf, 0, len(sel_arr) - 1)],
                        -1).astype(np.int32)
     # Sparse and dense rows are not the same kind of record and must not be

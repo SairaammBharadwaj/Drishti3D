@@ -3067,3 +3067,91 @@ remaining error is in the georeference, not the geometry.
 `drishti3d/reconstruction/drishti_recon/colmap_adapter.py`,
 `drishti3d/scripts/score_camera_dimensions.py`,
 `drishti3d/data/runs/usegeo_1__fixedcal/`
+
+---
+
+## DEC-039 — Sequential matching cannot close a loop, and a frame index that was never decoded
+
+**Date:** 2026-09-22
+
+**Status:** Accepted
+
+### Context
+
+The first native-video benchmark — 5 min 46 s of 1080p footage orbiting a
+church, 20,751 frames — registered **20 of 55 keyframes (36%)**. Analysing five
+times as many frames did not move that number at all, which is the clue: the
+missing information was not frames.
+
+### Finding 1 — a fragmented match graph
+
+COLMAP restarted from a fresh initial pair **44 times**, building a scatter of
+disconnected four-to-six image submaps of which the largest was kept.
+
+The adapter matched **sequentially**, comparing each image only with its
+neighbours in capture order, justified by a comment: *"sequential matching is
+far lighter than exhaustive on CPU."* That is correct for hundreds of images
+and wrong here for two reasons. The flight is a **circuit**: when it returns
+near where it began, the pair that would close the loop is never attempted. And
+at 55 keyframes, exhaustive is **1,485 pairs** — seconds.
+
+The matcher is now chosen by image count, exhaustive at or below 200 images.
+Exhaustive is a superset of the sequential pairs, so a straight pass like AGZ
+or UseGeo loses nothing by it.
+
+| | sequential | **exhaustive** |
+|---|---:|---:|
+| COLMAP restarts | 44 | **3** |
+| Registered | 20 / 55 (36%) | **37 / 55 (67%)** |
+| Sparse points | 14,759 | **23,814** |
+| Processing ratio | 1.44× | 2.35× |
+
+Registration nearly doubled. Runtime went **over** the 1.5× budget, because
+densification now has 37 cameras to work through instead of 20. Both are true
+and the second is not a regression to hide: a faster reconstruction of a third
+of the flight was not the cheaper option, it was the wrong one.
+
+### Finding 2 — the fifth occurrence of the index confusion
+
+Investigating the remaining failures, the registered cameras appeared to span
+frames 252–972, which reads as **4 s to 16 s** of a 346 s flight. That would
+have been a far worse finding than 67% registration, and it was wrong.
+
+`cameras_enu` was written as `sel[c.frame_index]`. `sel` holds positions in the
+**analysed** frame array; the decoded video frame index is `frames[i][0]`. The
+two coincide **only when every frame was analysed** — which every previous
+mission did, because none had used `--max-frames` on a long video. Here 1,153
+frames were analysed out of 20,751, so the two spaces differ by the stride of
+18, and a camera at 292 s was recorded as being at 16 s.
+
+The true span is **4,536–17,496 — 76 s to 292 s**, covering 216 s of the 346 s
+flight.
+
+The same `sel` was passed to `_remap_observations` and used as a decoded index
+there too, so every observation's `frame_index` carried the same error.
+
+### Decision
+
+One array, built where `sel` is built and named for what it is:
+`decoded_of_keyframe = [frames[i][0] for i in sel]`. It replaces `sel` at both
+call sites and in `_remap_observations`, whose parameter is renamed to match so
+the next reader cannot repeat the substitution.
+
+### Consequences
+
+- **Fifth time these two numbering schemes have had to be separated by hand**
+  ([DEC-009](#dec-009), [DEC-015](#dec-015), [DEC-020](#dec-020),
+  [DEC-025](#dec-025)). The previous four were caught by a wrong result; this
+  one was caught by a result that was wrong in a *believable* direction, which
+  is worse. A regression test now pins the subsampled case specifically, since
+  the identity case is what hid it for five missions.
+- Every earlier mission is unaffected: all analysed every frame, so
+  `sel[k] == frames[k][0]` held and the stored indices were right by accident.
+- 67% is better, not good. The remaining third is not explained, and no
+  calibration exists for this footage — `focal = 0.9 × max(w, h)` is a guess,
+  and [DEC-038](#dec-038) measured what a 1.45% focal error costs.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/colmap_adapter.py`, `pipeline.py`,
+`drishti3d/tests/test_lineage.py`

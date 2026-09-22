@@ -100,6 +100,12 @@ def _point_uncertainty(points, cam_list, K, obs_point, obs_frame, obs_uv):
         return None, None, f"{type(exc).__name__}: {exc}"
 
 
+#: Below this many images, every pair is matched. n(n-1)/2 at 200 images is
+#: 19,900 pairs, which is minutes; above it the quadratic cost stops being
+#: worth paying and capture order is used instead.
+EXHAUSTIVE_MATCH_MAX_IMAGES = 200
+
+
 def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
                        keep_workspace=None):
     """Run COLMAP on in-memory BGR frames and return a ``sfm.ReconResult``.
@@ -212,15 +218,39 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
         except TypeError:
             pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode)
         _p("colmap: matching", 0.35)
-        # sequential matching is far lighter than exhaustive on CPU
+        # Sequential matching only compares each image with its neighbours in
+        # capture order. That is ideal for a straight pass and wrong for a
+        # circuit: when the flight returns near where it began, the pair that
+        # would close the loop is never attempted, the match graph comes apart,
+        # and the mapper builds a scatter of small disconnected submaps.
+        #
+        # Measured on a 5m46 orbit of a church: 55 keyframes, sequential
+        # matching, COLMAP restarted from a fresh initial pair **44 times** and
+        # the largest surviving submap held 20 images -- 36% registered, and
+        # analysing five times as many frames did not change that number,
+        # because the missing information was the connections, not the frames.
+        #
+        # Exhaustive matching on 55 images is 1,485 pairs. The comment this
+        # replaces was right that exhaustive is heavier -- it is O(n^2) -- but
+        # at these counts that is seconds, and it is a superset of the
+        # sequential pairs, so a straight pass loses nothing by it either.
+        n_images = len(frames)
+        exhaustive = n_images <= EXHAUSTIVE_MATCH_MAX_IMAGES
+        _p(f"colmap: matching ({'exhaustive' if exhaustive else 'sequential'}, "
+           f"{n_images} images)", 0.35)
         try:
             mopt = _with_threads(lambda: pycolmap.FeatureMatchingOptions() if modern
                                   else pycolmap.SequentialMatchingOptions())
-            pycolmap.match_sequential(str(db), matching_options=mopt) if mopt else \
-                pycolmap.match_sequential(str(db))
+            if exhaustive:
+                pycolmap.match_exhaustive(str(db), matching_options=mopt) if mopt else \
+                    pycolmap.match_exhaustive(str(db))
+            else:
+                pycolmap.match_sequential(str(db), matching_options=mopt) if mopt else \
+                    pycolmap.match_sequential(str(db))
         except Exception:
             try:
-                pycolmap.match_sequential(str(db))
+                pycolmap.match_exhaustive(str(db)) if exhaustive else \
+                    pycolmap.match_sequential(str(db))
             except Exception:
                 pycolmap.match_exhaustive(str(db))
         _p("colmap: mapping", 0.6)
