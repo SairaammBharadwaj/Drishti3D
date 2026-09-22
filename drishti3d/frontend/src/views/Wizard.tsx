@@ -1,9 +1,12 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, type Project } from '../api'
 
 export default function Wizard() {
   const nav = useNavigate()
+  const [params, setParams] = useSearchParams()
+  const resumeId = params.get('project')
+  const [resuming, setResuming] = useState(Boolean(resumeId))
   const [step, setStep] = useState(0)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -19,6 +22,26 @@ export default function Wizard() {
   const [useIntr, setUseIntr] = useState(false)
   const [intr, setIntr] = useState({ fx: '', fy: '', cx: '', cy: '' })
 
+  useEffect(() => {
+    if (resumeId) return
+    setProject(null); setName(''); setDescription(''); setStep(0); setErr(null)
+    setResuming(false); setUseIntr(false); setIntr({ fx: '', fy: '', cx: '', cy: '' })
+    setPreset('balanced'); setMaskBackend('none'); setDoMesh(true); setDensify('none')
+  }, [resumeId])
+
+  useEffect(() => {
+    if (!resumeId || project?.id === resumeId) return
+    let cancelled = false
+    setResuming(true)
+    api.getProject(resumeId).then(p => {
+      if (cancelled) return
+      if (p.status !== 'created') { nav(`/projects/${p.id}/demo`, { replace: true }); return }
+      setProject(p); setName(p.name); setDescription(p.description); setStep(p.has_video ? 2 : 1)
+      if (p.intrinsics) { setUseIntr(true); setIntr({ fx: String(p.intrinsics.fx), fy: String(p.intrinsics.fy), cx: String(p.intrinsics.cx), cy: String(p.intrinsics.cy) }) }
+    }).catch(e => { if (!cancelled) setErr(String(e)) }).finally(() => { if (!cancelled) setResuming(false) })
+    return () => { cancelled = true }
+  }, [resumeId, project?.id, nav])
+
   const wrap = async (fn: () => Promise<void>) => {
     setBusy(true); setErr(null)
     try { await fn() } catch (e) { setErr(String(e)) } finally { setBusy(false) }
@@ -26,7 +49,7 @@ export default function Wizard() {
 
   const createProject = () => wrap(async () => {
     const p = await api.createProject(name.trim(), description.trim())
-    setProject(p); setStep(1)
+    setProject(p); setStep(1); setParams({ project: p.id }, { replace: true })
   })
 
   const onVideo = (f: File | undefined) => f && project && wrap(async () => {
@@ -51,28 +74,24 @@ export default function Wizard() {
   const canProcess = project?.has_video
 
   return (
-    <div className="container" style={{ maxWidth: 720 }}>
-      <h1>New Reconstruction</h1>
-      <div className="row" style={{ margin: '10px 0 18px' }}>
-        {['Mission', 'Video', 'Telemetry (optional)', 'Camera & options'].map((s, i) => (
-          <span key={s} className="pill" style={{
-            color: i === step ? 'var(--accent)' : i < step ? 'var(--green)' : 'var(--muted)',
-            borderColor: i === step ? 'var(--accent)' : 'var(--border)',
-          }}>{i + 1}. {s}</span>
-        ))}
-      </div>
+    <div className="wizard-page">
+      <div className="page-heading"><div><div className="eyebrow">CAPTURE → RECONSTRUCTION</div><h1>A new perspective.</h1><p>{project ? project.name : 'Set up your mission. Let the footage do the talking.'}</p></div><Link className="text-action" to="/missions">← Mission library</Link></div>
+      <div className="wizard-layout"><aside className="wizard-aside"><ol className="wizard-steps">{['Your mission', 'Drone footage', 'Telemetry', 'Camera & options'].map((s, i) => <li key={s} aria-current={i === step ? 'step' : undefined}><span>{i < step ? '✓' : `0${i + 1}`}</span>{s}</li>)}</ol><p>Start with one continuous pass.<br />Clear overlap and different viewpoints help the reconstruction recover useful geometry.</p><p>Without telemetry, your model has relative scale. Geographic position and distances in metres are not established.</p></aside><div className="wizard-form">
 
-      {err && <div className="notebox warn" style={{ marginBottom: 14 }}>{err}</div>}
+      {err && <div className="notebox warn" role="alert" style={{ marginBottom: 14 }}>{err}</div>}
+      {resuming && <p role="status">Opening your saved mission…</p>}
+      {busy && <p role="status">Saving your mission… Please keep this page open.</p>}
+      <fieldset disabled={busy || resuming || Boolean(resumeId && !project)} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
 
       {step === 0 && (
         <div className="card stack">
           <div>
-            <label>Mission name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sector 7 damage survey" style={{ width: '100%' }} />
+            <label htmlFor="mission-name">Mission name</label>
+            <input id="mission-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sector 7 damage survey" style={{ width: '100%' }} />
           </div>
           <div>
-            <label>Description (optional)</label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} style={{ width: '100%' }} />
+            <label htmlFor="mission-description">Description (optional)</label>
+            <input id="mission-description" value={description} onChange={(e) => setDescription(e.target.value)} style={{ width: '100%' }} />
           </div>
           <div className="row">
             <button className="primary" disabled={!name.trim() || busy} onClick={createProject}>Create & continue →</button>
@@ -87,7 +106,7 @@ export default function Wizard() {
           <div className="muted">Supported: MP4, MOV, M4V, AVI, MKV, WebM.</div>
           {project.video_filename && <div className="notebox">Uploaded: <span className="mono">{project.video_filename}</span></div>}
           <div className="row">
-            <button onClick={() => setStep(0)}>← Back</button>
+            <Link className="text-action" to="/missions">← Save & leave</Link>
             <button className="primary" disabled={!project.has_video || busy} onClick={() => setStep(2)}>Next →</button>
           </div>
         </div>
@@ -100,7 +119,7 @@ export default function Wizard() {
             If supplied, required fields are timestamp, latitude, longitude, altitude. Optional: yaw, gps_accuracy, rtk_status, fx/fy/cx/cy.
           </div>
           <div className="notebox">No telemetry? Continue with video only. The reconstruction will have relative scale, without established distances in metres or a geographic position.</div>
-          <input type="file" accept=".csv,.json,.srt" onChange={(e) => onTelemetry(e.target.files?.[0])} />
+          <input type="file" aria-label="Upload telemetry" accept=".csv,.json,.srt" onChange={(e) => onTelemetry(e.target.files?.[0])} />
           {project.telemetry_filename && <div className="notebox">Uploaded: <span className="mono">{project.telemetry_filename}</span></div>}
           <div className="row">
             <button onClick={() => setStep(1)}>← Back</button>
@@ -112,13 +131,13 @@ export default function Wizard() {
       {step === 3 && project && (
         <div className="card stack">
           <h3>Camera intrinsics (optional)</h3>
-          <label className="checkline"><input type="checkbox" checked={useIntr} onChange={(e) => setUseIntr(e.target.checked)} /> Provide fx, fy, cx, cy (improves metric accuracy)</label>
+          <label className="checkline"><input type="checkbox" checked={useIntr} onChange={(e) => setUseIntr(e.target.checked)} /> Provide camera calibration (fx, fy, cx, cy)</label>
           {useIntr && (
             <div className="row">
               {(['fx', 'fy', 'cx', 'cy'] as const).map((k) => (
                 <div key={k}>
-                  <label>{k}</label>
-                  <input style={{ width: 100 }} value={intr[k]} onChange={(e) => setIntr({ ...intr, [k]: e.target.value })} />
+                  <label htmlFor={`intr-${k}`}>{k}</label>
+                  <input id={`intr-${k}`} inputMode="decimal" style={{ width: 100 }} value={intr[k]} onChange={(e) => setIntr({ ...intr, [k]: e.target.value })} />
                 </div>
               ))}
             </div>
@@ -126,24 +145,24 @@ export default function Wizard() {
           <h3 style={{ marginTop: 12 }}>Processing options</h3>
           <div className="row">
             <div>
-              <label>Preset</label>
-              <select value={preset} onChange={(e) => setPreset(e.target.value)}>
+              <label htmlFor="preset">Preset</label>
+              <select id="preset" value={preset} onChange={(e) => setPreset(e.target.value)}>
                 <option value="fast">fast</option>
                 <option value="balanced">balanced</option>
                 <option value="quality">quality</option>
               </select>
             </div>
             <div>
-              <label>Dynamic masking</label>
-              <select value={maskBackend} onChange={(e) => setMaskBackend(e.target.value)}>
+              <label htmlFor="masking">Dynamic masking</label>
+              <select id="masking" value={maskBackend} onChange={(e) => setMaskBackend(e.target.value)}>
                 <option value="none">none</option>
                 <option value="optical_flow">optical-flow residual</option>
                 <option value="semantic">semantic (torch)</option>
               </select>
             </div>
             <div>
-              <label>Densification</label>
-              <select value={densify} onChange={(e) => setDensify(e.target.value)}>
+              <label htmlFor="densification">Densification</label>
+              <select id="densification" value={densify} onChange={(e) => setDensify(e.target.value)}>
                 <option value="none">classical only (sparse)</option>
                 <option value="depth">depth prior (dense, AI-assisted)</option>
               </select>
@@ -167,6 +186,7 @@ export default function Wizard() {
           {!canProcess && <div className="muted">Upload a video to proceed.</div>}
         </div>
       )}
+      </fieldset></div></div>
     </div>
   )
 }

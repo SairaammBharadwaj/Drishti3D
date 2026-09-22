@@ -96,7 +96,7 @@ export default function Presentation() {
 
   return <div className={`presentation ${phase === 'results' ? 'showing-results' : ''}`} ref={root}>
     <div className="demo-toolbar">
-      <Link to="/">← Missions</Link>
+      <Link to="/missions">← Missions</Link>
       <label className="demo-select">Capture <select aria-label="Choose capture" value={id ?? ''} onChange={e => nav(e.target.value ? `/projects/${e.target.value}/demo` : '/demo')}>
         <option value="">Select a mission</option>
         {projects.filter(p => p.has_video).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}

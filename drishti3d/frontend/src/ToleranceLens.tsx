@@ -145,11 +145,14 @@ function Card({ q, projectId, onChanged, onDelete }: {
 
       <div className="row" style={{ marginTop: 10 }}>
         <button onClick={loadEvidence}>{showEvidence ? 'Hide evidence' : 'Show evidence'}</button>
-        <button className="primary" disabled={refining} onClick={improve}>
-          {refining ? 'Improving…' : 'Improve this measurement'}
+        <button className="primary" disabled={refining} onClick={improve} aria-describedby={`refinement-help-${q.id}`}>
+          {refining ? 'Checking more frames…' : 'Try targeted refinement'}
         </button>
         <button onClick={() => onDelete(q.id)}>Delete</button>
       </div>
+      <p id={`refinement-help-${q.id}`} className="muted" style={{ fontSize: 11, lineHeight: 1.6 }}>
+        Checks additional frames for this measurement. Extra processing may improve its support; a better result is not guaranteed.
+      </p>
 
       {err && <div className="warn" style={{ fontSize: 12 }}>⚠ {err}</div>}
 

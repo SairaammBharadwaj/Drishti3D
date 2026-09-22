@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js'
 import { PROVENANCE, type ModelPayload, type Vec3 } from './api'
@@ -18,6 +18,7 @@ interface Props {
 
 export default function PointCloudViewer(props: Props) {
   const mountRef = useRef<HTMLDivElement>(null)
+  const [unavailable, setUnavailable] = useState(false)
   const ctx = useRef<{
     renderer: THREE.WebGLRenderer
     scene: THREE.Scene
@@ -40,7 +41,14 @@ export default function PointCloudViewer(props: Props) {
     const w = mount.clientWidth || 800
     const h = mount.clientHeight || 600
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    let renderer: THREE.WebGLRenderer
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true })
+      setUnavailable(false)
+    } catch {
+      setUnavailable(true)
+      return
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setSize(w, h)
     renderer.setClearColor(0x05080b, 1)
@@ -259,5 +267,7 @@ export default function PointCloudViewer(props: Props) {
     return () => { el.removeEventListener('pointermove', onMove); el.removeEventListener('pointerdown', onClick) }
   }, [props.picking, props.onPick, props.onHover])
 
-  return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+  return <div ref={mountRef} style={{ width: '100%', height: '100%' }}>
+    {unavailable && <div className="viewer-unavailable" role="status"><strong>3D rendering is unavailable in this browser.</strong><p>Enable graphics acceleration or use a browser with WebGL support. Your quality report and saved measurements are still available.</p></div>}
+  </div>
 }

@@ -76,10 +76,12 @@ export default function Workspace() {
   const hoverLL = hover && model ? enuToLatLon(model.frame, hover[0], hover[1]) : null
   const canFinish = kind != null && pts.length >= KIND_MIN[kind]
 
-  if (err && !model) return <div className="container"><div className="notebox warn">{err}</div><Link to="/">← Missions</Link></div>
+  if (err && !model) return <div className="container"><div className="notebox warn">{err}</div><Link to="/missions">← Missions</Link></div>
   if (!model) return <div className="container"><div className="muted">Loading reconstruction…</div></div>
 
   return (
+    <div className="analysis-page">
+    <header className="analysis-header"><div className="row"><Link to="/missions">← Missions</Link><span className="muted">/</span><h1>Analysis workspace</h1></div><div className="row"><span className="eyebrow">INSPECT · MEASURE · UNDERSTAND</span><Link to={`/projects/${id}/demo`}>Present ↗</Link></div></header>
     <div className="workspace">
       {/* LEFT: tools + layers */}
       <aside className="wpanel">
@@ -128,10 +130,10 @@ export default function Workspace() {
         </div>
         <label className="checkline" style={{ marginTop: 8 }}>
           <input type="checkbox" checked={splat} onChange={(e) => setSplat(e.target.checked)} />
-          <span style={{ flex: 1 }}>Splat surface (photorealistic)</span>
+          <span style={{ flex: 1 }}>Soft point rendering</span>
         </label>
-        <label>Point size: {pointSize.toFixed(1)}×</label>
-        <input className="slider" type="range" min={0.3} max={4} step={0.1} value={pointSize} onChange={(e) => setPointSize(+e.target.value)} />
+        <label htmlFor="point-size">Point size: {pointSize.toFixed(1)}×</label>
+        <input id="point-size" className="slider" type="range" min={0.3} max={4} step={0.1} value={pointSize} onChange={(e) => setPointSize(+e.target.value)} />
 
         <h3 style={{ marginTop: 18 }}>Provenance layers</h3>
         {PROVENANCE.map((p) => {
@@ -224,6 +226,7 @@ export default function Workspace() {
         </div>
         {err && <div className="notebox warn" style={{ marginTop: 10, fontSize: 12 }}>{err}</div>}
       </aside>
+    </div>
     </div>
   )
 }
