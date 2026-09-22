@@ -1068,3 +1068,94 @@ boundary are not stable across rebuilds of the same flight.**
 
 Whether any of these intervals covers a true dimension. All 52 questions across
 both projects still report `interval_not_calibrated`.
+
+## 2026-09-22 — UseGeo dataset 1 scored against LiDAR (first independent check)
+
+**The first accuracy measurement in this project against an instrument that is
+not photogrammetry.** RIEGL miniVUX-3UAV reference, 105.9 M points; 60-frame
+contiguous subset of UseGeo dataset 1; COLMAP + dense MVS.
+
+### Reconstruction
+
+| | |
+|---|---:|
+| Frames registered | 60 / 60 |
+| Dense points (pre-fusion / cloud) | 2,740,959 / 2,138,943 |
+| Median point spacing | 0.129 m |
+| Median reprojection error | 0.271 px |
+| Points with finite sigma | 2,138,943 (100%) |
+| Reported sigma p10 / median / p90 | 0.076 / 0.093 / 0.174 m |
+
+### Accuracy against the LiDAR
+
+| | |
+|---|---:|
+| Raw point-to-surface error, median | **1.360 m** (p90 1.640) |
+| Systematic offset: East / North | −0.004 m / −0.005 m |
+| Systematic offset: **Up** | **+1.245 m** |
+| After removing that offset, median | **0.299 m** (p90 0.466, p99 0.664) |
+| Unmatched (>5 m from any return) | 0.02% |
+
+By LiDAR classification — the bias is the same on both, so it is **not** a
+photogrammetry-above-canopy effect:
+
+| Reference class | points | vertical offset | debiased median |
+|---|---:|---:|---:|
+| unclassified / hard surface | 78.3 M | +1.267 m | 0.291 m |
+| medium vegetation | 7.3 M | +1.166 m | 0.308 m |
+
+### Camera positions against the authors' adjusted poses
+
+| axis | median | std |
+|---|---:|---:|
+| East | −0.109 m | 0.324 |
+| North | −0.070 m | 0.380 |
+| Up | +0.268 m | 0.055 |
+| **3D median** | **0.532 m** | |
+
+Cameras are placed well. The ground 80 m below them is not — the surface bias
+is over four times the camera bias, so this is not a camera-placement error.
+
+### Interval check — the number this dataset was downloaded for
+
+| | |
+|---|---:|
+| Median predicted sigma | 0.093 m |
+| Median actual error (raw) | 1.360 m → **14.7× too optimistic** |
+| Median actual error (debiased) | 0.299 m → **3.2× too optimistic** |
+| **Coverage at 1.96 sigma** | **4.6%** (nominal 95%) |
+
+### Completeness
+
+Reference points inside the reconstruction's own horizontal convex hull, after
+removing the bias (114,891 points):
+
+| within | |
+|---|---:|
+| 0.10 m | 1.4% |
+| 0.25 m | 13.3% |
+| 0.50 m | 66.0% |
+| 1.00 m | 87.7% |
+| median | 0.420 m |
+
+### Cause
+
+The run's own manifest recorded it before anyone looked:
+`degenerate: true`, `degeneracy: "planar trajectory (out-of-plane geometry is
+weakly constrained)"`, `alignment_rmse_vertical_m: 0.057`.
+
+A constant-altitude nadir survey. The Sim(3) fit places cameras in a plane onto
+a plane with 5.7 cm vertical RMSE and constrains the ground beneath them barely
+at all. **The degeneracy reaches the manifest and nothing downstream reads it**
+— no uncertainty widens, no measurement is refused. See
+[DEC-036](DECISIONS.md).
+
+### NOT TESTED
+
+- Whether the bias persists on a non-planar flight. AGZ varies 449–474 m in
+  altitude and shows nothing like it, which is consistent with the diagnosis
+  but is not a controlled test.
+- Dimensional accuracy. This is point-to-surface distance, not a measured
+  length between identified features, so it constrains the uncertainty model
+  but is not yet a calibration.
+- Datasets 2 and 3 of UseGeo, which would make it three independent sites.

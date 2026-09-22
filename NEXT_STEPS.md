@@ -82,6 +82,33 @@ All 15 audit checks pass; 431 tests pass, up from 422.
 closed because the service existed and one route used it. Writing a decision
 record is not evidence the decision was applied everywhere.
 
+### New P0 from the first independent check (2026-09-22)
+
+**A planar flight leaves the vertical unconstrained, the system detects it, and
+nothing downstream acts on it.** Scoring UseGeo dataset 1 against its LiDAR
+found a **+1.245 m systematic vertical bias** while the reconstruction reported
+a 0.093 m sigma — interval coverage of **4.6%** against a nominal 95%
+([DEC-036](DECISIONS.md)).
+
+`alignment.degenerate` and `alignment.degeneracy` already reach the manifest.
+Nothing reads them. The fix needs designing rather than patching:
+
+1. **Uncertainty has to carry direction.** A scalar sigma per point cannot
+   express "well constrained horizontally, poorly constrained vertically",
+   which is exactly this capture's condition. The covariance machinery in
+   `uncertainty.py` already handles 3x3; the dense path collapses it to a
+   scalar.
+2. **A degenerate alignment needs a blocking acceptance reason**, in the way
+   `view_geometry_unverified` blocks an unverified support count. A measurement
+   whose out-of-plane component is unconstrained must not be accepted on the
+   strength of a well-fitted camera plane.
+3. **The alignment RMSE must stop being read as accuracy.** The report already
+   says it is not; the 5.7 cm vertical RMSE on this run is the counterexample
+   that proves it.
+
+This matters more than AGZ suggested: a constant-altitude nadir survey is the
+*more* common commercial pattern, and it is the one that breaks.
+
 ### Still open at P0
 
 **The corrected numbers are not validated numbers.** C04 makes dense

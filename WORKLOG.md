@@ -2355,3 +2355,61 @@ a refinement, so opening it showed the old frames beside the new value. It now
 clears on refinement and on a tolerance change that re-measured.
 
 441 tests pass, 15/15 audit checks pass, production frontend build passes.
+
+## 2026-09-22 — UseGeo arrives and immediately finds a 1.25 m bias
+
+Downloaded 60 contiguous frames of UseGeo dataset 1 plus its LiDAR reference,
+built a mission, reconstructed it, and scored the dense cloud against the
+RIEGL cloud. All 60 frames registered; 2,138,943 dense points at 0.129 m
+spacing; 0.271 px median reprojection error.
+
+Then the first accuracy number this project has ever had against an instrument
+that is not photogrammetry: **median error 1.360 m**.
+
+Almost all of it is one number. Horizontally the bias is under a centimetre
+(−0.004 m E, −0.005 m N). Vertically it is **+1.245 m**. Remove that single
+offset and the residual is 0.299 m.
+
+I checked the obvious explanations and both fail. It is not vegetation: split
+by LiDAR classification the offset is +1.267 m over 78.3 M unclassified points
+and +1.166 m over 7.3 M classified medium vegetation — the same on hard surface
+and canopy. It is not camera placement: our camera centres sit 0.53 m from the
+authors' adjusted poses in 3D with only +0.27 m of vertical bias, a quarter of
+the surface error.
+
+The run's own manifest had already said why:
+
+    degenerate: true
+    degeneracy: planar trajectory (out-of-plane geometry is weakly constrained)
+    alignment_rmse_vertical_m: 0.057
+
+A constant-altitude nadir survey. The Sim(3) fit places cameras that lie in a
+plane onto a plane with 5.7 cm vertical RMSE and constrains the ground 80 m
+beneath them barely at all. The quality report's own warning — "alignment
+residual is NOT independent accuracy; it measures consistency between
+reconstructed camera centres and GPS" — turns out to be exactly, expensively
+right.
+
+**The system detected the degeneracy, wrote it to the manifest, and then
+nothing read it.** No uncertainty widened. No measurement was refused. It
+reported 0.093 m sigma on geometry that was 1.25 m out: interval coverage of
+**4.6%** against a nominal 95%, the first coverage figure in the project's
+history and a bad one.
+
+I am quoting both ratios — 14.7× too optimistic raw, 3.2× debiased — because
+the debiased number alone would hide precisely the failure this download
+existed to find. That is the mistake DEC-024 caught in `as_georeferenced` nine
+decisions ago and it would be poor to repeat it in the same week.
+
+AGZ never showed any of this, because its flight varies 449–474 m in altitude.
+A flat nadir survey is the more common commercial pattern, so the degeneracy
+matters more in practice than the dataset we had been testing on.
+
+Three smaller things fixed on the way. My `score_against_lidar.py` docstring
+promised footprint-limited completeness and the code sampled the whole cropped
+box, reporting a 24 m mean — it was measuring the flight plan, not the
+reconstruction; it uses the convex hull now. The scorer also reported only the
+debiased error at first, which is the DEC-024 mistake again, and now reports
+the offset itself. And the mission builder's `read_intrinsics` claimed in its
+docstring to convert the principal point while returning raw columns, including
+a negative y0.

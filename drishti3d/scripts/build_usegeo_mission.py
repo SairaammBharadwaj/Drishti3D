@@ -162,12 +162,20 @@ def sample_trajectory(traj: np.ndarray, t: float) -> tuple[float, float, float]:
     return tuple(traj[i - 1, :3] * (1 - w) + traj[i, :3] * w)
 
 
-def read_intrinsics(path: Path) -> dict | None:
-    """Focal length and principal point, in pixels, from the orientation file.
+def read_intrinsics(path: Path, size: tuple[int, int] | None = None) -> dict | None:
+    """Calibration from the orientation file, in OpenCV convention.
 
-    The header names them `c`, `x0`, `y0`. `y0` is negative because the file
-    measures it downward from the image centre, so it is converted to a
-    top-left origin here rather than passed through to be misread later.
+    The file's header names the columns `c`, `x0`, `y0`: focal length and
+    principal point in pixels. `y0` is **negative** (-2601.56 against an image
+    5279 px tall) because the file measures it in a y-up system, while
+    everything downstream of here uses y-down from the top-left corner. The
+    magnitudes confirm the reading -- |x0| and |y0| both land within tens of
+    pixels of the image centre, which is where a principal point belongs and
+    where no other interpretation puts them.
+
+    Returned as fx/fy/cx/cy so it can be handed to the pipeline directly. An
+    earlier version of this function returned the raw columns while its
+    docstring claimed to convert them, which is worse than doing neither.
     """
     lines = [l for l in path.read_text().splitlines() if l.strip()]
     if len(lines) < 2:
@@ -176,7 +184,20 @@ def read_intrinsics(path: Path) -> dict | None:
     if len(f) < 10:
         return None
     c, x0, y0 = float(f[7]), float(f[8]), float(f[9])
-    return {"focal_px": c, "x0_px": x0, "y0_px": y0}
+    out = {"fx": c, "fy": c, "cx": abs(x0), "cy": abs(y0), "model": "PINHOLE",
+           "distortion": [],            # the images are already undistorted
+           "raw_columns": {"c": c, "x0": x0, "y0": y0}}
+    if size:
+        out["source_width"], out["source_height"] = size
+        out["offset_from_centre_px"] = [round(out["cx"] - size[0] / 2, 1),
+                                        round(out["cy"] - size[1] / 2, 1)]
+    return out
+
+
+def image_size(path: Path) -> tuple[int, int]:
+    from PIL import Image
+    with Image.open(path) as im:
+        return im.size
 
 
 def sha256(path: Path) -> str:
@@ -247,13 +268,25 @@ def build(source: Path, name: str, *, overwrite: bool, crf: int,
         # repeated; the encode is then cut back to the true frame count.
         fh.write(f"file '{frames[-1].path.resolve()}'\n")
 
+    # UseGeo's images are 7953 x 5279 -- both odd, despite the README saying
+    # 7952 x 5304 -- and libx264 with yuv420p requires even dimensions. The
+    # crop is anchored at (0, 0) rather than centred, because the principal
+    # point in the orientation file is measured from the top-left: cropping
+    # from the origin leaves it valid, and cropping centred would shift it by
+    # half a pixel in each axis with nothing downstream able to tell.
+    src_w, src_h = image_size(frames[0].path)
+    enc_w, enc_h = src_w - (src_w % 2), src_h - (src_h % 2)
     video = mission / "raw" / "video.mp4"
-    subprocess.run(
-        ["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0",
-         "-i", str(concat), "-fps_mode", "vfr", "-frames:v", str(len(frames)),
-         "-c:v", "libx264", "-preset", "slow", "-crf", str(crf),
-         "-pix_fmt", "yuv420p", "-video_track_timescale", "90000", str(video)],
-        check=True)
+    cmd = ["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0",
+           "-i", str(concat), "-fps_mode", "vfr", "-frames:v", str(len(frames)),
+           "-c:v", "libx264", "-preset", "slow", "-crf", str(crf),
+           "-pix_fmt", "yuv420p", "-video_track_timescale", "90000"]
+    if (enc_w, enc_h) != (src_w, src_h):
+        cmd += ["-vf", f"crop={enc_w}:{enc_h}:0:0"]
+        print(f"cropping {src_w}x{src_h} -> {enc_w}x{enc_h} (even dimensions, "
+              f"anchored at the origin so the principal point still holds)")
+    cmd.append(str(video))
+    subprocess.run(cmd, check=True)
     concat.unlink()
 
     # ---- telemetry from the GNSS/IMU trajectory --------------------------
@@ -319,7 +352,35 @@ def build(source: Path, name: str, *, overwrite: bool, crf: int,
         "`scripts/build_usegeo_mission.py`); the LAS header declares none.\n\n"
         "Licence: CC BY-NC-SA 4.0. Cite UseGeo / ISPRS.\n")
 
-    intr = read_intrinsics(orient)
+    intr = read_intrinsics(orient, (enc_w, enc_h))
+    if intr:
+        # `run_mission.py` reads calibration from here, the same place the AGZ
+        # missions keep it, so nothing downstream needs a UseGeo special case.
+        (mission / "calibration").mkdir(exist_ok=True)
+        (mission / "calibration" / "camera.json").write_text(json.dumps({
+            "model": "PINHOLE",
+            "source": ("UseGeo Image_orientations_dataset*.xyz, columns "
+                       "c/x0/y0 from the authors' bundle adjustment"),
+            "image_width": enc_w, "image_height": enc_h,
+            "fx": intr["fx"], "fy": intr["fy"],
+            "cx": intr["cx"], "cy": intr["cy"],
+            "distortion_applied_to_images": True,
+            "notes": [
+                "The published images are already undistorted, so no "
+                "distortion coefficients are carried and none should be "
+                "applied -- undistorting twice is worse than not at all.",
+                "fx and fy are one value in the source: the adjustment solved "
+                "a single focal length, not separate axis scales.",
+                f"y0 is negative in the source ({intr['raw_columns']['y0']}) "
+                "because that file measures the principal point y-up; it is "
+                "converted here to the y-down convention everything else uses.",
+                "These intrinsics come from the authors' adjustment, which "
+                "also produced the reference poses. They are an input a real "
+                "operator would have from a calibration, but they are not "
+                "independent of the reference.",
+                "The publisher states no calibration uncertainty.",
+            ],
+        }, indent=2))
     span = float(np.hypot(frames[-1].east - frames[0].east,
                           frames[-1].north - frames[0].north))
     path_len = float(sum(
@@ -349,6 +410,12 @@ def build(source: Path, name: str, *, overwrite: bool, crf: int,
             "alt_max_m": round(max(f.up for f in frames), 1),
         },
         "intrinsics_from_orientation_file": intr,
+        "source_image_size": [src_w, src_h],
+        "encoded_size": [enc_w, enc_h],
+        "size_note": ("the published images are 7953 x 5279, not the "
+                      "7952 x 5304 the README states; cropped to even "
+                      "dimensions from the origin for the encoder, which "
+                      "leaves the principal point unchanged"),
         "trajectory_time_offset_s": round(dt, 3),
         "trajectory_time_offset_note": (
             "detected from geometry, not assumed; matches the GPS-UTC "
@@ -377,8 +444,9 @@ def build(source: Path, name: str, *, overwrite: bool, crf: int,
     print(f"  mission -> {mission}")
     print(f"  truth   -> {truth}")
     if intr:
-        print(f"  intrinsics from file: f={intr['focal_px']:.1f} px, "
-              f"pp=({intr['x0_px']:.1f}, {intr['y0_px']:.1f})")
+        print(f"  intrinsics: f={intr['fx']:.1f} px  "
+              f"pp=({intr['cx']:.1f}, {intr['cy']:.1f})  "
+              f"offset from centre {intr.get('offset_from_centre_px')} px")
     return 0
 
 

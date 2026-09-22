@@ -2701,3 +2701,109 @@ shown to apply has not been shown to apply.
 
 `drishti3d/reconstruction/drishti_recon/questions.py`,
 `drishti3d/tests/test_calibration_lifecycle.py`, `tests/test_questions.py`
+
+---
+
+## DEC-036 — The first independent check: a 1.25 m bias the system could not see
+
+**Date:** 2026-09-22
+
+**Status:** Accepted
+
+### Context
+
+Every accuracy figure this project has produced was measured against either the
+AGZ reference — which its own authors describe as Pix4D photogrammetry, not
+survey truth — or the reconstruction's own internal estimates. Neither can say
+whether a reported uncertainty is honest.
+
+UseGeo dataset 1 provides a RIEGL miniVUX-3UAV LiDAR cloud: 105.9 M points, a
+different instrument, measuring the same ground. A 60-frame contiguous subset
+was reconstructed (COLMAP + dense MVS, 2,138,943 points, 0.129 m spacing) and
+scored against it.
+
+### What the check found
+
+| | |
+|---|---:|
+| Raw point-to-LiDAR error, median | **1.360 m** |
+| — horizontal component of the bias | −0.004 m E, −0.005 m N |
+| — **vertical component of the bias** | **+1.245 m** |
+| Error after removing that one offset, median | **0.299 m** |
+| Reported per-point sigma, median | 0.093 m |
+| **actual / predicted** | **14.7× raw, 3.2× debiased** |
+| **Interval coverage at 1.96 sigma** | **4.6%** against a nominal 95% |
+
+The bias is not vegetation. Split by LiDAR classification it is +1.267 m over
+the 78.3 M unclassified/hard-surface points and +1.166 m over the 7.3 M points
+classified medium vegetation — the same offset on both, so the
+photogrammetry-sits-above-canopy explanation does not apply.
+
+It is not camera placement either. Our camera centres agree with the authors'
+adjusted positions to **0.53 m** in 3D, with only +0.27 m of vertical bias. The
+ground, 80 m below the camera plane, is off by four times that.
+
+### Why it happened, and why nothing caught it
+
+The manifest says it plainly, and said it before anyone looked:
+
+```
+degenerate: True
+degeneracy: planar trajectory (out-of-plane geometry is weakly constrained)
+alignment_rmse_vertical_m: 0.057
+```
+
+A flat nadir survey at constant altitude. The Sim(3) fit places the cameras
+superbly — 5.7 cm vertical RMSE — because they lie in a plane and a plane can
+be fitted to a plane. It says nothing about where the ground beneath them sits,
+and the ground was free to float by 1.25 m.
+
+The quality report's own note was right all along: *"Alignment residual is NOT
+independent accuracy; it measures consistency between reconstructed camera
+centres and GPS."* This is what that sentence looks like when it is true.
+
+**The degeneracy was detected, recorded, and then ignored by everything
+downstream.** `alignment.degenerate` reaches the manifest and stops there. No
+uncertainty widens because of it, no measurement is refused because of it, and
+no acceptance reason exists for it. The system knew the vertical was weakly
+constrained and still reported 0.093 m sigma on geometry that was 1.25 m out.
+
+### Decision
+
+Recorded as a finding, not yet fixed. The fix has to be designed rather than
+patched: a planar-trajectory degeneracy should widen the out-of-plane
+uncertainty component and produce a blocking acceptance reason, which means the
+uncertainty model needs to carry direction rather than a single scalar per
+point. That is a larger change than this record should pre-empt.
+
+What is decided now is that **the claim "3.2× too optimistic" is the honest
+headline, not 14.7×** — and that both must be quoted, because the debiased
+figure alone would hide exactly the failure this dataset was downloaded to
+find. That is the same error
+[DEC-024](#dec-024--absolute-position-error-is-reported-without-fitting-it-away)
+identified in `as_georeferenced`, and it would be a poor result to repeat it in
+the same week.
+
+### Consequences
+
+- The sigma from [DEC-031](#dec-031--dense-depth-uncertainty-uses-1sin-over-the-whole-angular-domain)
+  is **not calibrated and is optimistic by at least 3×** on this capture. Every
+  interval the system reports is currently narrower than the truth warrants.
+- Interval coverage of 4.6% against a nominal 95% is the first measured
+  coverage number in the project's history. It is bad, and it is finally a
+  number.
+- Completeness, measured inside the reconstruction's own footprint and after
+  removing the bias: 66.0% of reference points within 0.50 m, 87.7% within
+  1.00 m, median 0.420 m.
+- AGZ never showed this because its flight varies 449–474 m in altitude. A
+  constant-altitude nadir survey is the *more* common commercial pattern, so
+  the degeneracy matters more in practice than the dataset we had.
+- `interval_not_calibrated` on every measurement has been the correct refusal
+  the whole time. This is the first evidence of how wrong the numbers behind it
+  would have been.
+
+### Related Files
+
+`drishti3d/scripts/score_against_lidar.py`,
+`drishti3d/scripts/build_usegeo_mission.py`, `fetch_usegeo.py`,
+`drishti3d/data/runs/usegeo_1__first/lidar_score.json`

@@ -34,3 +34,4 @@ drishti3d/models/
 datasets/public/
 datasets/field/
 datasets/truth/
+datasets/public/usegeo/dataset_*/
