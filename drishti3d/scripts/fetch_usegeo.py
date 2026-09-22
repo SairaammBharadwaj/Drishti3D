@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -142,8 +143,34 @@ def wanted(path: str, root: str, profile: dict) -> bool:
     return any(i == "" or i in rel for i in profile["include"])
 
 
-def download(sid: str, jar: Path, remote: str, dest: Path) -> None:
+def download(sid: str, jar: Path, remote: str, dest: Path,
+             *, tries: int = 5) -> None:
+    """Fetch one file, re-authenticating first and retrying a refusal.
+
+    The sharing session is short-lived -- measured, it expires after roughly
+    one file -- so a run that logs in once downloads its first image and is
+    then refused for every file after it. Logging in before each file costs two
+    small requests against a 33 MB transfer and is what makes an unattended
+    download of hundreds of files finish.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
+    for attempt in range(tries):
+        session(sid, jar.parent)
+        try:
+            _fetch(sid, jar, remote, dest)
+            return
+        except RefusedError as e:
+            if attempt == tries - 1:
+                raise SystemExit(f"server refused {remote} after {tries} "
+                                 f"attempts: {e}")
+            time.sleep(3 * (attempt + 1))
+
+
+class RefusedError(RuntimeError):
+    """The API answered with an error document instead of the file."""
+
+
+def _fetch(sid: str, jar: Path, remote: str, dest: Path) -> None:
     q = urllib.parse.urlencode({
         "api": "SYNO.FolderSharing.Download", "version": 2,
         "method": "download", "mode": "download", "stdhtml": "false",
@@ -164,7 +191,7 @@ def download(sid: str, jar: Path, remote: str, dest: Path) -> None:
         head = dest.read_bytes()[:200]
         if b'"success":false' in head or b'"error"' in head:
             dest.unlink()
-            raise SystemExit(f"server refused {remote}: {head.decode(errors='replace')}")
+            raise RefusedError(head.decode(errors="replace"))
 
 
 def main() -> int:
@@ -177,6 +204,9 @@ def main() -> int:
     ap.add_argument("--out", default="datasets/public/usegeo")
     ap.add_argument("--dry-run", action="store_true",
                     help="show what would be fetched and how much it is")
+    ap.add_argument("--max-images", type=int, default=0, metavar="N",
+                    help="take only the first N images (and every non-image "
+                         "file), to prove the pipeline before a long transfer")
     a = ap.parse_args()
     if not a.dataset and not a.just_list:
         ap.error("one of --dataset or --list is required")
@@ -205,6 +235,22 @@ def main() -> int:
 
     prof = PROFILES[a.profile]
     picked = [f for f in files if wanted(f["path"], root, prof)]
+    if a.max_images:
+        # Select by *frame*, not by filename. Every product of one capture --
+        # the full-res image, its depth map, its resized twin -- shares a
+        # timestamp stem, and a subset is only reconstructable if they travel
+        # together. Sorting filenames instead picked 60 depth maps and no
+        # images, because Depth_resized sorts before Undistorted_images.
+        stamp = re.compile(r"(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})")
+        frames = sorted({m.group(1) for f in picked
+                         if (m := stamp.search(Path(f["path"]).name))})
+        keep = set(frames[:a.max_images])
+        picked = [f for f in picked
+                  if not (m := stamp.search(Path(f["path"]).name))
+                  or m.group(1) in keep]
+        print(f"subset: first {len(keep)} of {len(frames)} frames "
+              f"({frames[0]} .. {sorted(keep)[-1]})")
+
     want = sum(f["additional"]["size"] for f in picked)
     print(f"profile '{a.profile}': {len(picked)} files, {want / 1e9:.2f} GB "
           f"({(total - want) / 1e9:.2f} GB skipped)\n")
