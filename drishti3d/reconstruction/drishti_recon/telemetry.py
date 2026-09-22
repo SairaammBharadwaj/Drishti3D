@@ -263,12 +263,64 @@ def parse_srt(path: Path, warnings: list[str]):
     return samples, None
 
 
+#: Video containers whose telemetry may be a subtitle track rather than a
+#: sidecar file. DJI writes an SRT beside the clip on some models and embeds it
+#: inside the container on others; the operator has no reason to know which,
+#: and either way it is the same telemetry.
+VIDEO_SUFFIXES = (".mp4", ".mov", ".mkv", ".ts", ".lrv", ".m4v")
+
+
+def extract_embedded_srt(video: str | Path, dest: str | Path | None = None):
+    """Pull an embedded subtitle track out of a video, or return None.
+
+    Newer DJI models carry their telemetry as a subtitle stream inside the MP4
+    instead of a sidecar `.srt`. Requiring the sidecar would refuse perfectly
+    good footage for a packaging detail, and telling an operator to run ffmpeg
+    themselves is the same refusal with extra steps.
+
+    Returns the path written, or None when the video has no subtitle stream --
+    which is not an error, just the common case for non-DJI footage.
+    """
+    import subprocess
+    import tempfile
+    video = Path(video)
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "s",
+         "-show_entries", "stream=index,codec_name", "-of", "csv=p=0",
+         str(video)], capture_output=True, text=True)
+    if probe.returncode != 0 or not probe.stdout.strip():
+        return None
+    dest = Path(dest) if dest else Path(
+        tempfile.mkdtemp(prefix="drishti_srt_")) / (video.stem + ".srt")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    out = subprocess.run(
+        ["ffmpeg", "-y", "-v", "error", "-i", str(video),
+         "-map", "0:s:0", "-c:s", "srt", str(dest)],
+        capture_output=True, text=True)
+    if out.returncode != 0 or not dest.exists() or dest.stat().st_size == 0:
+        return None
+    return dest
+
+
 def load(path: str | Path) -> TelemetryReport:
-    """Auto-detect format by extension and parse."""
+    """Auto-detect format by extension and parse.
+
+    A video path is accepted: its embedded subtitle track is extracted first.
+    That is how DJI footage arrives when the sidecar was never separated out.
+    """
     path = Path(path)
     warnings: list[str] = []
     ext = path.suffix.lower()
-    if ext == ".csv":
+    if ext in VIDEO_SUFFIXES:
+        srt = extract_embedded_srt(path)
+        if srt is None:
+            raise ValueError(
+                f"{path.name} carries no subtitle track, so it has no embedded "
+                "telemetry; supply a .srt, .csv or .json sidecar instead")
+        warnings.append(f"telemetry read from the subtitle track inside "
+                        f"{path.name}")
+        samples, intr = parse_srt(srt, warnings)
+    elif ext == ".csv":
         samples, intr = parse_csv(path, warnings)
     elif ext == ".json":
         samples, intr = parse_json(path, warnings)

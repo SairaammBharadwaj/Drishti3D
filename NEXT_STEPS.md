@@ -727,3 +727,58 @@ and reviewed before field distribution. Nothing tracks this today.
 `densify` is `"none"` by default and the supported path is sparse. Multi-view
 stereo on a selected ROI would raise measurable surface coverage, which is
 4.3% of grid cells on the AGZ mission.
+
+---
+
+## Data needed for the two benchmarks we cannot currently run
+
+**Searched 2026-09-22.** The gap is structural, not an oversight: photogrammetry
+research datasets ship **image sequences**, because compression hurts SfM, while
+public drone *video* datasets exist for detection and tracking and carry no
+survey truth. UseGeo, Zurich MAV, EuRoC and Blackbird are all stills. That is
+why every saved study here uses video assembled from frames, which the
+22 September review correctly flagged.
+
+The two needs separate, and only one of them is hard.
+
+### A — Native video for the speed requirement (20% of the score)
+
+Needs a real 10-minute 1080p/4K drone video with telemetry. **No ground truth
+required** — this benchmark is about time, not accuracy, and we have never run
+one.
+
+1. **[PinPoint validation dataset](https://zenodo.org/records/22671839)** —
+   Zenodo, 1.7 GB, CC BY 4.0. Two VTOL flights, native H.264 video, ArduPilot
+   `.BIN` DataFlash logs, ground control campaigns. **Take it for native-video
+   ingestion and timing.** Two caveats: the video is 1280x720 at 60 fps, below
+   the 1080p/4K the organiser specifies, and its control points are validated
+   against PNOA orthophoto at **9.5-12.7 m RMSE** — three orders of magnitude
+   coarser than our current 0.324 m, so useless as accuracy truth. `.BIN` needs
+   pymavlink to reach our CSV schema.
+2. **Any DJI flight with SRT telemetry.** This is the de-facto standard for
+   georeferenced drone video — OpenDroneMap uses the identical
+   `video.mp4` + `video.srt` convention — and our parser already reads it. A
+   single real 10-minute 4K flight would close this benchmark. Consumer footage
+   is adequate here because only the clock matters.
+
+### B — Independent accuracy truth (30% of the score)
+
+Harder, and the honest position is that **the combination of native video,
+telemetry and sub-metre truth does not appear to exist publicly.**
+
+The best available remains **UseGeo datasets 2 and 3** (see the entry above):
+LiDAR reference, two further independent sites, same download path. They are
+stills, so they extend accuracy and generalisation evidence but not the
+native-video claim.
+
+Surveyed landmarks remain the only way to get a valid *dimensional* figure at
+all — every position-based correspondence leaks ([DEC-037](DECISIONS.md)), and
+the one valid scorer measures the camera network rather than scene features.
+
+### Done while searching
+
+`telemetry.load()` now accepts a **video path** and extracts an embedded
+subtitle track. Newer DJI models carry telemetry inside the MP4 rather than
+beside it; requiring the sidecar refused good footage over a packaging detail
+the operator has no reason to know about. Tested end to end against a
+DJI-shaped embedded track.
