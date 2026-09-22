@@ -1315,3 +1315,64 @@ out scale (−0.033%) and datum as the cause.
   position-based correspondence leaks. Surveyed landmarks are required.
 - Whether the reference bundle adjustment is accurate in absolute terms. It is
   a different estimator over shared inputs, not ground truth.
+
+## 2026-09-22 — Honouring the supplied calibration: error cut 4×
+
+`colmap_adapter.reconstruct_frames` accepted a camera matrix and never passed
+it to COLMAP, which self-calibrated instead ([DEC-038](DECISIONS.md)). Same
+mission, same settings, same 1600 px processing width; the only change is that
+the calibration is now fixed rather than discarded.
+
+| metric | self-calibrated | **calibration fixed** | improvement |
+|---|---:|---:|---:|
+| Surface RMSE vs LiDAR | 1.283 m | **0.324 m** | 4.0× |
+| Surface median | 1.360 m | **0.284 m** | 4.8× |
+| Surface p90 | 1.640 m | **0.441 m** | 3.7× |
+| Vertical bias | +1.245 m | **+0.243 m** | 5.1× |
+| Sparse SfM point bias | +0.605 m | **+0.021 m** | 29× |
+| Dense MVS point bias | +1.261 m | **+0.244 m** | 5.2× |
+| Camera-pair distance, median abs | 0.359 m | **0.042 m** | 8.5× |
+| Camera-pair distance, RMSE | 0.598 m | **0.068 m** | 8.8× |
+| Implied scale error | −0.033% | +0.040% | — |
+| Camera absolute position, 3D median | 0.532 m | **0.288 m** | 1.8× |
+| Interval coverage @ 1.96σ | 4.6% | **29.9%** | 6.5× |
+| Completeness within 0.5 m | 4.2% | **67.9%** | 16× |
+| Points | 2,138,943 | 2,098,913 | — |
+
+Camera matrix actually used, against the calibration file: focal deviation
+**+0.0000%**, principal point exact. Previously −1.45%, with the principal
+point reset to the image centre.
+
+Dimensional figures from `scripts/score_camera_dimensions.py`, which re-runs
+its injection validation on every invocation: **+1% recovered as +1.04%, +5% as
++5.04%**.
+
+### The high-resolution experiment that located it
+
+Tried first, on the theory that 1600 px from 7952 px discarded detail. It made
+things worse, and that is what exposed the cause:
+
+| stage | 1600 px | 3200 px |
+|---|---:|---:|
+| camera centres | +0.268 m | +0.270 m |
+| sparse SfM points | +0.605 m | **+1.139 m** |
+| dense MVS points | +1.261 m | +1.467 m |
+
+Cameras unmoved, triangulation twice as wrong — a free focal drifting further
+at higher resolution, with depth following it.
+
+### Against the organiser's target
+
+**0.324 m RMSE** on this capture, against a stated **≤ 1 m**. The organiser has
+not defined whether the statistic is RMSE, a percentile or a maximum, so this
+is reported as surface distance to an independent LiDAR reference and not
+claimed as certified compliance. p90 is 0.441 m and the maximum matched error
+is bounded by the 5 m cutoff.
+
+### NOT TESTED
+
+- Any capture without a calibration file. Self-calibration on planar nadir
+  geometry will drift the same way; nothing yet detects or refuses that.
+- Whether 0.324 m holds on a second site. One flight, one camera.
+- Interval coverage remains 29.9% against a nominal 95%. The uncertainty model
+  is now wrong by less, not calibrated.

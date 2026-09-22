@@ -157,14 +157,55 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
         mode = pycolmap.CameraMode.SINGLE if single_camera else pycolmap.CameraMode.AUTO
         sift = _with_threads(lambda: pycolmap.SiftExtractionOptions())
         modern = hasattr(pycolmap, "FeatureExtractionOptions")
+
+        # The supplied calibration is handed to COLMAP and held fixed.
+        #
+        # This function took `K` and never used it. COLMAP therefore
+        # self-calibrated from scratch, starting the principal point at the
+        # image centre and the focal at its own heuristic. `reconstruct_dir`
+        # was fixed for this ("previously this argument was accepted and
+        # silently ignored") and this entry point -- the one the pipeline
+        # actually calls -- was not.
+        #
+        # On a planar nadir flight the focal/depth ambiguity is barely
+        # observable, so a free focal drifts and takes the scene depth with it.
+        # Measured on UseGeo dataset 1 against a surveyed calibration: the
+        # solved focal came out 1.45% low at 1600 px and 1.86% low at 3200 px,
+        # and the reconstructed ground sat 1.25 m and 1.46 m too high at 80 m
+        # range -- which is what a proportionally short depth looks like.
+        reader = None
+        if K is not None:
+            Kf = np.asarray(K, float)
+            reader = pycolmap.ImageReaderOptions()
+            reader.camera_model = "PINHOLE"
+            reader.camera_params = ",".join(f"{v:.10g}" for v in (
+                Kf[0, 0], Kf[1, 1], Kf[0, 2], Kf[1, 2]))
+            mode = pycolmap.CameraMode.SINGLE
+
         try:
             if modern:
                 ext = pycolmap.FeatureExtractionOptions()
                 ext.num_threads = nthreads
                 ext.max_image_size = max(f.shape[1] for f in frames)
-                pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode,
-                                          extraction_options=ext, device=pycolmap.Device.cpu)
+                if reader is not None:
+                    pycolmap.extract_features(
+                        str(db), str(img_dir), camera_mode=mode,
+                        reader_options=reader, extraction_options=ext,
+                        device=pycolmap.Device.cpu)
+                else:
+                    pycolmap.extract_features(
+                        str(db), str(img_dir), camera_mode=mode,
+                        extraction_options=ext, device=pycolmap.Device.cpu)
             else:
+                # Legacy pycolmap: no FeatureExtractionOptions, and no way to
+                # pass reader options through this call signature. Warn rather
+                # than silently self-calibrate, which is the failure this whole
+                # block exists to stop.
+                if K is not None:
+                    import warnings as _w
+                    _w.warn("pycolmap too old to accept fixed intrinsics here; "
+                            "COLMAP will self-calibrate and depth may be biased",
+                            RuntimeWarning)
                 pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode,
                                           sift_options=sift) if sift else \
                     pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode)
@@ -184,6 +225,16 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
                 pycolmap.match_exhaustive(str(db))
         _p("colmap: mapping", 0.6)
         mapopt = _with_threads(lambda: pycolmap.IncrementalPipelineOptions())
+        if mapopt is not None and K is not None:
+            # Fixed, not merely initialised. Letting bundle adjustment refine a
+            # focal it was handed defeats the point of supplying one, and on
+            # this acquisition geometry it is exactly what drifted.
+            try:
+                mapopt.ba_refine_focal_length = False
+                mapopt.ba_refine_principal_point = False
+                mapopt.ba_refine_extra_params = False
+            except Exception:                              # older pycolmap
+                pass
         try:
             maps = pycolmap.incremental_mapping(str(db), str(img_dir), str(work),
                                                 options=mapopt) if mapopt else \

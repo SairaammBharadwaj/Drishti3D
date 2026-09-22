@@ -2953,3 +2953,117 @@ carries, which makes it a concrete target rather than an unexplained constant.
 
 `drishti3d/docs/review_2026_09_22/CRITICAL_REVIEW.md`,
 `drishti3d/docs/review_checks/measurement_validity_probe_2026_09_22.py`
+
+---
+
+## DEC-038 — The COLMAP path discarded the supplied calibration; fixing it cut error 4×
+
+**Date:** 2026-09-22
+
+**Status:** Accepted · **supersedes the causal explanation in
+[DEC-036](#dec-036--the-first-independent-check-a-125-m-bias-the-system-could-not-see)**
+
+### Context
+
+DEC-036 measured a +1.245 m vertical bias against the UseGeo LiDAR and
+attributed it to a planar-trajectory degeneracy.
+[DEC-037](#dec-037--the-0088-m-dimensional-figure-is-withdrawn-the-method-could-not-measure-it)
+already withdrew the mathematical half of that claim. This records the actual
+cause, which is a plain defect.
+
+A higher-resolution run was tried first, on the theory that processing 42 MP
+imagery at 1600 px was discarding detail. It made things **worse** — raw median
+1.360 → 1.640 m. That negative result is what located the bug, because the
+per-stage breakdown showed the extra error entering at triangulation while the
+cameras did not move at all:
+
+| stage | 1600 px | 3200 px |
+|---|---:|---:|
+| camera centres | +0.268 m | +0.270 m |
+| sparse SfM points | +0.605 m | **+1.139 m** |
+| dense MVS points | +1.261 m | +1.467 m |
+
+Comparing the camera matrix actually used against the supplied calibration:
+
+| | calibration | used | |
+|---|---:|---:|---|
+| focal @ 1600 px | 932.98 | 919.42 | **−1.45%** |
+| focal @ 3200 px | 1865.96 | 1831.22 | **−1.86%** |
+| principal point | (798.85, 523.45) | (800.00, 531.00) | *exact image centre* |
+
+The principal point sitting on the exact image centre is the tell: that is
+COLMAP's default initialisation, not our calibration.
+
+### The defect
+
+`colmap_adapter.reconstruct_frames(frames, K, ...)` accepted `K` and **never
+used it**. It called `extract_features` with no camera parameters, so COLMAP
+self-calibrated from scratch.
+
+The sibling entry point `reconstruct_dir` had already been fixed for exactly
+this — its docstring reads *"previously this argument was accepted and silently
+ignored"* — and the fix never reached `reconstruct_frames`, which is the one
+the pipeline calls. A bug was found, understood, written down, corrected in one
+place, and left live in the other.
+
+On a planar nadir flight the focal/depth ambiguity is barely observable, so a
+free focal drifts and carries scene depth with it. **A focal 1.45% short makes
+depths 1.45% short; at 80 m range that is 1.2 m.** This is also the precise
+sense in which planarity mattered — not that Sim(3) becomes unidentifiable, but
+that joint camera calibration becomes weakly observable, which is what the
+22 September review said and what DEC-036 got wrong.
+
+### Decision
+
+The calibration is passed to COLMAP as fixed camera parameters, and
+`ba_refine_focal_length`, `ba_refine_principal_point` and
+`ba_refine_extra_params` are all disabled when one is supplied. Refining a
+focal you were handed defeats the purpose of supplying it.
+
+A pycolmap too old to accept reader options now **warns** rather than silently
+self-calibrating.
+
+### Consequences
+
+Same mission, same settings, same 1600 px — only the calibration honoured:
+
+| | self-calibrated | **calibration fixed** | |
+|---|---:|---:|---|
+| Surface RMSE vs LiDAR | 1.283 m | **0.324 m** | 4.0× |
+| Surface median | 1.360 m | **0.284 m** | 4.8× |
+| Vertical bias | +1.245 m | **+0.243 m** | 5.1× |
+| Sparse point bias | +0.605 m | **+0.021 m** | 29× |
+| Dense point bias | +1.261 m | **+0.244 m** | 5.2× |
+| Camera-pair distance, median abs | 0.359 m | **0.042 m** | 8.5× |
+| Camera-pair distance, RMSE | 0.598 m | **0.068 m** | 8.8× |
+| Implied scale error | −0.033% | +0.040% | — |
+| Camera absolute, 3D median | 0.532 m | **0.288 m** | 1.8× |
+| Interval coverage @1.96σ | 4.6% | **29.9%** | 6.5× |
+| Completeness within 0.5 m | 4.2% | **67.9%** | 16× |
+
+The dimensional figures come from `score_camera_dimensions.py`, which re-runs
+its injection validation every time: +1% recovered as +1.04%, +5% as +5.04%.
+
+**0.324 m RMSE is comfortably inside the organiser's stated ≤ 1 m target**, on
+this capture, under a surface-distance protocol the organiser has not defined.
+That is a real result and it is still one flight.
+
+The residual +0.243 m dense bias now sits just below the +0.266 m camera bias —
+the ground is placed about as well as the cameras are, which is what a correct
+reconstruction on top of an imperfect georeference should look like. The
+remaining error is in the georeference, not the geometry.
+
+### What this does not fix
+
+- **Coverage is 29.9% against a nominal 95%.** The uncertainty model is still
+  not calibrated; it is now wrong by less.
+- **A capture with no calibration file still self-calibrates**, and on planar
+  nadir geometry will drift the same way. Estimating intrinsics from the
+  acquisition, or refusing to when the geometry cannot support it, is open.
+- One capture, one site.
+
+### Related Files
+
+`drishti3d/reconstruction/drishti_recon/colmap_adapter.py`,
+`drishti3d/scripts/score_camera_dimensions.py`,
+`drishti3d/data/runs/usegeo_1__fixedcal/`
