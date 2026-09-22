@@ -85,11 +85,53 @@ _ALIASES = {
 }
 
 
+#: Unit words stripped from a column name before matching, so
+#: ``latitude [deg]``, ``altitude(m)`` and ``altitude_m`` all reach
+#: ``altitude``. Exporters label their units and there is no reason an
+#: operator should have to hand-edit a header to load their own flight log.
+#:
+#: ``ns``, ``ms`` and ``us`` are deliberately **absent**. Our own schema writes
+#: ``timestamp`` in seconds *and* ``timestamp_ns`` in nanoseconds; stripping
+#: those would collapse the second onto the first and silently read
+#: nanoseconds as seconds.
+_UNIT_WORDS = {
+    "m", "meter", "meters", "metre", "metres", "ft", "feet",
+    "deg", "degree", "degrees", "rad", "radian", "radians",
+    "s", "sec", "secs", "second", "seconds",
+    "mps", "kmh", "kph", "mph", "knots",
+    "msl", "agl", "wgs84", "ellipsoidal", "orthometric",
+}
+
+_BRACKETED = re.compile(r"[\[\(\{][^\]\)\}]*[\]\)\}]")
+
+
+def _strip_units(k: str) -> str:
+    """A column name with its unit annotation removed."""
+    kl = _BRACKETED.sub(" ", k).strip().lower()
+    kl = re.sub(r"[^a-z0-9]+", "_", kl).strip("_")
+    parts = [x for x in kl.split("_") if x]
+    while len(parts) > 1 and parts[-1] in _UNIT_WORDS:
+        parts.pop()
+    return "_".join(parts)
+
+
 def _norm_key(k: str) -> str | None:
+    """Canonical field for a column name, exact match preferred.
+
+    Matching is two-tier on purpose. An exact alias wins outright, so a file
+    that already uses our schema behaves exactly as before; only if that fails
+    is the unit annotation stripped and the match retried. Doing it the other
+    way round would let a fuzzy match shadow an exact one.
+    """
     kl = k.strip().lower()
     for canon, al in _ALIASES.items():
         if kl in al:
             return canon
+    stripped = _strip_units(k)
+    if stripped and stripped != kl:
+        for canon, al in _ALIASES.items():
+            if stripped in al:
+                return canon
     return None
 
 
@@ -106,6 +148,36 @@ def _valid_row(lat, lon, alt) -> bool:
             and math.isfinite(alt))
 
 
+def _resolve_columns(fieldnames, warnings: list[str]) -> dict:
+    """Map each CSV column to a canonical field, exact matches first.
+
+    Two columns can legitimately reduce to the same field once units are
+    stripped -- ``altitude`` beside ``altitude_m``, say. The exact match keeps
+    the field and the other is reported rather than silently overwriting it,
+    because which one won would otherwise depend on column order.
+    """
+    out, claimed = {}, {}
+    for c in fieldnames or []:
+        kl = (c or "").strip().lower()
+        for canon, al in _ALIASES.items():
+            if kl in al:
+                out[c], claimed[canon] = canon, c
+                break
+    for c in fieldnames or []:
+        if c in out:
+            continue
+        canon = _norm_key(c)
+        if not canon:
+            continue
+        if canon in claimed:
+            warnings.append(
+                f"column '{c}' also reads as '{canon}', which "
+                f"'{claimed[canon]}' already provides; ignoring '{c}'")
+            continue
+        out[c], claimed[canon] = canon, c
+    return out
+
+
 def parse_csv(path: Path, warnings: list[str]) -> tuple[list[TelemetrySample], dict | None]:
     samples = []
     intr = {}
@@ -113,7 +185,7 @@ def parse_csv(path: Path, warnings: list[str]) -> tuple[list[TelemetrySample], d
         reader = csv.DictReader(f)
         if reader.fieldnames is None:
             raise ValueError("empty CSV")
-        colmap = {c: _norm_key(c) for c in reader.fieldnames}
+        colmap = _resolve_columns(reader.fieldnames, warnings)
         for i, row in enumerate(reader):
             data = {}
             extra = {}
