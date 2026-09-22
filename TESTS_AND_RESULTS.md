@@ -1159,3 +1159,65 @@ at all. **The degeneracy reaches the manifest and nothing downstream reads it**
   length between identified features, so it constrains the uncertainty model
   but is not yet a calibration.
 - Datasets 2 and 3 of UseGeo, which would make it three independent sites.
+
+## 2026-09-22 — Dimensional accuracy against LiDAR (UseGeo 1)
+
+Point-to-surface distance is not what a measurement is. A measurement is a
+*distance between two points*, and a common offset cancels in one. The +1.245 m
+vertical bias found above therefore says almost nothing about how accurate a
+measured length is, so it was measured directly.
+
+Method: our points matched to their nearest LiDAR return after removing the
+known bias; pairs drawn at a range of separations; our distance compared with
+the reference distance between the same pair. `correspondence` is how close a
+point must be to a LiDAR return to be used, which brackets the selection bias —
+the bottom row selects nothing.
+
+| correspondence | points kept | dim. error median | p90 | predicted sigma | actual/predicted |
+|---|---:|---:|---:|---:|---:|
+| < 0.08 m | 6.4% | 0.031 m | 0.073 | 0.143 m | 0.22× |
+| < 0.15 m | 17.0% | 0.049 m | 0.115 | 0.140 m | 0.35× |
+| < 0.30 m | 50.3% | 0.071 m | 0.190 | 0.135 m | 0.53× |
+| < 0.60 m | 98.2% | 0.086 m | 0.248 | 0.134 m | 0.64× |
+| **< 5.0 m (all points)** | **100%** | **0.088 m** | **0.261 m** | **0.135 m** | **0.65×** |
+
+Baselines 5–60 m. **On every point, with no selection at all: 0.088 m median
+dimensional error, 0.261 m at p90.**
+
+### Error does not grow with baseline
+
+Best-corresponding points, absolute error by separation:
+
+| baseline | median error | p90 | relative |
+|---|---:|---:|---:|
+| 1–3 m | 0.031 m | 0.070 | 1.47% |
+| 3–10 m | 0.030 m | 0.072 | 0.45% |
+| 10–30 m | 0.031 m | 0.071 | 0.15% |
+| 30–80 m | 0.030 m | 0.072 | 0.05% |
+| 80–200 m | 0.031 m | 0.073 | 0.02% |
+| 200–400 m | 0.031 m | 0.071 | 0.01% |
+
+Flat from 1 m to 400 m. That is the signature of endpoint noise with **no
+detectable scale error** — a scale error would make absolute error grow
+linearly with baseline, and over 400 m even 0.1% would be 0.4 m.
+
+### The two results point opposite ways, and both are true
+
+| | reported | actual | |
+|---|---:|---:|---|
+| Absolute vertical placement | 0.093 m sigma | 1.245 m bias | **13× optimistic** |
+| Dimensional measurement | 0.135 m sigma | 0.088 m error | **1.5× conservative** |
+
+A common translation cancels in a distance, so the same reconstruction is badly
+placed and accurately shaped at the same time. Quoting either number alone
+misrepresents the system.
+
+### NOT TESTED
+
+- Dimensional accuracy on a non-degenerate capture. AGZ has no independent
+  reference, so this figure exists for one flight only.
+- Whether the 1.5× conservatism holds anywhere else. One capture is not a
+  calibration, and `interval_not_calibrated` is still the correct refusal.
+- Correspondence is nearest-LiDAR-return, not a surveyed target. At 0.031 m the
+  measurement is approaching the reference's own ~0.07 m sample spacing, so the
+  best rows are near the floor of what this method can resolve.

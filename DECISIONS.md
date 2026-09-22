@@ -2817,6 +2817,29 @@ the same week.
   the whole time. This is the first evidence of how wrong the numbers behind it
   would have been.
 
+### Addendum, same day: what this means for a *measurement*
+
+The 1.245 m figure is point-to-surface distance, and a measurement is not that.
+A measurement is a distance between two points, and a common offset cancels
+in one. Measured directly against the LiDAR, on **every** point with no
+selection: **0.088 m median dimensional error, 0.261 m at p90**, flat from 1 m
+to 400 m of baseline — which also means **no detectable scale error**, since
+even 0.1% would show as 0.4 m over 400 m.
+
+So the same reconstruction is **badly placed and accurately shaped**:
+
+| | reported | actual | |
+|---|---:|---:|---|
+| absolute vertical placement | 0.093 m | 1.245 m | 13x optimistic |
+| dimensional measurement | 0.135 m | 0.088 m | **1.5x conservative** |
+
+Both are true and quoting either alone misrepresents the system. It does not
+soften the finding — a georeferenced product that is 1.25 m out is wrong, and
+`ALIGNMENT_DEGENERATE` blocking acceptance remains right. It does mean the
+dense uncertainty model is **not** uniformly optimistic: for the relative
+geometry that measurements depend on, it is currently the safe side of
+correct, on this one capture.
+
 ### Related Files
 
 `drishti3d/scripts/score_against_lidar.py`,
