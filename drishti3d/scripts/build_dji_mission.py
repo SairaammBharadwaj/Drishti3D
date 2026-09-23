@@ -96,9 +96,19 @@ def main() -> int:
     if srt is None:
         cand = video.with_suffix(".srt")
         srt = cand if cand.is_file() else video       # fall back to embedded
-    report = tel.load(srt)
-    if not report.ok:
-        raise SystemExit(f"telemetry unusable: {len(report.samples)} valid samples")
+    # Telemetry is optional. A clip with none is still a legitimate mission --
+    # it reconstructs shape at relative scale and says so -- and refusing it
+    # would mean re-encoding the video through a different builder just to drop
+    # a column nobody has. The distinction is recorded, not hidden.
+    report = None
+    try:
+        report = tel.load(srt)
+    except (ValueError, OSError) as e:
+        print(f"no usable telemetry ({e}); building a relative-scale mission")
+    if report is not None and not report.ok:
+        print(f"telemetry has only {len(report.samples)} valid samples; "
+              "building a relative-scale mission")
+        report = None
 
     info = probe(video)
     mission = REPO / "datasets" / "public" / a.set / a.name
@@ -113,38 +123,43 @@ def main() -> int:
     if dst.suffix != ".mp4":
         dst = dst.rename(mission / "raw" / "video.mp4")
 
-    s = report.samples
-    t0 = s[0].timestamp
-    alt_ref = ALT_REFERENCE.get(
-        s[0].extra.get("altitude_kind", "missing"), "UNKNOWN")
-    with open(mission / "raw" / "telemetry.csv", "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=TELEMETRY_COLUMNS)
-        w.writeheader()
-        for smp in s:
-            w.writerow({
-                "timestamp": f"{smp.timestamp - t0:.6f}",
-                "timestamp_ns": int(round((smp.timestamp - t0) * 1e9)),
-                "time_basis": "video_pts_s",
-                "latitude": f"{smp.latitude:.8f}",
-                "longitude": f"{smp.longitude:.8f}",
-                "altitude": f"{smp.altitude:.3f}",
-                "latitude_deg": f"{smp.latitude:.8f}",
-                "longitude_deg": f"{smp.longitude:.8f}",
-                "altitude_m": f"{smp.altitude:.3f}",
-                "altitude_reference": alt_ref,
-                # DJI's SRT carries no per-sample GNSS covariance. Empty means
-                # unknown, which is not the same as small.
-                "sigma_e_m": "", "sigma_n_m": "", "sigma_u_m": "",
-                "fix_type": "", "gps_accuracy": "", "num_satellites": "",
-                "imgid": "",
-            })
+    s = report.samples if report is not None else []
+    t0 = s[0].timestamp if s else 0.0
+    alt_ref = (ALT_REFERENCE.get(s[0].extra.get("altitude_kind", "missing"),
+                                 "UNKNOWN") if s else "NONE")
+    if s:
+      with open(mission / "raw" / "telemetry.csv", "w", newline="") as fh:
+          w = csv.DictWriter(fh, fieldnames=TELEMETRY_COLUMNS)
+          w.writeheader()
+          for smp in s:
+              w.writerow({
+                  "timestamp": f"{smp.timestamp - t0:.6f}",
+                  "timestamp_ns": int(round((smp.timestamp - t0) * 1e9)),
+                  "time_basis": "video_pts_s",
+                  "latitude": f"{smp.latitude:.8f}",
+                  "longitude": f"{smp.longitude:.8f}",
+                  "altitude": f"{smp.altitude:.3f}",
+                  "latitude_deg": f"{smp.latitude:.8f}",
+                  "longitude_deg": f"{smp.longitude:.8f}",
+                  "altitude_m": f"{smp.altitude:.3f}",
+                  "altitude_reference": alt_ref,
+                  # DJI's SRT carries no per-sample GNSS covariance. Empty means
+                  # unknown, which is not the same as small.
+                  "sigma_e_m": "", "sigma_n_m": "", "sigma_u_m": "",
+                  "fix_type": "", "gps_accuracy": "", "num_satellites": "",
+                  "imgid": "",
+              })
 
-    lat = np.array([x.latitude for x in s])
-    lon = np.array([x.longitude for x in s])
-    alt = np.array([x.altitude for x in s])
-    mlat = float(np.mean(lat))
-    span_n = float(np.ptp(lat) * 111320)
-    span_e = float(np.ptp(lon) * 111320 * np.cos(np.radians(mlat)))
+    if s:
+        lat = np.array([x.latitude for x in s])
+        lon = np.array([x.longitude for x in s])
+        alt = np.array([x.altitude for x in s])
+        mlat = float(np.mean(lat))
+        span_n = float(np.ptp(lat) * 111320)
+        span_e = float(np.ptp(lon) * 111320 * np.cos(np.radians(mlat)))
+    else:
+        alt = np.zeros(1)
+        span_n = span_e = float("nan")
 
     # `run_mission.py` requires a calibration file even when there is no
     # calibration, so the absence is recorded explicitly rather than left as a
@@ -153,7 +168,7 @@ def main() -> int:
     # from, and DEC-038 measured what a 1.45% focal error costs. Guessing here
     # would be worse than the documented fallback.
     (mission / "calibration").mkdir(parents=True, exist_ok=True)
-    focal_raw = s[0].extra.get("focal_len_mm")
+    focal_raw = s[0].extra.get("focal_len_mm") if s else None
     (mission / "calibration" / "camera.json").write_text(json.dumps({
         "model": "UNKNOWN",
         "source": "none - DJI SRT carries no usable camera calibration",
@@ -180,14 +195,19 @@ def main() -> int:
         "video": info,
         "video_note": ("original camera bitstream, copied not re-encoded"),
         "telemetry": {
-            "source": str(srt),
+            "source": str(srt) if s else None,
             "n_samples": len(s),
+            "present": bool(s),
+            "absence_note": ("" if s else
+                             "no SRT sidecar and no embedded subtitle track; "
+                             "the reconstruction has relative scale only and "
+                             "nothing measured from it is metric"),
             "altitude_reference": alt_ref,
             "altitude_note": (
                 "DJI writes a bare `altitude` without stating its datum; "
                 "carried through as UNSPECIFIED rather than assumed to be MSL"
                 if alt_ref == "UNSPECIFIED" else ""),
-            "warnings": report.warnings[:5],
+            "warnings": report.warnings[:5] if report else [],
         },
         "capture": {
             "duration_s": round(info["duration_s"], 2),
@@ -204,9 +224,12 @@ def main() -> int:
     print(f"  video      {info['width']}x{info['height']} @ {info['fps']:.2f} fps, "
           f"{info['duration_s']:.1f} s ({info['duration_s']/60:.1f} min), "
           f"{info['n_frames']:,} frames")
-    print(f"  telemetry  {len(s):,} samples, altitude reference {alt_ref}")
-    print(f"  footprint  {span_e:.0f} x {span_n:.0f} m, "
-          f"altitude range {np.ptp(alt):.1f} m")
+    if s:
+        print(f"  telemetry  {len(s):,} samples, altitude reference {alt_ref}")
+        print(f"  footprint  {span_e:.0f} x {span_n:.0f} m, "
+              f"altitude range {np.ptp(alt):.1f} m")
+    else:
+        print("  telemetry  none -- relative scale only, not metric")
     print(f"  -> {mission}")
     return 0
 

@@ -1376,3 +1376,67 @@ is bounded by the 5 m cutoff.
 - Whether 0.324 m holds on a second site. One flight, one camera.
 - Interval coverage remains 29.9% against a nominal 95%. The uncertainty model
   is now wrong by less, not calibrated.
+
+## 2026-09-22 — First benchmark on native 10-minute drone video (DJI_1003)
+
+**The first capture here meeting the organiser's stated input**: 11 min 18 s of
+native 1080p60 DJI video, 40,633 frames, with 40,630 per-frame SRT telemetry
+samples. Austin TX, Aug 2025. Every study before this used video assembled from
+stills.
+
+### Quality — the best result yet on video
+
+| | |
+|---|---:|
+| Registered | **80 / 80 (100%)** |
+| COLMAP restarts | 1 |
+| Cloud points | **2,694,027** |
+| Sparse points | 84,617 |
+| Median reprojection error | **0.303 px** |
+| Scale source | **gps** (georeferenced) |
+| Alignment RMSE, 3D | 2.833 m |
+| Point spacing | 0.379 m |
+
+First 100% registration on real video footage — St Lambertus was 36%, then 67%
+after the matcher fix. Achieved **without any camera calibration**, on the
+pipeline that now refines rather than freezes an estimated focal.
+
+### Speed — over budget
+
+**1,951.8 s for 677.9 s of video = 2.88×.** The requirement is 15 min for
+10 min, i.e. **1.50×**. Nearly 2× over.
+
+| stage | time | % |
+|---|---:|---:|
+| **densify** | **1585.3 s** | **81.2%** |
+| sfm | 253.6 s | 13.0% |
+| frames | 60.7 s | 3.1% |
+| quality | 23.6 s | 1.2% |
+| fusion | 15.9 s | 0.8% |
+| all others | 12.5 s | 0.6% |
+
+Reaching 1.50× needs a total near 1,017 s, so densification must fall from
+1,585 s to about 650 s — **2.4× faster**. Nothing else is worth touching:
+eliminating SfM entirely still leaves 2.5×.
+
+Measured resource use during an equivalent run: the GPU-bound densify phase
+runs at **81% GPU / 7.6% CPU**, and the CPU-bound SfM phase at **85% CPU /
+1.0% GPU**, on 24 cores. The two heaviest stages use opposite resources and
+never overlap.
+
+### What this run cannot claim
+
+`alignment.degenerate` is **true**: altitude varies **5.1 m over a
+1,025 × 1,378 m** flight. That is the near-planar geometry that cost UseGeo
+1.245 m before [DEC-038](DECISIONS.md), and this footage has no calibration at
+all. The measurement gate refuses on it, correctly
+([DEC-039](DECISIONS.md)). No independent reference exists for this site, so
+**no accuracy figure is claimed** — only that the reconstruction is dense,
+complete and georeferenced.
+
+### NOT TESTED
+
+- Accuracy. There is no reference for this site; alignment RMSE measures
+  consistency with consumer GPS, not accuracy.
+- Whether 2.88× is representative. A second 11-minute capture (DJI_1001) is
+  running to establish that.
