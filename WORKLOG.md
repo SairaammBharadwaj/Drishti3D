@@ -2526,3 +2526,7 @@ loop whose `pgrep` matched itself (11 min idle), and the `_stop` shadowing
 from the earlier session. Full detail and numbers in DEC-041.
 
 Tests: 487 passed.
+
+## 2026-09-23 — DJI_1001 rerun with the new defaults
+765.6 s (12.8 min) for 685.3 s of video; 80/80, same reprojection, 3.92 M
+points; 96.0% of the old 10 m cells kept. Numbers in TESTS_AND_RESULTS.

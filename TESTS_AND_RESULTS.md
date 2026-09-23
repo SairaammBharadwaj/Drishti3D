@@ -1516,6 +1516,28 @@ references. 487 passed.
 ### NOT TESTED
 - Accuracy of the new defaults on any second reference scene; only UseGeo has LiDAR.
 - Run-to-run spread: one end-to-end run, not three.
-- DJI_1001 with the new defaults.
+- DJI_1001 with the new defaults. (Done later the same day: see below.)
 - Interval coverage of the new dense uncertainty on the LiDAR.
 - Any GPU other than this RTX 5060 laptop.
+
+
+## 2026-09-23 — DJI_1001 with the DEC-041 defaults
+
+Fresh end-to-end run, same parameters as the original DJI_1001 run apart from
+the new dense defaults.
+
+| | before | after |
+|---|---:|---:|
+| complete job | > 1,939.9 s (exports untimed) | **765.6 s (12.8 min, 1.12x the 685.3 s video)** |
+| decode | 54.6 s | 40.3 s |
+| frame quality | 16.1 s | 0.1 s |
+| SfM | 251.1 s | 188.5 s |
+| dense | 1,593.7 s | 413.4 s (PatchMatch 384.1) |
+| exports incl. hole fill | untimed | 61.9 s |
+| cameras / reprojection | 80/80, 0.3387 px | 80/80, 0.3387 px |
+| cloud | 3.27 M | 3.92 M |
+
+Against the old cloud: camera centres agree to a median 0.03 m; 96.0% of 10 m
+and 92.3% of 2 m cells kept; 98.5% of new points within 1 m of an old point.
+The same pattern as DJI_1003 (95.6% / 92.0% / 97.7%). No independent
+reference exists for this site, so this is consistency, not accuracy.

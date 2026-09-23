@@ -552,7 +552,7 @@ explicit fallback when PyCOLMAP import fails. Keep both tested either way.
 
 ### Performance: consolidate the 12.2 min result (DEC-041)
 **Status:** TODO.
-- Three fresh runs each of DJI_1003 and DJI_1001, plus a real 600 s clip; report median and max.
+- One fresh run each is done: DJI_1003 733.7 s, DJI_1001 765.6 s. Two more of each, plus a real 600 s clip; report median and max.
 - Validate the new dense defaults on a second reference scene before calling them general.
 - Stream the decode so peak RAM is not all analysed frames (10.5 GB now).
 - GPU matching (`sfm_gpu_matching`) saves ~28 s; validate on UseGeo end to end before enabling.
