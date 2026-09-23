@@ -198,7 +198,7 @@ export default function PointCloudViewer(props: Props) {
     }
     return dispose
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.model])
+  }, [props.model, props.full])
 
   // ---- color mode + provenance visibility --------------------------------
   useEffect(() => {

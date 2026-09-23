@@ -276,7 +276,13 @@ def main() -> int:
                    "densify": a.densify, "do_mesh": not a.no_mesh,
                    "e_ransac_px": params.e_ransac_px},
         "mission_capture": manifest["capture"],
-        "mission_video_sha256": manifest["artifacts"]["video"]["sha256"],
+        # AGZ missions nest the hash under artifacts.video; the UseGeo and DJI
+        # builders write it at the top level. A missing hash is recorded as
+        # missing -- it must not cost the run record after a 30-minute
+        # reconstruction has already succeeded, which it did twice.
+        "mission_video_sha256": ((manifest.get("artifacts") or {})
+                                 .get("video", {}).get("sha256")
+                                 or manifest.get("video_sha256")),
         "has_telemetry": telemetry is not None,
         "has_calibration": intrinsics is not None,
         "wall_seconds": round(wall, 1),
