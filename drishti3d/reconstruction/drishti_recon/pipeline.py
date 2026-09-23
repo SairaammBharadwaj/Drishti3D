@@ -121,6 +121,23 @@ class PipelineParams:
     mvs_geometric: bool = True
     #: Images that must agree before a fused point is kept.
     mvs_min_views: int = 5
+    #: PatchMatch controls; ``None`` keeps COLMAP's default (see
+    #: ``mvs.PATCH_MATCH_DEFAULTS``: 20 sources, step 1, 5 iterations, 15
+    #: samples). The resolved values are written to the report.
+    mvs_num_src_images: int | None = None
+    mvs_window_step: int | None = None
+    mvs_num_iterations: int | None = None
+    mvs_num_samples: int | None = None
+    #: ``"0,0"`` runs two stereo workers on one GPU.
+    mvs_gpu_index: str | None = None
+    mvs_cache_gb: float | None = None
+    #: Depth and normal maps are gigabytes (3.7 GB on DJI_1003) and nothing
+    #: reads them after fusion.
+    mvs_keep_depth_maps: bool = False
+    #: COLMAP SfM threads; ``None`` is half the cores, at most 16.
+    sfm_threads: int | None = None
+    #: Match features on the GPU through the CUDA ``colmap`` executable.
+    sfm_gpu_matching: bool = False
     depth_stride: int = 8               # pixel grid stride for depth back-projection
     #: Fill holes the cameras saw but stereo could not reconstruct -- open
     #: water above all -- with a rim-fitted surface written to ``fill.npz``,
@@ -173,6 +190,11 @@ def run(project_dir, video_path, telemetry_path, *,
     art_dir.mkdir(parents=True, exist_ok=True)
     warnings: list[str] = []
     timings: dict[str, float] = {}
+    # One monotonic clock around everything, exports included. The stage
+    # timings in the quality report are summed before exports run, so they
+    # understate the job; this is the number a deadline is judged against.
+    t_wall0 = time.perf_counter()
+    sub_timings: dict[str, float] = {}
 
     def stage_timer(name):
         return _StageTimer(name, timings)
@@ -205,6 +227,13 @@ def run(project_dir, video_path, telemetry_path, *,
             _emit(progress, "telemetry", 1.0, f"{treport.n_valid} samples")
 
     # 3) FRAMES (decode + sample, bounded) -----------------------------------
+    # Frame scoring overlaps decoding: each kept frame is scored on a worker
+    # thread while the decoder moves on. Only when nothing will change the
+    # pixels afterwards -- lens undistortion does, so it scores after.
+    _dist_known = (params.intrinsics or treport.intrinsics or {}).get("distortion")
+    from concurrent.futures import ThreadPoolExecutor as _TPE
+    _score_pool = _TPE(max_workers=4) if _dist_known is None else None
+    _scored = []
     with stage_timer("frames"):
         cap = cv2.VideoCapture(str(video_path))
         fps = vinfo.fps
@@ -224,16 +253,26 @@ def run(project_dir, video_path, telemetry_path, *,
             # GNSS sample on a variable-frame-rate clip, so both are recorded and
             # `_adopt_pts` decides which series is self-consistent.
             t_pre = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-            ok, fr = cap.read()
+            keep_frame = idx % stride == 0
+            # `read()` is `grab()` plus `retrieve()`; only kept frames need the
+            # retrieve (the colour conversion and copy out). The grab still
+            # advances the decoder and the position, so the timestamps below
+            # are the same either way. DJI_1003 keeps 1 frame in 17.
+            if keep_frame:
+                ok, fr = cap.read()
+            else:
+                ok, fr = cap.grab(), None
             if not ok:
                 break
             t_post = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-            if idx % stride == 0:
+            if keep_frame:
                 if fr.shape[1] > params.proc_max_width:
                     sf = params.proc_max_width / fr.shape[1]
                     fr = cv2.resize(fr, (params.proc_max_width,
                                          int(round(fr.shape[0] * sf))))
                 frames.append((idx, idx / fps, fr))
+                if _score_pool is not None:
+                    _scored.append(_score_pool.submit(frame_quality._per_frame, fr))
                 pts_pre.append(t_pre)
                 pts_post.append(t_post)
                 _emit(progress, "frames", len(frames) /
@@ -278,11 +317,16 @@ def run(project_dir, video_path, telemetry_path, *,
             frames = [(fi, ts, im) for (fi, ts, _), im in zip(frames, imgs)]
             warnings.append("lens distortion corrected; intrinsics updated to "
                             "the undistorted camera")
+        del imgs          # a second reference to every analysed image
 
     # 4) FRAME QUALITY -------------------------------------------------------
     with stage_timer("quality"):
         _emit(progress, "quality", 0.2, "scoring frames")
-        metrics = frame_quality.analyze(frames)
+        _pre = None
+        if _score_pool is not None:
+            _pre = [f.result() for f in _scored]
+            _score_pool.shutdown()
+        metrics = frame_quality.analyze(frames, precomputed=_pre)
         _emit(progress, "quality", 1.0,
               f"{sum(m.accepted for m in metrics)}/{len(metrics)} accepted")
 
@@ -322,6 +366,11 @@ def run(project_dir, video_path, telemetry_path, *,
         # Fifth time these two numbering schemes have had to be separated by
         # hand (DEC-009, DEC-015, DEC-020, DEC-025).
         decoded_of_keyframe = [int(frames[i][0]) for i in sel]
+        # Everything after this point needs the analysed frames' indices and
+        # timestamps, and only the keyframes' pixels. Holding the rest is
+        # 2,391 x 1600 x 900 x 3 = 10.3 GB on DJI_1003 against 346 MB for the
+        # 80 keyframes, on a 16 GB machine.
+        frames = [(fi, ts, None) for fi, ts, _ in frames]
         kf_gps = gps_enu_all[sel] if gps_enu_all is not None else None
         kf_acc = [synced[i].gps_accuracy for i in sel] if synced is not None else None
         _emit(progress, "keyframes", 1.0, f"{len(sel)} keyframes")
@@ -346,6 +395,8 @@ def run(project_dir, video_path, telemetry_path, *,
                     if params.densify == "mvs" else None)
             recon = colmap_adapter.reconstruct_frames(
                 kf_frames, K, keep_workspace=keep, fix_intrinsics=calibrated,
+                num_threads=params.sfm_threads,
+                gpu_matching=params.sfm_gpu_matching,
                 progress=lambda m, f: _emit(progress, "sfm", f, m))
         else:
             recon = sfm.reconstruct(
@@ -376,7 +427,8 @@ def run(project_dir, video_path, telemetry_path, *,
     mvs_colors = None
     mvs_sigma = None
     mvs_conf = None
-    mvs_vis = None             # per-point contributing frame indices
+    mvs_vis = None             # per-point contributing keyframes, (flat, offsets)
+    mvs_stats = None
     with stage_timer("densify"):
         if params.densify == "mvs":
             try:
@@ -391,13 +443,26 @@ def run(project_dir, video_path, telemetry_path, *,
                     ws, max_image_size=params.mvs_max_image_size,
                     geom_consistency=params.mvs_geometric,
                     min_num_pixels=params.mvs_min_views,
+                    num_src_images=params.mvs_num_src_images,
+                    window_step=params.mvs_window_step,
+                    num_iterations=params.mvs_num_iterations,
+                    num_samples=params.mvs_num_samples,
+                    gpu_index=params.mvs_gpu_index,
+                    cache_size_gb=params.mvs_cache_gb,
+                    keep_depth_maps=params.mvs_keep_depth_maps,
+                    log_dir=Path(project_dir) / "logs" / "mvs",
                     progress=lambda m, f: _emit(progress, "densify", f, m))
                 if len(dr):
                     mvs_points = dr.points
                     mvs_colors = dr.colors
-                    mvs_vis = dr.vis_images
+                    mvs_vis = dr.tracks_csr()
                     centres = np.array([c.center for c in recon.cameras], float)
-                    focal = 0.5 * (float(recon.K[0, 0]) + float(recon.K[1, 1]))
+                    # Dense pixel noise is in the dense images' pixels. They
+                    # can be smaller than the sparse images (mvs_max_image_size),
+                    # and using the sparse focal length there would claim the
+                    # same confidence from fewer pixels.
+                    focal = dr.stats.get("dense_focal_px") or (
+                        0.5 * (float(recon.K[0, 0]) + float(recon.K[1, 1])))
                     # The floor is the sparse model's own accuracy in the
                     # reconstruction frame: a dense point cannot be better
                     # known than the geometry that fixed the cameras.
@@ -419,18 +484,23 @@ def run(project_dir, video_path, telemetry_path, *,
                     # DEC-020), and the first where the stale docstring on
                     # `DenseResult.vis_images` was what suggested the error.
                     _par = None
-                    if dr.vis_images is not None:
-                        _cam_of_kf = {int(c.frame_index): i
-                                      for i, c in enumerate(recon.cameras)}
-                        _vis_cam = [
-                            np.array([_cam_of_kf.get(int(k), -1) for k in v], int)
-                            for v in dr.vis_images]
+                    if mvs_vis is not None:
+                        # Keyframe index -> position in recon.cameras, as a
+                        # lookup table; -1 for keyframes that did not register.
+                        _cam_of_kf = np.full(
+                            max([int(c.frame_index) for c in recon.cameras]
+                                + [int(mvs_vis[0].max()) if len(mvs_vis[0]) else 0]) + 1,
+                            -1, np.int64)
+                        for i, c in enumerate(recon.cameras):
+                            _cam_of_kf[int(c.frame_index)] = i
                         _par = mvsmod.contributing_parallax_deg(
-                            dr.points, centres, _vis_cam)
+                            dr.points, centres,
+                            csr=(_cam_of_kf[mvs_vis[0]], mvs_vis[1]))
                     mvs_sigma = mvsmod.depth_uncertainty(
                         dr.points, centres, dr.n_views,
                         sigma_px=mvsmod.DENSE_PIXEL_SIGMA, focal=focal,
                         floor=floor, parallax_deg=_par)
+                    mvs_stats = dict(dr.stats)
                     # Confidence from how many images actually agreed. A point
                     # two images agree on is real but weakly held; one that
                     # survives many is the dense equivalent of a long track.
@@ -808,22 +878,28 @@ def run(project_dir, video_path, telemetry_path, *,
                         "R": (np.asarray(c.R, float)
                               @ R_world_for_cov.T).tolist()}
                        for c, ce in zip(recon.cameras, cams_enu)]
+        _t_obs = time.perf_counter()
         observations = _remap_observations(recon, cloud, decoded_of_keyframe,
                                            n_sparse=len(recon.points),
                                            dense_vis=mvs_vis,
                                            dense_points=mvs_enu,
                                            voxel=params.voxel,
                                            cameras_enu=cameras_enu)
+        sub_timings["exports.observations"] = round(time.perf_counter() - _t_obs, 3)
+        _t_w = time.perf_counter()
         artifacts = _write_artifacts(art_dir, cloud, cameras_enu, enu_frame,
                                      report, timeline, gps_enu_all, sel, metrics,
                                      K=recon.K, image_size=(proc_w, proc_h),
                                      observations=observations)
+        sub_timings["exports.write_artifacts"] = round(time.perf_counter() - _t_w, 3)
+        _t_f = time.perf_counter()
         if params.fill_holes:
             try:
                 artifacts.update(_write_fill(art_dir, cloud, cameras_enu, recon,
                                              kf_frames, (proc_w, proc_h)))
             except Exception as e:  # a fill is cosmetic; never lose the run
                 warnings.append(f"hole fill skipped: {e}")
+        sub_timings["exports.hole_fill"] = round(time.perf_counter() - _t_f, 3)
         if mesh_path:
             artifacts["mesh_glb"] = mesh_path
         if cov_grid is not None:
@@ -840,6 +916,27 @@ def run(project_dir, video_path, telemetry_path, *,
     _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings,
                     leveling=leveling, align=align, timing_source=timing_source,
                     alignment=report.get("alignment"))
+    wall = time.perf_counter() - t_wall0
+    timing = {
+        "wall_s": round(wall, 2),
+        "video_s": round(float(vinfo.duration), 2) if vinfo.duration else None,
+        "wall_over_video": (round(wall / float(vinfo.duration), 3)
+                            if vinfo.duration else None),
+        "stages_s": dict(timings),
+        "substages_s": dict(sub_timings),
+        "sfm": {"timings_s": recon.stats.get("timings_s"),
+                "num_threads": recon.stats.get("num_threads")},
+        "dense": ({"timings_s": mvs_stats.get("timings_s"),
+                   "settings": mvs_stats.get("settings"),
+                   "dense_focal_px": mvs_stats.get("dense_focal_px")}
+                  if mvs_stats else None),
+        "note": "wall_s is one monotonic clock from pipeline entry to the "
+                "manifest; stages_s are sequential except that substages_s "
+                "and dense timings sit inside their stage",
+    }
+    (art_dir / "timing.json").write_text(json.dumps(timing, indent=2))
+    artifacts["timing"] = str(art_dir / "timing.json")
+    report["timing_complete"] = timing
     result = PipelineResult(str(project_dir), artifacts, report, warnings)
     return result
 
@@ -858,11 +955,11 @@ class _StageTimer:
         self.name, self.sink = name, sink
 
     def __enter__(self):
-        self.t = time.time()
+        self.t = time.perf_counter()
         return self
 
     def __exit__(self, *a):
-        self.sink[self.name] = round(time.time() - self.t, 3)
+        self.sink[self.name] = round(time.perf_counter() - self.t, 3)
 
 
 def _usable_pts(t, _np):
@@ -1070,31 +1167,47 @@ def _dense_observations(recon, cloud, n_sparse, dense_vis,
     # keyframe indices. Translating once here is the third time this pair has
     # had to be kept apart explicitly (DEC-009, DEC-015) -- conflating them
     # finds no camera and drops the observation without complaint.
-    sel_arr = np.asarray(sel, np.int32)
-    cam_of_frame = {int(c["frame_index"]): c for c in cameras_enu}
+    #
+    # Vectorised: one (point, view) pair per row, projected camera by camera.
+    # The per-pair Python loop this replaces ran ~13 M iterations on DJI_1003.
+    # Row order (by cloud point, then by the track's own order) is unchanged.
+    from . import mvs as _mvs
+    flat, offsets = (dense_vis if isinstance(dense_vis, tuple)
+                     else _mvs.ragged_to_csr(dense_vis))
+    flat = np.asarray(flat, np.int64)
+    offsets = np.asarray(offsets, np.int64)
+    src = nn[rows].astype(np.int64)
+    lens = offsets[src + 1] - offsets[src]
+    pair_row = np.repeat(rows, lens)
+    starts = np.repeat(offsets[src], lens)
+    within = np.arange(int(lens.sum())) - np.repeat(np.cumsum(lens) - lens, lens)
+    pair_kf = flat[starts + within]
+
+    sel_arr = np.asarray(sel, np.int64)
+    ok = (pair_kf >= 0) & (pair_kf < len(sel_arr))
+    frame_of_cam = {int(c["frame_index"]): j for j, c in enumerate(cameras_enu)}
+    cam_j = np.full(len(pair_kf), -1, np.int64)
+    cam_j[ok] = [frame_of_cam.get(int(f), -1) for f in sel_arr[pair_kf[ok]]] \
+        if ok.any() else []
     K = np.asarray(recon.K, float)
-    pt_idx, fr_idx, uv = [], [], []
-    for row in rows:
-        p = cloud.points[row]
-        for f in dense_vis[int(nn[row])]:
-            k = int(f)
-            if k >= len(sel_arr):
-                continue
-            cam = cam_of_frame.get(int(sel_arr[k]))
-            if cam is None:
-                continue
-            c = (np.asarray(cam["R"], float)
-                 @ (p - np.asarray(cam["C"], float)))
-            if c[2] <= 1e-6:
-                continue
-            pt_idx.append(int(row))
-            fr_idx.append(int(f))
-            uv.append((K[0, 0] * c[0] / c[2] + K[0, 2],
-                       K[1, 1] * c[1] / c[2] + K[1, 2]))
-    if not pt_idx:
+    uv_all = np.zeros((len(pair_kf), 2), np.float64)
+    keep = np.zeros(len(pair_kf), bool)
+    for j, cam in enumerate(cameras_enu):
+        m = np.flatnonzero(cam_j == j)
+        if not len(m):
+            continue
+        R = np.asarray(cam["R"], float)
+        C = np.asarray(cam["C"], float)
+        c = (cloud.points[pair_row[m]] - C) @ R.T
+        front = c[:, 2] > 1e-6
+        m, c = m[front], c[front]
+        uv_all[m, 0] = K[0, 0] * c[:, 0] / c[:, 2] + K[0, 2]
+        uv_all[m, 1] = K[1, 1] * c[:, 1] / c[:, 2] + K[1, 2]
+        keep[m] = True
+    if not keep.any():
         return None
-    return (np.asarray(pt_idx, np.int32), np.asarray(fr_idx, np.int32),
-            np.asarray(uv, np.float32))
+    return (pair_row[keep].astype(np.int32), pair_kf[keep].astype(np.int32),
+            uv_all[keep].astype(np.float32))
 
 
 def _remap_observations(recon, cloud, decoded_of_keyframe, *, n_sparse=None,

@@ -86,11 +86,21 @@ def test_sigma_is_nan_when_the_cloud_has_none(tmp_path):
 
 
 def test_ply_carries_sigma(tmp_path):
-    p = exports.export_ply(tmp_path / "c.ply", _cloud())
-    text = open(p).read()
-    assert "property float sigma" in text
-    body = [l for l in text.splitlines() if not l[0].isalpha()]
-    assert float(body[0].split()[-1]) == pytest.approx(0.05)
+    c = _cloud()
+    p = exports.export_ply(tmp_path / "c.ply", c)
+    raw = open(p, "rb").read()
+    head, body = raw.split(b"end_header\n", 1)
+    assert b"property float sigma" in head
+    assert b"format binary_little_endian" in head
+    rec = np.frombuffer(body, dtype=[("x", "<f8"), ("y", "<f8"), ("z", "<f8"),
+                                     ("r", "u1"), ("g", "u1"), ("b", "u1"),
+                                     ("conf", "<f4"), ("prov", "u1"),
+                                     ("sigma", "<f4")])
+    assert len(rec) == len(c.points)
+    assert rec["sigma"][0] == pytest.approx(0.05)
+    # Full precision: coordinates round-trip exactly.
+    assert np.array_equal(np.c_[rec["x"], rec["y"], rec["z"]],
+                          np.asarray(c.points, float))
 
 
 def test_sidecar_places_a_local_file(tmp_path):

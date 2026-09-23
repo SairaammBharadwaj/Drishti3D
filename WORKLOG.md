@@ -2463,3 +2463,45 @@ colour mode and hidden layers were ignored. Fixed.
 
 Tests: 479 passed (`tests/test_holefill.py` adds 8, one an end-to-end
 synthetic pipeline run).
+
+## 2026-09-23 — Performance plan, first pass (CHECKPOINT: paused mid-ladder)
+
+Working through `drishti3d/docs/performance_2026_09_23/OPTIMISATION_PLAN.md`.
+Paused at the user's request with the dense ladder half done. **Resume from the
+"Next" list below.**
+
+### Done, each checked against the code it replaced
+| change | measured |
+|---|---|
+| `release_gpu_models()` before a job | the API server held **4.9 GB** of the 8 GB GPU after one refinement (cached LightGlue) |
+| decode: `grab()` for skipped frames | kept frames and timestamps **bit-identical**; decode 26% faster |
+| release unselected frame images after keyframing | ~10.3 GB -> ~0.35 GB held on DJI_1003 (not yet measured in a run) |
+| frame scoring on threads, overlapped with decode | identical metrics; ~2x on its own |
+| SfM threads 4 -> 12 (`sfm_threads`) | DJI_1003 SfM **243 -> 182 s**, same 80/80 cameras, focal 1615.4 vs 1615.2 px |
+| vectorised visibility read, translation, parallax | 50.9 s -> ~5 s on 2.63 M points; parallax identical to 1e-12 deg |
+| vectorised `_dense_observations` | identical rows/uv; old loop ~70 s on the full cloud |
+| binary PLY (double xyz) | 2.7 M points in 0.21 s; Open3D reads it back exactly |
+| dense uses the dense images' focal for pixel noise | fixes the unit error the plan flagged before D5 |
+| wall clock + `timing.json`, dense/SfM substage timers, dense-failure = failed benchmark | |
+| PatchMatch controls exposed (`mvs_num_src_images`, `_window_step`, `_num_iterations`, `_num_samples`, `_gpu_index`, `_cache_gb`), depth maps deleted after fusion | |
+| optional GPU matching via the CUDA CLI (`sfm_gpu_matching`, **off**, untested) | |
+
+### Dense ladder on UseGeo (fixed sparse model, LiDAR-scored)
+Harness `scripts/dense_trial.py` reproduces the archived run (RMSE 0.3238 vs
+0.3237 m). PatchMatch is 519 s photometric + 678 s geometric, one view at a time.
+
+| trial | PatchMatch | cloud pts | RMSE | p95 | complete <0.5 m |
+|---|---:|---:|---:|---:|---:|
+| B0 baseline | 1212.7 s | 2,098,901 | 0.3238 | 0.4865 | 68.0% |
+| D1 12 sources | **1093.8 s** | 2,105,480 | **0.3179** | 0.4762 | **69.3%** |
+| G2 two workers "0,0" | 1371.6 s | 2,019,409 | not scored | | |
+
+D1 passes every gate (10% faster, slightly more accurate). G2 **rejected**: 13%
+slower, the GPU is already saturated. Scoring: `data/perf/score.sh <trials>`.
+
+### Next
+1. Finish the ladder: D3 `--window-step 2`, D4 `--iterations 3`, D2 `--num-src 10`,
+   D5 `--max-image-size 1280` (`data/perf/ladder_usegeo.sh`, minus D1/G2), score each.
+2. Combine passing settings; rerun on UseGeo.
+3. After the ladder (GPU free): `scripts/sfm_trial.py --run dji_1003__t10 --threads 12 --gpu-matching`; accept only with 80/80 and unchanged focal, then a full UseGeo LiDAR run.
+4. Fresh full DJI_1003 run with the winners and `timing.json`; then DEC entry.

@@ -72,6 +72,28 @@ def clear_detect_cache() -> None:
     """Drop cached detections. Call after reprocessing a project's video."""
     _DETECT_CACHE.clear()
 
+
+def release_gpu_models() -> None:
+    """Drop the cached transfer matcher and return its GPU memory.
+
+    The LightGlue matcher is cached for the life of the process (see
+    `RefinementEngine._transfer_backend`), and the API server is a long-lived
+    process. After one refinement it held 4.9 GB of an 8 GB card indefinitely,
+    leaving dense stereo in the next reconstruction about 3 GB. A
+    reconstruction job calls this first; the next refinement reloads the model
+    in about a second.
+    """
+    RefinementEngine._xfer = None
+    _DETECT_CACHE.clear()
+    try:
+        import gc
+        gc.collect()
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:                      # noqa: BLE001 - torch is optional
+        pass
+
 #: Rays from a camera recovered by PnP against the existing model carry this
 #: multiple of the baseline pixel uncertainty.  The camera's own pose error is
 #: real, correlated with the model it was fitted to, and not modelled per-ray;

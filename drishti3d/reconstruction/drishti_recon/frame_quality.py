@@ -47,19 +47,42 @@ def _exposure(gray):
     return brightness, dark_frac, bright_frac
 
 
-def analyze(frames, thresholds: QualityThresholds | None = None):
-    """frames: list of (frame_index, timestamp, bgr_image). Returns list[FrameMetrics]."""
+def _per_frame(img):
+    """Everything about one frame that does not depend on its neighbours."""
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blur = _blur(gray)
+    brightness, dark_frac, bright_frac = _exposure(gray)
+    small = cv2.resize(gray, (64, 64)).astype(np.float32)
+    small = (small - small.mean()) / (small.std() + 1e-6)
+    return blur, brightness, dark_frac, bright_frac, small
+
+
+def analyze(frames, thresholds: QualityThresholds | None = None, *,
+            workers: int | None = None, precomputed=None):
+    """frames: list of (frame_index, timestamp, bgr_image). Returns list[FrameMetrics].
+
+    The per-frame measurements run on a thread pool (OpenCV releases the GIL);
+    only the motion term needs the previous frame, and it is computed after, in
+    order, so the result is identical to a sequential pass. 23.6 s for
+    DJI_1003's 2,391 frames sequentially.
+
+    ``precomputed`` is a list of :func:`_per_frame` results in frame order, for
+    a caller that scored each frame while decoding; timestamps and indices
+    still come from ``frames``.
+    """
+    import os
+    from concurrent.futures import ThreadPoolExecutor
     th = thresholds or QualityThresholds()
+    n_workers = workers or max(1, min(8, (os.cpu_count() or 2) // 2))
+    if precomputed is not None and len(precomputed) == len(frames):
+        per = precomputed
+    else:
+        with ThreadPoolExecutor(max_workers=n_workers) as ex:
+            per = list(ex.map(_per_frame, (img for _, _, img in frames)))
     out = []
     prev_small = None
     prev_gray_small = None
-    for fi, ts, img in frames:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        blur = _blur(gray)
-        brightness, dark_frac, bright_frac = _exposure(gray)
-
-        small = cv2.resize(gray, (64, 64)).astype(np.float32)
-        small = (small - small.mean()) / (small.std() + 1e-6)
+    for (fi, ts, _img), (blur, brightness, dark_frac, bright_frac, small) in zip(frames, per):
         motion = 0.0
         if prev_small is not None:
             motion = float(np.mean(np.abs(small - prev_small)))

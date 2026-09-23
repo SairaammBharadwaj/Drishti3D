@@ -62,6 +62,11 @@ def _run(job_id: str, project_id: str, params: dict) -> None:
         db.commit()
         _set_state(job_id, status="running", message="starting")
 
+        # A refinement earlier in this process can leave a learned matcher
+        # on the GPU; dense stereo needs that memory more.
+        from drishti_recon.refinement import release_gpu_models
+        release_gpu_models()
+
         up = storage.uploads_dir(project_id)
         video = next(up.glob("video.*"))
         telem = next(iter(up.glob("telemetry.*")), None)   # optional (no-GPS mode)

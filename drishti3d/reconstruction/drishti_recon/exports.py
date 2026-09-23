@@ -14,7 +14,7 @@ from .provenance import Provenance
 
 
 def export_ply(path, cloud) -> str:
-    """ASCII PLY with RGB, confidence, provenance and per-point sigma.
+    """Binary PLY with RGB, confidence, provenance and per-point sigma.
 
     ``sigma`` is the worst-axis 1-sigma positional uncertainty in metres, the
     same quantity measurements use. It was previously computed, written into
@@ -22,6 +22,12 @@ def export_ply(path, cloud) -> str:
     opened anywhere else lost the one field that says how much to trust it.
     Points with no uncertainty are written as NaN rather than a plausible
     number.
+
+    Binary little-endian, coordinates as doubles. This was ASCII written one
+    Python line per point -- 2.7 M lines on DJI_1003 -- at four decimals; the
+    binary form is one array write, keeps full precision, and is about half
+    the size. Every mainstream reader (CloudCompare, MeshLab, Open3D, PDAL)
+    takes either.
     """
     path = Path(path)
     pts, cols, conf, prov = cloud.points, cloud.colors, cloud.confidence, cloud.provenance
@@ -30,22 +36,30 @@ def export_ply(path, cloud) -> str:
         sig = getattr(cloud, "sigma", None)
     n = len(pts)
     sig = np.full(n, np.nan) if sig is None else np.asarray(sig, float)
-    with open(path, "w") as f:
-        f.write("ply\nformat ascii 1.0\n")
-        f.write("comment coordinates are local ENU metres; see the "
-                "georeference sidecar for the origin and CRS\n")
-        f.write("comment sigma is worst-axis 1-sigma metres, uncalibrated\n")
-        f.write(f"element vertex {n}\n")
-        f.write("property float x\nproperty float y\nproperty float z\n")
-        f.write("property uchar red\nproperty uchar green\nproperty uchar blue\n")
-        f.write("property float confidence\nproperty uchar provenance\n")
-        f.write("property float sigma\n")
-        f.write("end_header\n")
-        for i in range(n):
-            x, y, z = pts[i]
-            r, g, b = cols[i]
-            f.write(f"{x:.4f} {y:.4f} {z:.4f} {int(r)} {int(g)} {int(b)} "
-                    f"{conf[i]:.4f} {int(prov[i])} {sig[i]:.6f}\n")
+    rec = np.empty(n, dtype=[("x", "<f8"), ("y", "<f8"), ("z", "<f8"),
+                             ("red", "u1"), ("green", "u1"), ("blue", "u1"),
+                             ("confidence", "<f4"), ("provenance", "u1"),
+                             ("sigma", "<f4")])
+    P = np.asarray(pts, float).reshape(-1, 3)
+    C = np.asarray(cols).reshape(-1, 3)
+    rec["x"], rec["y"], rec["z"] = P[:, 0], P[:, 1], P[:, 2]
+    rec["red"], rec["green"], rec["blue"] = C[:, 0], C[:, 1], C[:, 2]
+    rec["confidence"] = np.asarray(conf, float)
+    rec["provenance"] = np.asarray(prov).astype(np.uint8)
+    rec["sigma"] = sig
+    header = ("ply\nformat binary_little_endian 1.0\n"
+              "comment coordinates are local ENU metres; see the "
+              "georeference sidecar for the origin and CRS\n"
+              "comment sigma is worst-axis 1-sigma metres, uncalibrated\n"
+              f"element vertex {n}\n"
+              "property double x\nproperty double y\nproperty double z\n"
+              "property uchar red\nproperty uchar green\nproperty uchar blue\n"
+              "property float confidence\nproperty uchar provenance\n"
+              "property float sigma\n"
+              "end_header\n")
+    with open(path, "wb") as f:
+        f.write(header.encode("ascii"))
+        f.write(rec.tobytes())
     return str(path)
 
 

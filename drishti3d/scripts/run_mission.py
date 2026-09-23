@@ -201,6 +201,17 @@ def main() -> int:
                     help="'mvs' adds dense observed stereo geometry "
                          "(needs a CUDA-enabled colmap); 'depth' adds "
                          "inferred points excluded from measurement")
+    ap.add_argument("--mvs-max-image-size", type=int, default=None)
+    ap.add_argument("--mvs-num-src", type=int, default=None,
+                    help="PatchMatch source images per reference (COLMAP: 20)")
+    ap.add_argument("--mvs-window-step", type=int, default=None, choices=[1, 2])
+    ap.add_argument("--mvs-iterations", type=int, default=None)
+    ap.add_argument("--mvs-samples", type=int, default=None)
+    ap.add_argument("--mvs-gpu-index", default=None,
+                    help="'0,0' runs two stereo workers on one GPU")
+    ap.add_argument("--mvs-cache-gb", type=float, default=None)
+    ap.add_argument("--no-fill", action="store_true",
+                    help="skip the inferred hole fill")
     a = ap.parse_args()
 
     mission_dir = REPO / "datasets/public" / a.set / a.mission
@@ -238,7 +249,16 @@ def main() -> int:
         # calibration error on a factory calibration is real, so keep the
         # looser band the pipeline documents for field imagery.
         e_ransac_px=2.0,
+        fill_holes=not a.no_fill,
+        mvs_num_src_images=a.mvs_num_src,
+        mvs_window_step=a.mvs_window_step,
+        mvs_num_iterations=a.mvs_iterations,
+        mvs_num_samples=a.mvs_samples,
+        mvs_gpu_index=a.mvs_gpu_index,
+        mvs_cache_gb=a.mvs_cache_gb,
     )
+    if a.mvs_max_image_size is not None:
+        params.mvs_max_image_size = a.mvs_max_image_size
 
     last = {"t": 0.0}
 
@@ -248,7 +268,7 @@ def main() -> int:
             last["t"] = now
             print(f"  [{frac * 100:5.1f}%] {stage:12s} {msg}", flush=True)
 
-    t0 = time.time()
+    t0 = time.perf_counter()
     err = None
     try:
         result = pipeline.run(run_dir, mission_dir / "raw/video.mp4",
@@ -257,7 +277,13 @@ def main() -> int:
     except Exception as e:                                 # noqa: BLE001
         err = f"{type(e).__name__}: {e}"
         report, warns = {}, []
-    wall = time.time() - t0
+    wall = time.perf_counter() - t0
+    # A dense failure is caught inside the pipeline and leaves a sparse-only
+    # result that exits cleanly. For a benchmark that is a failed run.
+    if not err and a.densify == "mvs" and any(
+            "dense MVS skipped" in w for w in warns):
+        err = "dense MVS did not produce output: " + next(
+            w for w in warns if "dense MVS skipped" in w)
 
     scored = {"status": "reconstruction failed"} if err else \
         score(mission_dir, truth_dir, run_dir / "artifacts")
@@ -274,7 +300,12 @@ def main() -> int:
                    "max_analyze_frames": a.max_frames,
                    "proc_max_width": a.proc_width,
                    "densify": a.densify, "do_mesh": not a.no_mesh,
-                   "e_ransac_px": params.e_ransac_px},
+                   "e_ransac_px": params.e_ransac_px,
+                   "fill_holes": params.fill_holes,
+                   "mvs": {k: getattr(params, k) for k in (
+                       "mvs_max_image_size", "mvs_num_src_images",
+                       "mvs_window_step", "mvs_num_iterations",
+                       "mvs_num_samples", "mvs_gpu_index", "mvs_cache_gb")}},
         "mission_capture": manifest["capture"],
         # AGZ missions nest the hash under artifacts.video; the UseGeo and DJI
         # builders write it at the top level. A missing hash is recorded as

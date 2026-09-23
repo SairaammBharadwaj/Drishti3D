@@ -106,8 +106,28 @@ def _point_uncertainty(points, cam_list, K, obs_point, obs_frame, obs_uv):
 EXHAUSTIVE_MATCH_MAX_IMAGES = 200
 
 
+def _match_cpu(pycolmap, db, exhaustive, modern, _with_threads):
+    """pycolmap's CPU matcher, with the fallbacks older wheels need."""
+    try:
+        mopt = _with_threads(lambda: pycolmap.FeatureMatchingOptions() if modern
+                             else pycolmap.SequentialMatchingOptions())
+        if exhaustive:
+            pycolmap.match_exhaustive(str(db), matching_options=mopt) if mopt else \
+                pycolmap.match_exhaustive(str(db))
+        else:
+            pycolmap.match_sequential(str(db), matching_options=mopt) if mopt else \
+                pycolmap.match_sequential(str(db))
+    except Exception:
+        try:
+            pycolmap.match_exhaustive(str(db)) if exhaustive else \
+                pycolmap.match_sequential(str(db))
+        except Exception:
+            pycolmap.match_exhaustive(str(db))
+
+
 def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
-                       keep_workspace=None, fix_intrinsics=True):
+                       keep_workspace=None, fix_intrinsics=True,
+                       num_threads=None, gpu_matching=False):
     """Run COLMAP on in-memory BGR frames and return a ``sfm.ReconResult``.
 
     This lets the COLMAP engine drop into the same pipeline as the built-in
@@ -144,9 +164,15 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
         cv2.imwrite(str(img_dir / f"{i:04d}.jpg"), f, [cv2.IMWRITE_JPEG_QUALITY, 95])
 
     db = work / "db.db"
-    # Cap threads so COLMAP cannot pin every core and freeze the machine.
+    # Cap threads so COLMAP cannot pin every core and freeze the machine --
+    # half the cores, at most 16. This was min(4, cores // 2), which left 20 of
+    # this machine's 24 cores idle through a stage that is otherwise CPU-bound.
     import os
-    nthreads = max(1, min(4, (os.cpu_count() or 4) // 2))
+    import time as _time
+    nthreads = (int(num_threads) if num_threads else
+                max(1, min(16, (os.cpu_count() or 4) // 2)))
+    sfm_timings = {}
+    _t = _time.perf_counter()
     os.environ.setdefault("OMP_NUM_THREADS", str(nthreads))
 
     def _with_threads(factory):
@@ -224,6 +250,8 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
                     pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode)
         except TypeError:
             pycolmap.extract_features(str(db), str(img_dir), camera_mode=mode)
+        sfm_timings["features"] = round(_time.perf_counter() - _t, 2)
+        _t = _time.perf_counter()
         _p("colmap: matching", 0.35)
         # Sequential matching only compares each image with its neighbours in
         # capture order. That is ideal for a straight pass and wrong for a
@@ -246,21 +274,31 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
         _p(f"colmap: matching ({'exhaustive' if exhaustive else 'sequential'}, "
            f"{n_images} images, intrinsics "
            f"{'fixed' if fix_intrinsics else 'refined'})", 0.35)
-        try:
-            mopt = _with_threads(lambda: pycolmap.FeatureMatchingOptions() if modern
-                                  else pycolmap.SequentialMatchingOptions())
-            if exhaustive:
-                pycolmap.match_exhaustive(str(db), matching_options=mopt) if mopt else \
-                    pycolmap.match_exhaustive(str(db))
-            else:
-                pycolmap.match_sequential(str(db), matching_options=mopt) if mopt else \
-                    pycolmap.match_sequential(str(db))
-        except Exception:
-            try:
-                pycolmap.match_exhaustive(str(db)) if exhaustive else \
-                    pycolmap.match_sequential(str(db))
-            except Exception:
-                pycolmap.match_exhaustive(str(db))
+        # GPU matching through the CUDA `colmap` executable, on the database
+        # pycolmap just wrote. The PyPI pycolmap wheels are CPU-only, so this
+        # is the only way to reach the GPU from here. Off unless asked for: a
+        # GPU brute-force matcher and the CPU one need not return identical
+        # matches, so it is an accuracy question and not only a speed one.
+        matched = False
+        if gpu_matching:
+            import shutil as _sh
+            import subprocess as _sp
+            exe = _sh.which("colmap")
+            if exe:
+                cmd = [exe, "exhaustive_matcher" if exhaustive else "sequential_matcher",
+                       "--database_path", str(db),
+                       "--FeatureMatching.use_gpu", "1",
+                       "--FeatureMatching.num_threads", str(nthreads)]
+                r = _sp.run(cmd, capture_output=True, text=True)
+                matched = r.returncode == 0
+                if not matched:
+                    import warnings as _w
+                    _w.warn("GPU matching failed, falling back to CPU: "
+                            + (r.stderr or r.stdout)[-300:], RuntimeWarning)
+        if not matched:
+            _match_cpu(pycolmap, db, exhaustive, modern, _with_threads)
+        sfm_timings["matching"] = round(_time.perf_counter() - _t, 2)
+        _t = _time.perf_counter()
         _p("colmap: mapping", 0.6)
         mapopt = _with_threads(lambda: pycolmap.IncrementalPipelineOptions())
         if mapopt is not None and K is not None and fix_intrinsics:
@@ -279,6 +317,7 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
                 pycolmap.incremental_mapping(str(db), str(img_dir), str(work))
         except TypeError:
             maps = pycolmap.incremental_mapping(str(db), str(img_dir), str(work))
+        sfm_timings["mapping"] = round(_time.perf_counter() - _t, 2)
         if not maps:
             raise RuntimeError("COLMAP produced no reconstruction")
         rec = maps[max(maps, key=lambda k: maps[k].num_reg_images()
@@ -364,6 +403,9 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
         )
         result.stats = {
             "engine": "colmap",
+            "timings_s": sfm_timings,
+            "num_threads": nthreads,
+            "gpu_matching": bool(gpu_matching and matched),
             "n_keyframes": len(frames),
             "n_registered": len(cameras),
             "registered_fraction": len(cameras) / max(1, len(frames)),

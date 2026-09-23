@@ -149,6 +149,7 @@ def main() -> int:
         return {"n": int(len(d)), "median_m": float(np.median(d)),
                 "mean_m": float(d.mean()),
                 "p90_m": float(np.percentile(d, 90)),
+                "p95_m": float(np.percentile(d, 95)),
                 "p99_m": float(np.percentile(d, 99)),
                 "rmse_m": float(np.sqrt((d ** 2).mean()))}
 

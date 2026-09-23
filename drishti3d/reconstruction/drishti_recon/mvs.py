@@ -68,6 +68,10 @@ class DenseResult:
     #: to describe the untranslated form and caused exactly that double
     #: translation.)
     vis_images: list | None = None
+    #: The same tracks as ``(flat, offsets)``: point ``i``'s keyframes are
+    #: ``flat[offsets[i]:offsets[i + 1]]``. What the pipeline consumes; the
+    #: ragged list is built only on request (see :meth:`tracks`).
+    vis_csr: tuple | None = None
     #: Frame index of each workspace image, in visibility-index order.
     frame_order: list | None = None
     #: Per-point 1-sigma, metres in the reconstruction frame.
@@ -77,6 +81,14 @@ class DenseResult:
 
     def __len__(self) -> int:
         return int(self.points.shape[0])
+
+    def tracks_csr(self):
+        """``(flat, offsets)`` of keyframe indices, from whichever form is held."""
+        if self.vis_csr is not None:
+            return self.vis_csr
+        if self.vis_images is not None:
+            return ragged_to_csr(self.vis_images)
+        return None
 
 
 def colmap_executable() -> str | None:
@@ -138,36 +150,71 @@ MAX_INDEPENDENT_VIEWS = 4.0
 MIN_PARALLAX_DEG = 0.5
 
 
-def contributing_parallax_deg(points, centres, view_indices) -> np.ndarray:
+def ragged_to_csr(view_indices):
+    """Ragged per-point index lists as ``(flat, offsets)``.
+
+    ``offsets`` has one more entry than there are points; point ``i``'s indices
+    are ``flat[offsets[i]:offsets[i + 1]]``. One concatenation instead of
+    millions of small arrays is what makes per-point work vectorisable.
+    """
+    lens = np.fromiter((len(v) for v in view_indices), np.int64,
+                       count=len(view_indices))
+    offsets = np.zeros(len(lens) + 1, np.int64)
+    np.cumsum(lens, out=offsets[1:])
+    flat = (np.concatenate([np.asarray(v, np.int64).ravel() for v in view_indices])
+            if offsets[-1] else np.zeros(0, np.int64))
+    return flat, offsets
+
+
+#: Bytes of scratch the vectorised parallax may use per chunk.
+_PARALLAX_CHUNK_BYTES = 256 * 2**20
+
+
+def contributing_parallax_deg(points, centres, view_indices=None, *,
+                              csr=None) -> np.ndarray:
     """Widest angle between the rays that actually produced each point.
 
     ``view_indices`` is the ragged per-point list of contributing image indices
-    -- a dense point's track. This is the quantity that decides how well depth
-    is constrained, and it was previously not consulted at all: uncertainty was
-    computed from range and a view *count*, so two images 40 degrees apart and
-    two images half a degree apart produced the same number.
+    -- a dense point's track -- or pass ``csr=(flat, offsets)`` directly. This
+    is the quantity that decides how well depth is constrained, and it was
+    previously not consulted at all: uncertainty was computed from range and a
+    view *count*, so two images 40 degrees apart and two images half a degree
+    apart produced the same number.
 
-    Returns NaN where a point has fewer than two contributing views.
+    Indices outside ``centres`` and rays of zero length are ignored. Returns
+    NaN where fewer than two valid rays remain.
+
+    Vectorised by track length: every point with the same number of views is
+    one batched Gram matrix. On DJI_1003's 2.63 M dense points this took 37.5 s
+    as a per-point loop.
     """
     pts = np.asarray(points, float).reshape(-1, 3)
     c = np.asarray(centres, float).reshape(-1, 3)
     out = np.full(len(pts), np.nan)
-    if not len(c) or view_indices is None:
+    if not len(c) or (view_indices is None and csr is None):
         return out
-    for i, idx in enumerate(view_indices):
-        idx = np.asarray(idx, int).ravel()
-        idx = idx[(idx >= 0) & (idx < len(c))]
-        if len(idx) < 2:
+    flat, offsets = csr if csr is not None else ragged_to_csr(view_indices)
+    flat = np.asarray(flat, np.int64)
+    offsets = np.asarray(offsets, np.int64)
+    lens = np.diff(offsets)
+    for L in np.unique(lens):
+        if L < 2:
             continue
-        d = c[idx] - pts[i]
-        n = np.linalg.norm(d, axis=1)
-        ok = n > 1e-9
-        if ok.sum() < 2:
-            continue
-        u = d[ok] / n[ok, None]
-        # Widest pair, which is what sets the depth constraint.
-        cos = np.clip(u @ u.T, -1.0, 1.0)
-        out[i] = float(np.degrees(np.arccos(cos.min())))
+        rows_all = np.flatnonzero(lens == L)
+        step = max(1, int(_PARALLAX_CHUNK_BYTES // (8 * (L * L + 4 * L))))
+        for s0 in range(0, len(rows_all), step):
+            rows = rows_all[s0:s0 + step]
+            ids = flat[offsets[rows, None] + np.arange(L)]
+            ok_id = (ids >= 0) & (ids < len(c))
+            rays = c[np.where(ok_id, ids, 0)] - pts[rows, None, :]
+            norms = np.linalg.norm(rays, axis=2)
+            valid = ok_id & (norms > 1e-9)
+            unit = rays / np.where(valid, norms, 1.0)[..., None]
+            dots = np.einsum("nik,njk->nij", unit, unit)
+            dots = np.where(valid[:, :, None] & valid[:, None, :], dots, 1.0)
+            ang = np.degrees(np.arccos(np.clip(dots.min(axis=(1, 2)), -1.0, 1.0)))
+            ang[valid.sum(axis=1) < 2] = np.nan
+            out[rows] = ang
     return out
 
 
@@ -296,32 +343,72 @@ def _read_ply(path: Path):
         return xyz, rgb
 
 
-def _read_visibility(path: Path, n_points: int):
-    """Which images each fused point was seen in, from COLMAP's ``.vis`` sidecar.
+def _read_visibility_csr(path: Path, n_points: int):
+    """COLMAP's ``.vis`` sidecar as ``(counts, flat, offsets)``, or Nones.
 
-    This is the dense equivalent of a sparse point's track, and it is what lets
-    a dense point carry observation lineage instead of falling back to a
-    frustum guess. Returns ``(counts, image_indices)``; the second is ragged --
-    indices into the dense workspace's image list, which the caller maps to
-    frame indices.
+    The file is ``uint64 n`` then, per point, ``uint32 k`` and ``k`` uint32
+    image indices. Where each record starts depends on every earlier count, so
+    finding the heads is one integer walk; the rest is array slicing. The old
+    reader did two file reads per point and built 2.6 M arrays (3.7 s on
+    DJI_1003); consumers now take the flat form.
     """
     if not path.exists():
-        return None, None
+        return None, None, None
     try:
-        with open(path, "rb") as fh:
-            n = int(np.frombuffer(fh.read(8), dtype="<u8", count=1)[0])
-            if n != n_points:
-                return None, None
-            counts = np.zeros(n, np.int32)
-            images = []
-            for _ in range(n):
-                k = int(np.frombuffer(fh.read(4), dtype="<u4", count=1)[0])
-                idx = np.frombuffer(fh.read(4 * k), dtype="<u4", count=k)
-                counts[len(images)] = k
-                images.append(idx.astype(np.int32))
-            return counts, images
+        raw = path.read_bytes()
+        n = int(np.frombuffer(raw[:8], dtype="<u8", count=1)[0])
+        if n != n_points:
+            return None, None, None
+        body = np.frombuffer(raw[8:], dtype="<u4")
+        b = body.tolist()
+        heads = np.empty(n, np.int64)
+        pos = 0
+        for i in range(n):
+            heads[i] = pos
+            pos += 1 + b[pos]
+        if pos != len(body):
+            return None, None, None
+        counts = body[heads].astype(np.int32)
+        offsets = np.zeros(n + 1, np.int64)
+        np.cumsum(counts, out=offsets[1:])
+        # Every body entry that is not a head is an index, in order.
+        is_head = np.zeros(len(body), bool)
+        is_head[heads] = True
+        flat = body[~is_head].astype(np.int32)
+        return counts, flat, offsets
     except Exception:                      # noqa: BLE001 - optional detail
+        return None, None, None
+
+
+def _read_visibility(path: Path, n_points: int):
+    """Ragged form of :func:`_read_visibility_csr`: ``(counts, [indices...])``."""
+    counts, flat, offsets = _read_visibility_csr(path, n_points)
+    if counts is None:
         return None, None
+    return counts, np.split(flat, offsets[1:-1])
+
+
+def translate_csr(flat, offsets, table):
+    """Map CSR indices through ``table``, dropping any past its end.
+
+    Returns the new ``(flat, offsets)``. Dropping rather than clamping matches
+    the ragged form this replaces, where an out-of-range visibility index was
+    filtered out of that point's list.
+    """
+    flat = np.asarray(flat, np.int64)
+    offsets = np.asarray(offsets, np.int64)
+    table = np.asarray(table)
+    keep = (flat >= 0) & (flat < len(table))
+    row = np.repeat(np.arange(len(offsets) - 1), np.diff(offsets))
+    lens = np.bincount(row[keep], minlength=len(offsets) - 1)
+    new_off = np.zeros(len(offsets), np.int64)
+    np.cumsum(lens, out=new_off[1:])
+    return table[flat[keep]].astype(np.int32), new_off
+
+
+def csr_rows(flat, offsets):
+    """Ragged list view of a CSR pair, for callers that still want one."""
+    return np.split(np.asarray(flat), np.asarray(offsets)[1:-1])
 
 
 def _workspace_frame_order(dense: Path):
@@ -343,8 +430,56 @@ def _workspace_frame_order(dense: Path):
         return None
 
 
+#: COLMAP's own PatchMatch defaults for the controls exposed below, as of
+#: 4.1.0. Recorded so a run's stats say what was used even when a caller left
+#: a setting alone.
+PATCH_MATCH_DEFAULTS = {"num_src_images": 20, "window_step": 1,
+                        "num_iterations": 5, "num_samples": 15}
+
+
+def _limit_source_images(dense: Path, n: int) -> None:
+    """Rewrite ``patch-match.cfg`` so each reference uses ``n`` source images.
+
+    ``image_undistorter`` writes ``__auto__, 20`` per image: COLMAP picks the
+    20 best-overlapping images by shared sparse points. There is no command-line
+    flag for that number, so the config is the interface.
+    """
+    cfg = dense / "stereo" / "patch-match.cfg"
+    lines = cfg.read_text().splitlines()
+    out = []
+    for line in lines:
+        if line.strip().startswith("__auto__"):
+            line = f"__auto__, {int(n)}"
+        out.append(line)
+    cfg.write_text("\n".join(out) + "\n")
+
+
+def _dense_focal(dense: Path):
+    """Mean focal length, in pixels, of the undistorted dense images.
+
+    Dense stereo works on images ``image_undistorter`` may have resized, so its
+    pixel noise is in *those* pixels. Converting it with the sparse model's
+    focal length would claim unchanged confidence for a lower-resolution run.
+    """
+    try:
+        import pycolmap
+        rec = pycolmap.Reconstruction(str(dense / "sparse"))
+        fs = [float(c.mean_focal_length()) for c in rec.cameras.values()]
+        return float(np.mean(fs)) if fs else None
+    except Exception:                      # noqa: BLE001 - optional detail
+        return None
+
+
 def run_colmap(workspace, *, max_image_size: int = 1600,
                geom_consistency: bool = True, min_num_pixels: int = 5,
+               num_src_images: int | None = None,
+               window_step: int | None = None,
+               num_iterations: int | None = None,
+               num_samples: int | None = None,
+               gpu_index: str | None = None,
+               cache_size_gb: float | None = None,
+               keep_depth_maps: bool = True,
+               log_dir=None,
                progress=None) -> DenseResult:
     """PatchMatch stereo and fusion over a COLMAP workspace.
 
@@ -352,22 +487,47 @@ def run_colmap(workspace, *, max_image_size: int = 1600,
     ``images/`` and ``sparse/`` as COLMAP itself wrote them. Reusing its own
     output avoids re-exporting by hand what is already on disk, and avoids the
     two disagreeing.
+
+    The PatchMatch controls default to ``None``, meaning COLMAP's own default
+    (:data:`PATCH_MATCH_DEFAULTS`); ``stats["settings"]`` records the resolved
+    values and ``stats["timings_s"]`` each substage. A value COLMAP would
+    reject raises rather than silently falling back.
     """
+    import time
     exe = colmap_executable()
     if not exe:
         raise RuntimeError(available()["colmap"]["setup"])
+    for name, v, lo in (("num_src_images", num_src_images, 1),
+                        ("window_step", window_step, 1),
+                        ("num_iterations", num_iterations, 1),
+                        ("num_samples", num_samples, 1)):
+        if v is not None and (int(v) != v or v < lo):
+            raise ValueError(f"{name} must be an integer >= {lo}, got {v!r}")
+    if window_step is not None and window_step > 2:
+        # COLMAP's CUDA kernel supports steps 1 and 2 only.
+        raise ValueError("window_step must be 1 or 2")
     work = Path(workspace)
     images, sparse = work / "images", work / "sparse"
     if not images.is_dir() or not sparse.is_dir():
         raise RuntimeError(f"{work} is not a COLMAP workspace")
     dense = work / "dense"
+    timings: dict = {}
+    logs = Path(log_dir) if log_dir else None
+    if logs:
+        logs.mkdir(parents=True, exist_ok=True)
 
     def _p(msg, frac):
         if progress:
             progress(msg, frac)
 
     def _run(args, stage):
+        t0 = time.perf_counter()
         out = subprocess.run([exe, *args], capture_output=True, text=True)
+        timings[stage] = round(time.perf_counter() - t0, 2)
+        if logs:
+            (logs / f"{stage}.log").write_text(
+                " ".join([exe, *args]) + "\n\n" + (out.stdout or "")
+                + "\n" + (out.stderr or ""))
         if out.returncode != 0:
             tail = (out.stderr or out.stdout or "").strip().splitlines()
             raise RuntimeError(f"colmap {stage} failed: "
@@ -379,40 +539,78 @@ def run_colmap(workspace, *, max_image_size: int = 1600,
           "--input_path", str(sparse), "--output_path", str(dense),
           "--output_type", "COLMAP",
           "--max_image_size", str(max_image_size)], "image_undistorter")
+    if num_src_images is not None:
+        _limit_source_images(dense, num_src_images)
+
+    pm = ["--PatchMatchStereo.geom_consistency",
+          "true" if geom_consistency else "false"]
+    for flag, v in (("window_step", window_step),
+                    ("num_iterations", num_iterations),
+                    ("num_samples", num_samples)):
+        if v is not None:
+            pm += [f"--PatchMatchStereo.{flag}", str(int(v))]
+    if gpu_index is not None:
+        pm += ["--PatchMatchStereo.gpu_index", str(gpu_index)]
+    if cache_size_gb is not None:
+        pm += ["--PatchMatchStereo.cache_size", str(cache_size_gb)]
 
     _p("mvs: patch-match stereo", 0.3)
     _run(["patch_match_stereo", "--workspace_path", str(dense),
-          "--workspace_format", "COLMAP",
-          "--PatchMatchStereo.geom_consistency",
-          "true" if geom_consistency else "false"], "patch_match_stereo")
+          "--workspace_format", "COLMAP", *pm], "patch_match_stereo")
 
     _p("mvs: fusing", 0.8)
     fused = dense / "fused.ply"
+    fu = []
+    if cache_size_gb is not None:
+        fu += ["--StereoFusion.cache_size", str(cache_size_gb)]
     _run(["stereo_fusion", "--workspace_path", str(dense),
           "--workspace_format", "COLMAP",
           "--input_type", "geometric" if geom_consistency else "photometric",
           "--output_path", str(fused),
-          "--StereoFusion.min_num_pixels", str(min_num_pixels)],
+          "--StereoFusion.min_num_pixels", str(min_num_pixels), *fu],
          "stereo_fusion")
     if not fused.exists():
         raise RuntimeError("stereo_fusion produced no output")
 
+    t0 = time.perf_counter()
     xyz, rgb = _read_ply(fused)
-    vis, vis_images = _read_visibility(dense / "fused.ply.vis", len(xyz))
+    vis, vflat, voff = _read_visibility_csr(dense / "fused.ply.vis", len(xyz))
     order = _workspace_frame_order(dense)
     # Translate visibility indices into frame numbers once, here, so nothing
     # downstream has to know about COLMAP's image ordering. Validated by
     # reprojection: 99.9% of the observations this produces land inside the
     # image that claims to have seen the point.
-    if vis_images is not None and order is not None:
-        arr = np.asarray(order, np.int32)
-        vis_images = [arr[i[i < len(arr)]] for i in vis_images]
+    vis_csr = None
+    if vflat is not None and order is not None:
+        vis_csr = translate_csr(vflat, voff, np.asarray(order, np.int32))
+    focal = _dense_focal(dense)
+    timings["read_outputs"] = round(time.perf_counter() - t0, 2)
+    if not keep_depth_maps:
+        # The depth and normal maps are gigabytes and nothing reads them after
+        # fusion; the fused cloud and its visibility are what is kept.
+        shutil.rmtree(dense / "stereo" / "depth_maps", ignore_errors=True)
+        shutil.rmtree(dense / "stereo" / "normal_maps", ignore_errors=True)
+        shutil.rmtree(dense / "stereo" / "consistency_graphs", ignore_errors=True)
     _p("mvs: done", 1.0)
+    settings = {"max_image_size": max_image_size,
+                "geom_consistency": geom_consistency,
+                "min_num_pixels": min_num_pixels,
+                "num_src_images": (num_src_images if num_src_images is not None
+                                   else PATCH_MATCH_DEFAULTS["num_src_images"]),
+                "window_step": (window_step if window_step is not None
+                                else PATCH_MATCH_DEFAULTS["window_step"]),
+                "num_iterations": (num_iterations if num_iterations is not None
+                                   else PATCH_MATCH_DEFAULTS["num_iterations"]),
+                "num_samples": (num_samples if num_samples is not None
+                                else PATCH_MATCH_DEFAULTS["num_samples"]),
+                "gpu_index": gpu_index if gpu_index is not None else "-1",
+                "cache_size_gb": cache_size_gb}
     return DenseResult(points=xyz, colors=rgb, n_views=vis,
-                       vis_images=vis_images, frame_order=order,
+                       vis_csr=vis_csr, frame_order=order,
                        backend="colmap",
                        stats={"n_points": int(len(xyz)),
-                              "max_image_size": max_image_size,
-                              "geom_consistency": geom_consistency,
-                              "min_num_pixels": min_num_pixels,
+                              **settings,
+                              "settings": settings,
+                              "timings_s": timings,
+                              "dense_focal_px": focal,
                               "workspace": str(work)})
