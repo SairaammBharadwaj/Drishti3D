@@ -180,6 +180,54 @@ export const api = {
   quality: (id: string) => fetch(`${BASE}/api/projects/${id}/quality`).then(j<QualityReport>),
   trajectory: (id: string) => fetch(`${BASE}/api/projects/${id}/trajectory`).then(j<Trajectory>),
   model: (id: string) => fetch(`${BASE}/api/projects/${id}/model`).then(j<ModelPayload>),
+
+  /**
+   * Every point, not the 120,000-point preview.
+   *
+   * `viewer.json` is capped because JSON is ruinous for this -- 2.69M points
+   * is about 148 MB as text against 6.6 MB capped. The cap was never a
+   * rendering limit; three.js draws millions of points comfortably. This is
+   * the same cloud packed little-endian at 16 bytes per point:
+   *
+   *   'D3DC' | uint32 version | uint32 count | xyz float32 | rgb u8 | prov u8
+   *
+   * 43 MB for that cloud, and no parse beyond a typed-array view.
+   */
+  modelFull: async (id: string, onProgress?: (frac: number) => void) => {
+    const res = await fetch(`${BASE}/api/projects/${id}/model.bin`)
+    if (!res.ok) throw new Error(`model.bin: ${res.status}`)
+    const total = Number(res.headers.get('Content-Length') || 0)
+    let buf: ArrayBuffer
+    if (onProgress && res.body && total) {
+      const reader = res.body.getReader()
+      const chunks: Uint8Array[] = []
+      let got = 0
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value); got += value.length
+        onProgress(got / total)
+      }
+      const merged = new Uint8Array(got)
+      let at = 0
+      for (const c of chunks) { merged.set(c, at); at += c.length }
+      buf = merged.buffer
+    } else {
+      buf = await res.arrayBuffer()
+    }
+    const view = new DataView(buf)
+    const magic = String.fromCharCode(
+      view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3))
+    if (magic !== 'D3DC') throw new Error(`unexpected cloud format '${magic}'`)
+    const version = view.getUint32(4, true)
+    if (version !== 1) throw new Error(`cloud format version ${version} not supported`)
+    const n = view.getUint32(8, true)
+    let off = 12
+    const xyz = new Float32Array(buf, off, n * 3); off += n * 12
+    const rgb = new Uint8Array(buf, off, n * 3); off += n * 3
+    const provenance = new Uint8Array(buf, off, n)
+    return { n, xyz, rgb, provenance }
+  },
   keyframes: (id: string) => fetch(`${BASE}/api/projects/${id}/keyframes`).then(j<Keyframe[]>),
   frameMetrics: (id: string) => fetch(`${BASE}/api/projects/${id}/frame_metrics`).then(j<FrameMetric[]>),
   exports: (id: string) => fetch(`${BASE}/api/projects/${id}/exports`).then(j<ExportList>),

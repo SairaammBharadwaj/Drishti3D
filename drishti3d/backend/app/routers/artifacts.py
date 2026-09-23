@@ -4,8 +4,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
+
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -56,6 +58,62 @@ def get_trajectory(project_id: str):
 def get_model(project_id: str):
     """Viewer point-cloud payload (downsampled, ENU + provenance)."""
     return JSONResponse(_load_json(project_id, "viewer.json"))
+
+
+#: Header layout for the full-cloud binary. Little-endian throughout, which is
+#: what every browser this runs in uses natively.
+_CLOUD_MAGIC = b"D3DC"
+_CLOUD_VERSION = 1
+
+
+@router.get("/{project_id}/model.bin")
+def get_model_binary(project_id: str):
+    """The complete point cloud, packed, with no downsampling.
+
+    `viewer.json` caps at 120,000 points because JSON is ruinous for this: a
+    2.69 M point cloud is about 148 MB as text, against 6.6 MB for the capped
+    preview. The cap was never a rendering limit -- three.js draws millions of
+    points comfortably -- it was a transfer and parse limit, and the fix is to
+    stop sending numbers as text.
+
+    Packed little-endian:
+
+        magic   4 bytes  'D3DC'
+        version 4 bytes  uint32
+        count   4 bytes  uint32
+        xyz     count * 3 * float32   ENU metres
+        rgb     count * 3 * uint8
+        prov    count * 1 * uint8     Provenance enum
+
+    That is 16 bytes per point: about 43 MB for the same cloud, a third of the
+    JSON and no parsing beyond a typed-array view. The capped JSON stays as the
+    first paint; this is what "show every point" loads.
+    """
+    import io
+    npz = _artifact(project_id, "cloud.npz")
+    d = np.load(npz)
+    pts = np.ascontiguousarray(d["points"], dtype="<f4")
+    n = len(pts)
+    cols = np.ascontiguousarray(
+        d["colors"] if "colors" in d.files else np.full((n, 3), 200),
+        dtype=np.uint8)
+    prov = np.ascontiguousarray(
+        d["provenance"] if "provenance" in d.files else np.zeros(n),
+        dtype=np.uint8)
+
+    buf = io.BytesIO()
+    buf.write(_CLOUD_MAGIC)
+    buf.write(np.uint32(_CLOUD_VERSION).tobytes())
+    buf.write(np.uint32(n).tobytes())
+    buf.write(pts.tobytes())
+    buf.write(cols.tobytes())
+    buf.write(prov.tobytes())
+    data = buf.getvalue()
+    return Response(
+        content=data, media_type="application/octet-stream",
+        headers={"Content-Length": str(len(data)),
+                 "X-Point-Count": str(n),
+                 "Cache-Control": "no-cache"})
 
 
 @router.get("/{project_id}/keyframes")

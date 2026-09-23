@@ -15,6 +15,11 @@ const KIND_MIN: Record<MeasurementKind, number> = { point: 1, distance: 2, heigh
 export default function Workspace() {
   const { id = '' } = useParams()
   const [model, setModel] = useState<ModelPayload | null>(null)
+  // The capped preview paints immediately; the full cloud is fetched on
+  // request because it is tens of megabytes and most sessions never need it.
+  const [full, setFull] = useState<Awaited<ReturnType<typeof api.modelFull>> | null>(null)
+  const [fullState, setFullState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [fullProgress, setFullProgress] = useState(0)
   const [quality, setQuality] = useState<QualityReport | null>(null)
   const [traj, setTraj] = useState<Trajectory | null>(null)
   const [metrics, setMetrics] = useState<FrameMetric[]>([])
@@ -155,7 +160,7 @@ export default function Workspace() {
       {/* CENTER: viewer */}
       <div className="viewer-wrap">
         <PointCloudViewer
-          model={model} colorMode={colorMode} splat={splat} pointSize={pointSize}
+          model={model} full={full} colorMode={colorMode} splat={splat} pointSize={pointSize}
           visibleProvenance={visible} picking={kind != null}
           onPick={onPick} onHover={setHover}
           activePoints={pts} savedLines={savedLines}
@@ -163,11 +168,35 @@ export default function Workspace() {
         <div className="viewer-hint">
           {kind ? `Picking for ${kind} — click points, then Finish` : 'Drag to orbit · scroll to zoom · pick a tool to measure'}
         </div>
+        <div className="viewer-detail">
+          {full ? (
+            <span className="mono">all {full.n.toLocaleString()} points</span>
+          ) : fullState === 'loading' ? (
+            <span className="mono">loading full cloud… {Math.round(fullProgress * 100)}%</span>
+          ) : (
+            <button
+              onClick={async () => {
+                setFullState('loading'); setFullProgress(0)
+                try {
+                  setFull(await api.modelFull(id, setFullProgress))
+                  setFullState('idle')
+                } catch (e) { setErr(String(e)); setFullState('error') }
+              }}
+              title="The view shows a downsampled preview. This loads every point."
+            >
+              Show all {model.points.length < (quality?.cloud.n_points ?? 0)
+                ? (quality?.cloud.n_points ?? 0).toLocaleString() : ''} points
+            </button>
+          )}
+        </div>
         <div className="viewer-overlay mono">
           {hover
             ? `ENU  E ${hover[0].toFixed(2)}  N ${hover[1].toFixed(2)}  U ${hover[2].toFixed(2)} m` +
               (hoverLL ? `\n${hoverLL.lat.toFixed(6)}, ${hoverLL.lon.toFixed(6)}` : '')
-            : `${model.points.length.toLocaleString()} points shown`}
+            : `${(full ? full.n : model.points.length).toLocaleString()} points shown`
+              + (full || !quality?.cloud.n_points
+                 || quality.cloud.n_points <= model.points.length
+                  ? '' : ` of ${quality.cloud.n_points.toLocaleString()}`)}
         </div>
       </div>
 

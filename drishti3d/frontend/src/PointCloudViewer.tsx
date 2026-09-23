@@ -5,6 +5,8 @@ import { PROVENANCE, type ModelPayload, type Vec3 } from './api'
 
 interface Props {
   model: ModelPayload
+  /** Every point, packed. When present it replaces the capped preview. */
+  full?: { n: number; xyz: Float32Array; rgb: Uint8Array; provenance: Uint8Array } | null
   colorMode: 'true' | 'provenance'
   splat: boolean            // render soft gaussian surface splats vs hard points
   pointSize: number
@@ -28,7 +30,7 @@ export default function PointCloudViewer(props: Props) {
     basePositions: Float32Array
     trueColors: Float32Array
     provColors: Float32Array
-    provCodes: number[]
+    provCodes: Uint8Array
     raycaster: THREE.Raycaster
     radius: number
     markerGroup: THREE.Group
@@ -68,28 +70,51 @@ export default function PointCloudViewer(props: Props) {
     controls.staticMoving = false
     controls.dynamicDampingFactor = 0.12
 
-    const n = props.model.points.length
+    // Two sources, one loop. `full` is the packed binary cloud -- every point,
+    // typed arrays straight off the wire. Without it we use the capped JSON
+    // preview. Converting the binary into arrays-of-arrays to share one code
+    // path would allocate 2.69M three-element arrays and undo the reason the
+    // binary format exists, so the accessors branch instead.
+    const full = props.full
+    const n = full ? full.n : props.model.points.length
     const basePositions = new Float32Array(n * 3)
     const trueColors = new Float32Array(n * 3)
     const provColors = new Float32Array(n * 3)
-    const provCodes = props.model.provenance
+    // Kept for the provenance-layer filter below, which needs the class of
+    // every point regardless of which source supplied it.
+    const provCodes = new Uint8Array(n)
     const center = new THREE.Vector3()
+    let cx = 0, cy = 0, cz = 0
     for (let i = 0; i < n; i++) {
-      const p = props.model.points[i]
-      basePositions[i * 3] = p[0]
-      basePositions[i * 3 + 1] = p[1]
-      basePositions[i * 3 + 2] = p[2]
-      center.add(new THREE.Vector3(p[0], p[1], p[2]))
-      const c = props.model.colors[i]
-      trueColors[i * 3] = c[0] / 255
-      trueColors[i * 3 + 1] = c[1] / 255
-      trueColors[i * 3 + 2] = c[2] / 255
-      const pc = PROVENANCE[provCodes[i]]?.color ?? [200, 200, 200]
+      let px: number, py: number, pz: number
+      let r: number, g: number, b: number, code: number
+      if (full) {
+        px = full.xyz[i * 3]; py = full.xyz[i * 3 + 1]; pz = full.xyz[i * 3 + 2]
+        r = full.rgb[i * 3]; g = full.rgb[i * 3 + 1]; b = full.rgb[i * 3 + 2]
+        code = full.provenance[i]
+      } else {
+        const p = props.model.points[i]
+        px = p[0]; py = p[1]; pz = p[2]
+        const c = props.model.colors[i]
+        r = c[0]; g = c[1]; b = c[2]
+        code = props.model.provenance[i]
+      }
+      basePositions[i * 3] = px
+      basePositions[i * 3 + 1] = py
+      basePositions[i * 3 + 2] = pz
+      // Accumulated as scalars: allocating a Vector3 per point was tolerable
+      // at 120k and is 2.69M allocations here.
+      cx += px; cy += py; cz += pz
+      trueColors[i * 3] = r / 255
+      trueColors[i * 3 + 1] = g / 255
+      trueColors[i * 3 + 2] = b / 255
+      provCodes[i] = code
+      const pc = PROVENANCE[code]?.color ?? [200, 200, 200]
       provColors[i * 3] = pc[0] / 255
       provColors[i * 3 + 1] = pc[1] / 255
       provColors[i * 3 + 2] = pc[2] / 255
     }
-    if (n > 0) center.multiplyScalar(1 / n)
+    if (n > 0) center.set(cx / n, cy / n, cz / n)
 
     const bmin = props.model.bbox.min, bmax = props.model.bbox.max
     const radius = Math.max(
