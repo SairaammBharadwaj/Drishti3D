@@ -2413,3 +2413,53 @@ debiased error at first, which is the DEC-024 mistake again, and now reports
 the offset itself. And the mission builder's `read_intrinsics` claimed in its
 docstring to convert the principal point while returning raw columns, including
 a negative y0.
+
+
+## 2026-09-22/23 — Native 10-minute DJI video, the full cloud, and filling the water
+
+### Two 11-minute AirLock flights
+Source: AirLock (WACV 2026),
+`huggingface.co/datasets/zhiyundeng/AirLock-WACV2026`, `uav-video/1080p`, with
+the matching telemetry under `datasets/public/airlock/telemetry/uav/`.
+DJI_1003 (Austin, over Lady Bird Lake) and DJI_1001 (a suburb).
+
+| | DJI_1003 | DJI_1001 |
+|---|---:|---:|
+| registered keyframes | 80 / 80 | 80 / 80 |
+| points | 2.69 M | 3.27 M |
+| processing / video | 2.88× | 2.83× |
+| densify share | 81.2% | 82.1% |
+| altitude range | 5.1 m | 1.1 m |
+| alignment degenerate | yes | yes |
+| 10 m cells under the flight hull with points | 86% | 91% |
+
+Both are over the 1.5× budget, for the same reason: dense stereo is four fifths
+of the time and would need to be ~2.4× faster.
+
+Four input fixes were needed on the way:
+- AirLock's CSV headers carry units, so column matching now strips unit words
+  (but not `ns`/`ms`/`us`, which name time bases), exact match first.
+- DJI's SRT gives a bare `altitude:` with no reference named, so it is read as
+  `unspecified`, not guessed.
+- COLMAP now receives a guessed focal length as a starting value only, and
+  refines it. Before this, a guess was frozen as if it were calibration, which
+  was my regression after DEC-038.
+- A video's embedded subtitle track is extracted as telemetry when no file is
+  given.
+
+### The full cloud
+The viewer drew 120,000 points because `viewer.json` is JSON. `/model.bin`
+serves the whole cloud at 16 bytes a point. The first version changed
+nothing on screen, because the scene effect depended only on the capped model.
+The user noticed ("i did not see any change"); I had not checked in a browser.
+
+### Filling the water ([DEC-040](DECISIONS.md))
+The user asked why the river is a hole. Stereo cannot see water. The fill
+follows survey practice, a surface at shoreline height, kept beside the cloud
+and labelled. Three rim-height methods failed visibly in side view before the
+regional-ground cap worked; DEC-040 has the table. Verifying it in Chrome
+turned up a second instance of the stale-effect bug: after "Show all" the
+colour mode and hidden layers were ignored. Fixed.
+
+Tests: 479 passed (`tests/test_holefill.py` adds 8, one an end-to-end
+synthetic pipeline run).

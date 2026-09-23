@@ -24,6 +24,10 @@ class Provenance(IntEnum):
     #: second is evidence. Still not measurable by default; it is corroborated,
     #: not triangulated.
     AI_GEOMETRICALLY_VERIFIED = 5
+    #: Surface laid across a hole the cameras saw but stereo could not
+    #: reconstruct (open water, untextured ground), fitted to the observed rim.
+    #: Lives in ``fill.npz``, never in the cloud; never measurable.
+    INFERRED_FILL = 6
 
     @property
     def measurable(self) -> bool:
@@ -47,6 +51,7 @@ _LABELS = {
     Provenance.DYNAMIC_EXCLUDED: "Dynamic (excluded)",
     Provenance.UNOBSERVED: "Unobserved",
     Provenance.AI_GEOMETRICALLY_VERIFIED: "AI-inferred, multi-view verified",
+    Provenance.INFERRED_FILL: "Inferred fill (hole / water)",
 }
 
 # Green / Amber / Purple / Red per the brief's suggested legend.
@@ -58,6 +63,8 @@ _COLORS = {
     Provenance.UNOBSERVED: (127, 140, 141),
     # Teal: visibly related to the observed green, visibly not the same thing.
     Provenance.AI_GEOMETRICALLY_VERIFIED: (26, 188, 156),
+    # Blue: reads as water, which is what most fill is, and as "not observed".
+    Provenance.INFERRED_FILL: (52, 120, 219),
 }
 
 

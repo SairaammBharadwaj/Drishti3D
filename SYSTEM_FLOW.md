@@ -44,6 +44,8 @@ video + telemetry + PipelineParams
  ↓13b lineage        _remap_observations    track observations -> fused indices
  ↓14  exports        _write_artifacts       PLY, LAS, GLB, GeoJSON, viewer,
                                             trajectory, manifest, observations
+ ↓14b hole fill      holefill.fill_holes    inferred surface over water / gaps,
+                                            written beside the cloud (DEC-040)
 ```
 
 ### Stage detail where behaviour is non-obvious
@@ -106,7 +108,11 @@ track), `trajectory.csv`, `trajectory.geojson`, `coverage.npz`,
 `coverage.json`, `frame_metrics.json`, `keyframes.json`,
 `quality_report.json/.html`, `manifest.json`, `observations.npz`
 (`point_index`, `keyframe_index`, `frame_index`, `uv`, plus the image size the
-pixels are in).
+pixels are in). `fill.npz` (points, colors, hole_id) and `fill.json` (per-hole
+record) hold the inferred hole fill: **never** merged into `cloud.npz`, so no
+measurement, coverage figure or evaluation reads them. The API appends them to
+`/model` and `/model.bin` with provenance `6` (`INFERRED_FILL`); `?fill=false`
+omits them. See [DEC-040](DECISIONS.md).
 
 `manifest.json` carries the video hash, the full parameter set, every spatial
 transform applied, the vertical datum, the frame timing source, and the

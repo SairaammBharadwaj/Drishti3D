@@ -54,6 +54,8 @@ export interface ModelPayload {
   provenance: number[]
   cameras: CameraEnu[]
   bbox: { min: Vec3; max: Vec3 }
+  /** Inferred hole-fill points appended by the API (provenance 6), if any. */
+  fill_count?: number
 }
 
 export interface Trajectory {
@@ -399,6 +401,9 @@ export const PROVENANCE: { code: number; key: string; label: string; color: Vec3
   { code: 2, key: 'AI_ASSISTED', label: 'AI-assisted / inferred', color: [155, 89, 182] },
   { code: 3, key: 'DYNAMIC_EXCLUDED', label: 'Dynamic · excluded', color: [231, 76, 60] },
   { code: 4, key: 'UNOBSERVED', label: 'Unobserved', color: [127, 140, 141] },
+  { code: 5, key: 'AI_GEOMETRICALLY_VERIFIED', label: 'AI-inferred · multi-view verified', color: [26, 188, 156] },
+  // Surface laid across holes (mostly water) from the observed rim. Never measured.
+  { code: 6, key: 'INFERRED_FILL', label: 'Inferred fill · water / holes', color: [52, 120, 219] },
 ]
 
 // Local ENU (metres) -> approximate WGS84, for coordinate readouts.

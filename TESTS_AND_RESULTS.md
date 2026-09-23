@@ -1440,3 +1440,44 @@ complete and georeferenced.
   consistency with consumer GPS, not accuracy.
 - Whether 2.88× is representative. A second 11-minute capture (DJI_1001) is
   running to establish that.
+
+
+## 2026-09-23 — DJI_1001 benchmark, and the hole fill
+
+### DJI_1001 (second native 11-minute flight)
+80/80 registered, 3.27 M points, **2.83×** processing ratio (densify 1,593.7 s,
+82.1%). This matches DJI_1003's 2.88×, so the 2.88× figure is representative
+of this hardware. Altitude range is 1.1 m and alignment is degenerate, so as
+for DJI_1003 **no accuracy is claimed**.
+
+### Hole fill (DEC-040)
+| | DJI_1003 | DJI_1001 |
+|---|---:|---:|
+| surveyed (≥ 2 footprints) | 141.4 ha | 129.2 ha |
+| filled | 44.2 ha (31%) | 26.0 ha (20%) |
+| holes | 3,375 | 4,892 |
+| fill points | 399,720 | 364,304 |
+| time | 22.8 s | 26.4 s |
+
+Colour sampling checked by projecting observed points into keyframe 40 of
+DJI_1003: r = 0.944 / 0.936 / 0.930 per channel against the cloud's own colours.
+Viewed in Chrome: the river renders as a surface; in provenance mode it is the
+blue class; the unsurveyed central square stays empty.
+
+Unit tests (`tests/test_holefill.py`): level river at bank height (±0.3 m);
+60 m roofs along the bank do not lift the water (< 4 m); unseen ground not
+filled; no hole, no fill; colour taken from the pixel under the point;
+class not measurable; API appends fill as class 6 and omits it with
+`fill=false`; a synthetic end-to-end pipeline run writes `fill.npz`/`fill.json`
+without a warning and leaves no class-6 point in `cloud.npz`. Full suite 479
+passed.
+
+### NOT TESTED
+- Fill **height accuracy** on real water. There is no water-level reference for
+  either site, and on DJI_1003 the fill inherits the ~50 m bowing the
+  degenerate alignment allows.
+- The fill inside a full pipeline run on **real** footage. On the DJI projects
+  it was run afterwards with `scripts/fill_holes.py`; stage 14b has only been
+  exercised end to end on the synthetic scene.
+- Moving water (rivers with slope, surf). The fill assumes the membrane
+  between banks is the right shape.

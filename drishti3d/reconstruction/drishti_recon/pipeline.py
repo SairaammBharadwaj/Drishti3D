@@ -122,6 +122,11 @@ class PipelineParams:
     #: Images that must agree before a fused point is kept.
     mvs_min_views: int = 5
     depth_stride: int = 8               # pixel grid stride for depth back-projection
+    #: Fill holes the cameras saw but stereo could not reconstruct -- open
+    #: water above all -- with a rim-fitted surface written to ``fill.npz``,
+    #: beside the cloud and never in it. Inferred, never measurable. See
+    #: :mod:`holefill`.
+    fill_holes: bool = True
 
 
 @dataclass
@@ -130,6 +135,28 @@ class PipelineResult:
     artifacts: dict = field(default_factory=dict)
     report: dict = field(default_factory=dict)
     warnings: list = field(default_factory=list)
+
+
+def _write_fill(art_dir, cloud, cameras_enu, recon, kf_frames, image_size):
+    """Write ``fill.npz``/``fill.json``: inferred surface over the cloud's holes.
+
+    Colours come from the keyframe that sees each fill point most squarely.
+    ``cameras_enu[i]`` is ``recon.cameras[i]``, whose ``frame_index`` is a
+    keyframe index -- the image list is indexed by that, not by the decoded
+    frame number the exported camera carries.
+    """
+    from . import holefill
+    res = holefill.fill_holes(cloud.points, cameras_enu, recon.K, image_size)
+    imgs = [kf_frames[c.frame_index] if c.frame_index < len(kf_frames) else None
+            for c in recon.cameras]
+    colors = holefill.colorize(res.points, cameras_enu, recon.K, image_size,
+                               lambda i: imgs[i])
+    np.savez_compressed(art_dir / "fill.npz",
+                        points=res.points.astype(np.float32),
+                        colors=colors, hole_id=res.hole_id)
+    (art_dir / "fill.json").write_text(json.dumps(res.summary(), indent=2))
+    return {"fill_npz": str(art_dir / "fill.npz"),
+            "fill": str(art_dir / "fill.json")}
 
 
 def _emit(progress, stage, local_frac, msg=""):
@@ -791,6 +818,12 @@ def run(project_dir, video_path, telemetry_path, *,
                                      report, timeline, gps_enu_all, sel, metrics,
                                      K=recon.K, image_size=(proc_w, proc_h),
                                      observations=observations)
+        if params.fill_holes:
+            try:
+                artifacts.update(_write_fill(art_dir, cloud, cameras_enu, recon,
+                                             kf_frames, (proc_w, proc_h)))
+            except Exception as e:  # a fill is cosmetic; never lose the run
+                warnings.append(f"hole fill skipped: {e}")
         if mesh_path:
             artifacts["mesh_glb"] = mesh_path
         if cov_grid is not None:

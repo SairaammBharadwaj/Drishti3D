@@ -30,7 +30,24 @@ _EXPORT_FILES = {
     # Without this, every cloud export leaves as unreferenced local metres and
     # the origin has to be communicated out of band.
     "georeference": "georeference.json",
+    # Per-hole record of the inferred fill: what each surface rests on.
+    "fill": "fill.json",
 }
+
+#: Provenance code of fill points (``Provenance.INFERRED_FILL``). Written here
+#: rather than imported so the API does not load the reconstruction package.
+_FILL_CODE = 6
+#: Fill points added to the capped JSON preview, at most.
+_FILL_PREVIEW_MAX = 40000
+
+
+def _load_fill(project_id: str):
+    """(points, colors) of the inferred hole fill, or None if there is none."""
+    p = storage.artifacts_dir(project_id) / "fill.npz"
+    if not p.exists():
+        return None
+    d = np.load(p)
+    return d["points"], d["colors"]
 
 
 def _artifact(project_id: str, filename: str) -> Path:
@@ -55,9 +72,28 @@ def get_trajectory(project_id: str):
 
 
 @router.get("/{project_id}/model")
-def get_model(project_id: str):
-    """Viewer point-cloud payload (downsampled, ENU + provenance)."""
-    return JSONResponse(_load_json(project_id, "viewer.json"))
+def get_model(project_id: str, fill: bool = True):
+    """Viewer point-cloud payload (downsampled, ENU + provenance).
+
+    The inferred hole fill, when there is one, is appended with its own
+    provenance code, zero confidence, and in proportion to how much of the
+    full cloud it is -- so the preview looks like the full view. ``fill=false``
+    returns only what was observed.
+    """
+    v = _load_json(project_id, "viewer.json")
+    f = _load_fill(project_id) if fill else None
+    if f is not None and len(f[0]):
+        fp, fc = f
+        n_cloud = len(np.load(_artifact(project_id, "cloud.npz"), mmap_mode="r")["provenance"])
+        ratio = len(v["points"]) / max(n_cloud, 1)
+        m = min(len(fp), _FILL_PREVIEW_MAX, max(1, int(round(len(fp) * ratio))))
+        keep = np.random.default_rng(0).choice(len(fp), m, replace=False)
+        v["points"] += np.round(fp[keep].astype(float), 3).tolist()
+        v["colors"] += fc[keep].astype(int).tolist()
+        v["confidence"] += [0.0] * m
+        v["provenance"] += [_FILL_CODE] * m
+        v["fill_count"] = m
+    return JSONResponse(v)
 
 
 #: Header layout for the full-cloud binary. Little-endian throughout, which is
@@ -67,7 +103,7 @@ _CLOUD_VERSION = 1
 
 
 @router.get("/{project_id}/model.bin")
-def get_model_binary(project_id: str):
+def get_model_binary(project_id: str, fill: bool = True):
     """The complete point cloud, packed, with no downsampling.
 
     `viewer.json` caps at 120,000 points because JSON is ruinous for this: a
@@ -88,6 +124,10 @@ def get_model_binary(project_id: str):
     That is 16 bytes per point: about 43 MB for the same cloud, a third of the
     JSON and no parsing beyond a typed-array view. The capped JSON stays as the
     first paint; this is what "show every point" loads.
+
+    The inferred hole fill is appended after the cloud with provenance
+    ``INFERRED_FILL`` (``fill=false`` leaves it out); ``X-Fill-Count`` says how
+    many of the points it is.
     """
     import io
     npz = _artifact(project_id, "cloud.npz")
@@ -100,6 +140,14 @@ def get_model_binary(project_id: str):
     prov = np.ascontiguousarray(
         d["provenance"] if "provenance" in d.files else np.zeros(n),
         dtype=np.uint8)
+    n_fill = 0
+    f = _load_fill(project_id) if fill else None
+    if f is not None and len(f[0]):
+        n_fill = len(f[0])
+        pts = np.concatenate([pts, np.asarray(f[0], dtype="<f4")])
+        cols = np.concatenate([cols, np.asarray(f[1], dtype=np.uint8)])
+        prov = np.concatenate([prov, np.full(n_fill, _FILL_CODE, np.uint8)])
+        n = len(pts)
 
     buf = io.BytesIO()
     buf.write(_CLOUD_MAGIC)
@@ -113,6 +161,7 @@ def get_model_binary(project_id: str):
         content=data, media_type="application/octet-stream",
         headers={"Content-Length": str(len(data)),
                  "X-Point-Count": str(n),
+                 "X-Fill-Count": str(n_fill),
                  "Cache-Control": "no-cache"})
 
 

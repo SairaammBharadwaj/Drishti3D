@@ -20,6 +20,12 @@ export default function Workspace() {
   const [full, setFull] = useState<Awaited<ReturnType<typeof api.modelFull>> | null>(null)
   const [fullState, setFullState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [fullProgress, setFullProgress] = useState(0)
+  const fillInFull = useMemo(() => {
+    if (!full) return 0
+    let n = 0
+    for (let i = 0; i < full.n; i++) if (full.provenance[i] === 6) n++
+    return n
+  }, [full])
   const [quality, setQuality] = useState<QualityReport | null>(null)
   const [traj, setTraj] = useState<Trajectory | null>(null)
   const [metrics, setMetrics] = useState<FrameMetric[]>([])
@@ -31,7 +37,7 @@ export default function Workspace() {
   const [colorMode, setColorMode] = useState<'true' | 'provenance'>('provenance')
   const [splat, setSplat] = useState(false)
   const [pointSize, setPointSize] = useState(1)
-  const [visible, setVisible] = useState<Set<number>>(new Set([0, 1, 2, 3, 4]))
+  const [visible, setVisible] = useState<Set<number>>(new Set([0, 1, 2, 3, 4, 5, 6]))
   const [kind, setKind] = useState<MeasurementKind | null>(null)
   const [pts, setPts] = useState<Vec3[]>([])
   const [hover, setHover] = useState<Vec3 | null>(null)
@@ -142,7 +148,11 @@ export default function Workspace() {
 
         <h3 style={{ marginTop: 18 }}>Provenance layers</h3>
         {PROVENANCE.map((p) => {
-          const count = quality?.cloud.class_counts?.[p.key] ?? 0
+          // Fill points are not in the cloud, so the quality report never
+          // counts them; the served model says how many it carries.
+          const count = p.key === 'INFERRED_FILL'
+            ? (full ? fillInFull : model?.fill_count ?? 0)
+            : quality?.cloud.class_counts?.[p.key] ?? 0
           return (
             <label key={p.code} className="checkline">
               <input type="checkbox" checked={visible.has(p.code)} onChange={() => toggleProv(p.code)} />
@@ -154,6 +164,7 @@ export default function Workspace() {
         })}
         <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
           Measurements use observed high-confidence geometry unless you include inferred.
+          Blue fill spans water and other holes, at the height of the ground around them; it is never measured.
         </div>
       </aside>
 

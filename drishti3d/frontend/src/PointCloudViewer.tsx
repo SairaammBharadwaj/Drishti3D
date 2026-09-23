@@ -222,7 +222,11 @@ export default function PointCloudViewer(props: Props) {
     colorAttr.needsUpdate = true
     posAttr.needsUpdate = true
     c.points.geometry.computeBoundingSphere()
-  }, [props.colorMode, props.visibleProvenance])
+    // The scene effect above rebuilds the geometry in true colour with every
+    // layer shown whenever the model or the full cloud changes, so this has to
+    // re-run then too -- otherwise "show all points" silently drops the chosen
+    // colour mode and every hidden layer.
+  }, [props.colorMode, props.visibleProvenance, props.model, props.full])
 
   // ---- point size + splat/point render mode ------------------------------
   useEffect(() => {

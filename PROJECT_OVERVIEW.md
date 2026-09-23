@@ -56,6 +56,19 @@ been validated yet, so the strongest honest verdict is *estimated only*. See
 
 ## Current Features
 
+### Hole and water fill (inferred, never measured)
+**What:** Water and other areas the cameras saw but stereo could not
+reconstruct get a surface fitted to the observed ground around them. It is
+level when the shoreline is level, coloured from the video, and labelled
+`INFERRED_FILL` (provenance 6). Ground no camera looked at stays empty.
+**Where:** `holefill.py`, pipeline stage 14b (`PipelineParams.fill_holes`,
+default on), `scripts/fill_holes.py` for finished projects, `fill.npz` /
+`fill.json`, the `/model` and `/model.bin` endpoints, the viewer's blue layer.
+**Measured:** DJI_1003 (Lady Bird Lake, Austin) 44.2 ha filled of 141.4 ha
+surveyed; DJI_1001 26.0 ha of 129.2 ha; 15–27 s each. Fill lives beside the
+cloud, never in it, so no measurement or evaluation reads it
+([DEC-040](DECISIONS.md)).
+
 ### Dense multi-view stereo
 **What:** `densify="mvs"` adds COLMAP PatchMatch stereo — **observed** geometry,
 triangulated from photometric agreement across real images, measurable under
@@ -504,6 +517,8 @@ cd drishti3d
 - Propagated uncertainty from point covariance through distance, height and
   area, including the scale term.
 - Coverage classification that keeps unknown space unknown.
+- Holes over water and untextured ground filled for display with a labelled,
+  non-measurable surface ([DEC-040](DECISIONS.md)).
 - Measurement questions with tolerance, acceptance status, reason codes and
   actionable guidance, re-decidable at a new tolerance without re-running
   geometry.

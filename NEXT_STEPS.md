@@ -3,7 +3,7 @@
 If you are picking this repository up now, read
 [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) then start at the top of P0.
 
-Last updated: 2026-09-19.
+Last updated: 2026-09-23.
 
 **Dense geometry landed 2026-09-21.** COLMAP PatchMatch stereo gives 252k
 observed points at 0.100 m spacing against 17.9k at 0.167 m, with full
@@ -549,6 +549,17 @@ explicit fallback when PyCOLMAP import fails. Keep both tested either way.
 ---
 
 ## P2 — Improvements
+
+### Hole fill: tighten the hole definition and test it on a real water level
+
+**Status:** TODO. Fill landed 2026-09-23 ([DEC-040](DECISIONS.md)).
+- 31% of DJI_1003's surveyed area is fill at 2.1 m cells, because sparse
+  canopy and rooftops count as holes. Consider a minimum hole area, or a
+  coarser cell for the hole test only.
+- Water detection (flat, low-texture, dark rim-enclosed regions) would let
+  the fill say "water" rather than "hole", and let river slope be modelled.
+- No water-level reference exists for either site. A capture over a gauged
+  lake or reservoir would give one.
 
 
 ### Decide the dense voxel size

@@ -3155,3 +3155,82 @@ the next reader cannot repeat the substitution.
 
 `drishti3d/reconstruction/drishti_recon/colmap_adapter.py`, `pipeline.py`,
 `drishti3d/tests/test_lineage.py`
+
+
+## DEC-040 — Fill water and other holes with a labelled surface, kept outside the cloud
+
+**Date:** 2026-09-23
+
+**Status:** Accepted
+
+### Context
+
+DJI_1003 flies over Lady Bird Lake in Austin. The reconstruction leaves a
+river-shaped hole through the model, plus smaller gaps across the site. The
+reaction on seeing it: "if there is water why are we unable to generate 3d of
+it leaving out obv holes in the model is also not good".
+
+Stereo cannot triangulate water, and that is not something to fix in stereo:
+the surface moves between frames, it mirrors sky and banks (so a match lands
+on a reflection, metres below the real surface), and calm water has no
+texture. Every photogrammetry product leaves the same hole. Survey practice
+fills it by **hydro-flattening**: still water is level and sits at the height
+of its own shoreline, and the shoreline was reconstructed.
+
+### Decision
+
+`drishti_recon.holefill` fills holes after export, and the result goes
+**beside the cloud, never in it**:
+
+1. **Where a hole is.** Ground cells inside at least two camera footprints
+   (one view cannot triangulate) that contain no points. Ground no camera
+   looked at is *not* a hole, and stays empty. DJI_1003's central square and
+   DJI_1001's central block are left empty for this reason: no keyframe
+   footprint covers them.
+2. **How high.** A membrane (Laplace) surface fitted to the ground around each
+   rim. It is level when the shoreline is level and bends with the
+   terrain (or the reconstruction) when that tilts. Rim heights are each rim
+   cell's 20th-percentile point height, **capped at 3 m above a regional ground
+   model**: 60 m blocks, 5th percentile, grey opening to remove isolated tall
+   blocks.
+3. **Colour.** Sampled from the keyframe that sees each fill point closest to
+   its image centre. Checked against the cloud's own colours by projecting
+   observed points: r = 0.94 per channel on DJI_1003.
+4. **Labelling.** New provenance class `INFERRED_FILL = 6`, not measurable.
+   Written to `fill.npz` and `fill.json`. The API appends fill points to
+   `/model` and `/model.bin` under that class, and the viewer shows it as its
+   own blue layer, toggleable and on by default. Measurement snaps against
+   `cloud.npz` only, so a click on fill has no observed point under it and is
+   refused by the existing snap tolerance.
+
+### Rejected on the evidence
+
+Each of these was tried on DJI_1003 and looked at in side view:
+
+| rim height from | result |
+|---|---|
+| one plane per hole, through the lower half of the rim | median rim misfit **9.3 m**: the model is bowed ~50 m by the degenerate alignment, and one plane cannot follow that |
+| membrane from a 30 m morphological opening | river fill lifted toward roofs, up to −360 m against ground near −450 m |
+| membrane from an 80 m opening | worse: east downtown reconstructed as rooftops with no street, so no window finds ground there, and the dilation step lifts sloped ground |
+| **membrane from rim, capped at regional ground + 3 m** | fill runs along the ground's lower envelope, including under the towers |
+
+### Consequences
+
+- DJI_1003: 3,375 holes, 44.2 ha filled of 141.4 ha surveyed (31%), 399,720
+  fill points. That is more than the 14% gap figure from 10 m cells because at
+  2.1 m cells, sparse-but-observed canopy and roofs count as gaps too.
+  DJI_1001: 4,892 holes, 26.0 ha of 129.2 ha (20%), 364,304 points. Fill takes
+  15–27 s per project.
+- The fill inherits every error in the ground around it. On DJI_1003 that
+  includes the ~50 m bowing that the degenerate alignment allows. A fill is
+  exactly as trustworthy as its rim, which is why `fill.json` reports each
+  hole's rim ground spread.
+- Towers and bridges whose sides were not reconstructed are *not* rebuilt;
+  only the ground under a gap is filled. Filling above ground would be
+  invention, not interpolation.
+- The fill is image-coloured, so from a distance it reads as real terrain.
+  The provenance layer and the legend text are what separate them, which is
+  why the class is shown by default rather than hidden.
+- Found while verifying: after "Show all points" the viewer re-applied neither
+  the colour mode nor hidden layers, because the colour effect did not depend
+  on the model. Fixed with this change.
