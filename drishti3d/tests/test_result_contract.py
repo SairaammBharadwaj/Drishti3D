@@ -269,3 +269,39 @@ def test_snap_tolerance_is_strict_when_spacing_is_unknowable():
     assert measure.snap_tolerance(one) == measure.MIN_SNAP_TOLERANCE_M
     m = measure.measure_point(one, [1000.0, 0, 0])
     assert m.extra["all_selections_resolved"] is False
+
+
+# --------------------------------------------------------------------------- #
+# A guessed focal must not be frozen (regression on DEC-038)
+# --------------------------------------------------------------------------- #
+def _resolve(intr):
+    from drishti_recon.pipeline import _resolve_intrinsics
+    return _resolve_intrinsics(intr, 1920, 1080, 1600, 900, 1600 / 1920,
+                               [], want_flag=True)
+
+
+def test_a_measured_calibration_reports_itself_as_calibrated():
+    K, calibrated = _resolve({"fx": 900, "fy": 900, "cx": 960, "cy": 540})
+    assert calibrated is True
+    assert K[0, 0] == pytest.approx(900 * 1600 / 1920)
+
+
+def test_the_estimated_fallback_is_not_calibrated():
+    """0.9*max(w,h) is a guess; freezing it is worse than self-calibrating."""
+    K, calibrated = _resolve(None)
+    assert calibrated is False
+    assert K[0, 0] == pytest.approx(0.9 * 1600)
+
+
+def test_a_bare_focal_length_is_not_a_calibration():
+    """No principal point means partial information, not a calibration."""
+    K, calibrated = _resolve({"focal_length": 1000})
+    assert calibrated is False
+    assert K[0, 2] == pytest.approx(800)      # principal point assumed centre
+
+
+def test_reconstruct_frames_accepts_the_flag():
+    import inspect
+    from drishti_recon import colmap_adapter
+    sig = inspect.signature(colmap_adapter.reconstruct_frames)
+    assert "fix_intrinsics" in sig.parameters

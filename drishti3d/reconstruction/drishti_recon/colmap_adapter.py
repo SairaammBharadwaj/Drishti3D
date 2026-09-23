@@ -107,7 +107,7 @@ EXHAUSTIVE_MATCH_MAX_IMAGES = 200
 
 
 def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
-                       keep_workspace=None):
+                       keep_workspace=None, fix_intrinsics=True):
     """Run COLMAP on in-memory BGR frames and return a ``sfm.ReconResult``.
 
     This lets the COLMAP engine drop into the same pipeline as the built-in
@@ -179,6 +179,13 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
         # solved focal came out 1.45% low at 1600 px and 1.86% low at 3200 px,
         # and the reconstructed ground sat 1.25 m and 1.46 m too high at 80 m
         # range -- which is what a proportionally short depth looks like.
+        # `fix_intrinsics` separates a measured calibration from an estimate.
+        # DEC-038 fixed this path discarding a supplied calibration; holding
+        # the *estimated* 0.9*max(w,h) focal fixed as well would be worse than
+        # self-calibrating, because it freezes an arbitrary number instead of
+        # solving for the real one. An estimate is still passed as the starting
+        # value -- a good seed is worth having -- but bundle adjustment is left
+        # free to move it.
         reader = None
         if K is not None:
             Kf = np.asarray(K, float)
@@ -237,7 +244,8 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
         n_images = len(frames)
         exhaustive = n_images <= EXHAUSTIVE_MATCH_MAX_IMAGES
         _p(f"colmap: matching ({'exhaustive' if exhaustive else 'sequential'}, "
-           f"{n_images} images)", 0.35)
+           f"{n_images} images, intrinsics "
+           f"{'fixed' if fix_intrinsics else 'refined'})", 0.35)
         try:
             mopt = _with_threads(lambda: pycolmap.FeatureMatchingOptions() if modern
                                   else pycolmap.SequentialMatchingOptions())
@@ -255,7 +263,7 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
                 pycolmap.match_exhaustive(str(db))
         _p("colmap: mapping", 0.6)
         mapopt = _with_threads(lambda: pycolmap.IncrementalPipelineOptions())
-        if mapopt is not None and K is not None:
+        if mapopt is not None and K is not None and fix_intrinsics:
             # Fixed, not merely initialised. Letting bundle adjustment refine a
             # focal it was handed defeats the point of supplying one, and on
             # this acquisition geometry it is exactly what drifted.

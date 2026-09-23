@@ -254,6 +254,13 @@ _SRT_LON = re.compile(r"\blong?itude\s*[:=]?\s*(-?\d+\.\d+)", re.I)
 # rather than letting one alternation pick whichever appears first.
 _SRT_ABS_ALT = re.compile(r"\babs_?alt(?:itude)?\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
 _SRT_REL_ALT = re.compile(r"\brel_?alt(?:itude)?\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
+#: Newer DJI firmware writes a bare `[altitude: 445.300000]` with no abs_/rel_
+#: prefix. Matching only the prefixed forms left every sample at altitude 0 and
+#: flagged `altitude_kind: missing` -- a flight parsed as perfectly flat, which
+#: no later stage could detect. The negative lookbehind keeps this from also
+#: matching the `abs_alt`/`rel_alt` forms it sits beside.
+_SRT_BARE_ALT = re.compile(
+    r"(?<![a-z_])altitude\s*[:=]\s*(-?\d+\.?\d*)", re.I)
 # Gimbal attitude -- the camera's actual pointing, without which the frame
 # chain in frames.py cannot be built. DJI uses gb_* and Autel gimbal_*.
 _SRT_GB_YAW = re.compile(r"\b(?:gb|gimbal)_?yaw\s*[:=]?\s*(-?\d+\.?\d*)", re.I)
@@ -289,14 +296,24 @@ def parse_srt(path: Path, warnings: list[str]):
         lat, lon = float(la.group(1)), float(lo.group(1))
         abs_alt = _srt_num(_SRT_ABS_ALT, b)
         rel_alt = _srt_num(_SRT_REL_ALT, b)
+        bare_alt = None
+        if abs_alt is None and rel_alt is None:
+            bare_alt = _srt_num(_SRT_BARE_ALT, b)
         # Prefer absolute (MSL) altitude; fall back to relative and say so,
         # because a relative altitude silently treated as MSL puts the whole
         # reconstruction hundreds of metres out vertically.
-        alt = abs_alt if abs_alt is not None else (rel_alt or 0.0)
-        if abs_alt is None and rel_alt is not None:
-            alt_kind = "relative_to_takeoff"
-        elif abs_alt is not None:
+        alt = abs_alt if abs_alt is not None else (
+            rel_alt if rel_alt is not None else (bare_alt or 0.0))
+        if abs_alt is not None:
             alt_kind = "msl"
+        elif rel_alt is not None:
+            alt_kind = "relative_to_takeoff"
+        elif bare_alt is not None:
+            # DJI does not say which datum a bare `altitude` uses, and it
+            # varies by model. Recorded as unspecified rather than guessed:
+            # calling it MSL when it is height above takeoff would put the
+            # reconstruction hundreds of metres out vertically.
+            alt_kind = "unspecified"
         else:
             alt_kind = "missing"
 
@@ -309,6 +326,8 @@ def parse_srt(path: Path, warnings: list[str]):
         extra = {"altitude_kind": alt_kind}
         if rel_alt is not None:
             extra["rel_alt"] = rel_alt
+        if bare_alt is not None:
+            extra["bare_alt"] = bare_alt
         if abs_alt is not None:
             extra["abs_alt"] = abs_alt
         if any(v is not None for v in gb):

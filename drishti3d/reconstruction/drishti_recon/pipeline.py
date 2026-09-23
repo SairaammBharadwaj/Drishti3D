@@ -227,8 +227,14 @@ def run(project_dir, video_path, telemetry_path, *,
             warnings.append(timing_note)
 
     # intrinsics (override -> telemetry -> estimate), scaled to processing size
-    K = _resolve_intrinsics(params.intrinsics or treport.intrinsics,
-                            vinfo.width, vinfo.height, proc_w, proc_h, sf, warnings)
+    # `calibrated` separates a measured calibration from the 0.9*max(w,h)
+    # fallback. DEC-038 fixed the COLMAP path discarding a supplied
+    # calibration, and then held *every* K fixed -- including the guess, which
+    # is worse than self-calibrating: it freezes an arbitrary focal instead of
+    # solving for the real one. Only a measured calibration is held.
+    K, calibrated = _resolve_intrinsics(
+        params.intrinsics or treport.intrinsics,
+        vinfo.width, vinfo.height, proc_w, proc_h, sf, warnings, want_flag=True)
 
     # 4a) LENS DISTORTION ----------------------------------------------------
     # Correct once, up front, so every later stage can assume a pinhole camera.
@@ -312,7 +318,7 @@ def run(project_dir, video_path, telemetry_path, *,
             keep = (project_dir / "colmap_workspace"
                     if params.densify == "mvs" else None)
             recon = colmap_adapter.reconstruct_frames(
-                kf_frames, K, keep_workspace=keep,
+                kf_frames, K, keep_workspace=keep, fix_intrinsics=calibrated,
                 progress=lambda m, f: _emit(progress, "sfm", f, m))
         else:
             recon = sfm.reconstruct(
@@ -893,7 +899,7 @@ def _adopt_pts(frames, pts_s, fps, *, pts_post=None):
     return "container_pts", note
 
 
-def _resolve_intrinsics(intr, ow, oh, pw, ph, sf, warnings):
+def _resolve_intrinsics(intr, ow, oh, pw, ph, sf, warnings, *, want_flag=False):
     """Build the processing-resolution camera matrix from supplied calibration.
 
     Intrinsics are only meaningful against the image size they were measured
@@ -918,16 +924,21 @@ def _resolve_intrinsics(intr, ow, oh, pw, ph, sf, warnings):
                 f"calibration was measured at {cw}x{ch} and the video is "
                 f"{ow}x{oh}; intrinsics scaled by {pw / cw:.4f}")
         s = pw / cw
-        return np.array([[intr["fx"] * s, 0, intr["cx"] * s],
-                         [0, intr["fy"] * s, intr["cy"] * s],
-                         [0, 0, 1.0]], float)
+        K = np.array([[intr["fx"] * s, 0, intr["cx"] * s],
+                      [0, intr["fy"] * s, intr["cy"] * s],
+                      [0, 0, 1.0]], float)
+        return (K, True) if want_flag else K
     if intr and "focal_length" in intr:
         f = intr["focal_length"] * (pw / ow)
-        return np.array([[f, 0, pw / 2], [0, f, ph / 2], [0, 0, 1.0]], float)
+        K = np.array([[f, 0, pw / 2], [0, f, ph / 2], [0, 0, 1.0]], float)
+        # A focal length with no principal point is partial, not a calibration:
+        # it seeds the solve but must not be frozen.
+        return (K, False) if want_flag else K
     warnings.append("camera intrinsics not provided; estimated focal = 0.9*max(w,h). "
                     "Provide fx,fy,cx,cy for higher accuracy.")
     f = 0.9 * max(pw, ph)
-    return np.array([[f, 0, pw / 2], [0, f, ph / 2], [0, 0, 1.0]], float)
+    K = np.array([[f, 0, pw / 2], [0, f, ph / 2], [0, 0, 1.0]], float)
+    return (K, False) if want_flag else K
 
 
 def _maybe_gt_eval(video_path, telemetry_path, enu_frame, cloud):
