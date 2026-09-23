@@ -111,7 +111,7 @@ def _reuse(ws: Path, out: Path, a):
     dr = mvs.DenseResult(points=xyz, colors=rgb, n_views=counts,
                          stats={"settings": settings,
                                 "timings_s": {**pm, "stereo_fusion": round(t_fuse, 1)},
-                                "dense_focal_px": mvs._dense_focal(dense),
+                                "dense_focal_px": mvs._dense_focal(dense, a.max_image_size),
                                 "reused": True})
     return dr, pm["patch_match_stereo"] + t_fuse, {}
 
@@ -130,6 +130,8 @@ def main() -> int:
     ap.add_argument("--no-geom", action="store_true",
                     help="photometric only (no geometric consistency pass)")
     ap.add_argument("--min-views", type=int, default=5)
+    ap.add_argument("--keep-maps", action="store_true",
+                    help="keep depth/normal maps so fusion can be re-run")
     ap.add_argument("--reuse", action="store_true",
                     help="skip stereo; score the fused output already in this "
                          "trial's workspace (timings come from COLMAP's logs)")
@@ -163,7 +165,8 @@ def main() -> int:
                                 num_iterations=a.iterations,
                                 num_samples=a.samples,
                                 gpu_index=a.gpu_index, cache_size_gb=a.cache_gb,
-                                keep_depth_maps=False, log_dir=out / "logs")
+                                keep_depth_maps=a.keep_maps,
+                                log_dir=out / "logs")
         finally:
             dense_s = time.perf_counter() - t0
             gpu_stats = gpu.stop()

@@ -56,6 +56,14 @@ been validated yet, so the strongest honest verdict is *estimated only*. See
 
 ## Current Features
 
+### Under-15-minute processing (one laptop run)
+**What:** DJI_1003, an 11.3-min 1080p flight, processes end to end in
+**733.7 s (12.2 min)**, down from > 32.5 min. Dense stereo went 1,585 s -> 409 s
+with settings that were *more* accurate on UseGeo's LiDAR (RMSE 0.324 -> 0.316 m).
+**Where:** `PipelineParams.mvs_*` defaults, `mvs.run_colmap`,
+`scripts/dense_trial.py`, `scripts/sfm_trial.py`, `artifacts/timing.json`.
+One run, one GPU, one reference scene ([DEC-041](DECISIONS.md)).
+
 ### Hole and water fill (inferred, never measured)
 **What:** Water and other areas the cameras saw but stereo could not
 reconstruct get a surface fitted to the observed ground around them. It is

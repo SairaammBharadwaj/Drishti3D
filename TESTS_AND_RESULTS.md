@@ -1481,3 +1481,41 @@ passed.
   exercised end to end on the synthetic scene.
 - Moving water (rivers with slope, surf). The fill assumes the membrane
   between banks is the right shape.
+
+
+## 2026-09-23 — Performance: dense ladder and end-to-end timing (DEC-041)
+
+### UseGeo dense ladder (LiDAR-scored, fixed sparse model, one run each)
+B0 1212.7 s / RMSE 0.3238 / p95 0.4865 / complete 68.0%;
+D1 12 src 1093.8 / 0.3179 / 0.4762 / 69.3%; D2 10 src 1028.6 / 0.3110 / 0.4664 / 70.6%;
+D3 step 2 610.1 / 0.3265 / 0.4817 / 65.5%; D4 3 iter 742.4 / 0.3239 / 0.4831 / 67.1%;
+D5 1280 px 911.3 / 0.3472 / 0.5306 / 63.2% (fail); G2 two workers 1371.6 s (slower, not scored);
+C1 (D2+D3+D4) 314.6 / 0.3137 / 0.4570 / 67.3%; **C1m4 (C1, fuse at 4) 315.7 / 0.3160 / 0.4613 / 70.0%**.
+The harness reproduces the archived full run (RMSE 0.3238 vs 0.3237).
+
+### DJI_1003 fresh end-to-end run with the new defaults
+**733.7 s wall (1.08x the 677.9 s video).** decode 39.8, SfM 177.4 (features 19.3,
+matching 73.1, mapping 69.2), dense 409.4 (PatchMatch 381.4, fusion 18.6),
+exports 49.5 (observations 13.2, files 18.2, hole fill 17.9). 80/80 registered,
+reprojection 0.303 px, 3,124,856 points. Against the old cloud: 95.6% of 10 m
+and 92.0% of 2 m cells kept; 97.7% of points within 1 m of an old point.
+Peak RSS during a run: 10.5 GB.
+
+### SfM (DJI_1003 keyframes, `scripts/sfm_trial.py`)
+4 threads 242.9 s; 12 threads 181.7 s, same 80/80 and focal (1615.4 / 1615.2 px);
+12 threads + GPU matching 154.0 s, focal 1614.4 px, +1.8% points (not adopted).
+
+### Equivalence checks
+Visibility reader, CSR translation and parallax equal the old code on 2.63 M
+DJI points (parallax 8.7e-13 deg max). Dense observations are identical on
+150 k rows. `grab()` decode gives bit-identical kept frames and timestamps.
+Threaded frame quality gives identical metrics. Binary PLY round-trips exactly
+through Open3D. `tests/test_dense_perf.py` pins these against per-point
+references. 487 passed.
+
+### NOT TESTED
+- Accuracy of the new defaults on any second reference scene; only UseGeo has LiDAR.
+- Run-to-run spread: one end-to-end run, not three.
+- DJI_1001 with the new defaults.
+- Interval coverage of the new dense uncertainty on the LiDAR.
+- Any GPU other than this RTX 5060 laptop.

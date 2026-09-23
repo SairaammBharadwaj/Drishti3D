@@ -454,17 +454,24 @@ def _limit_source_images(dense: Path, n: int) -> None:
     cfg.write_text("\n".join(out) + "\n")
 
 
-def _dense_focal(dense: Path):
-    """Mean focal length, in pixels, of the undistorted dense images.
+def _dense_focal(dense: Path, max_image_size: int | None = None):
+    """Mean focal length, in pixels, of the images dense stereo actually used.
 
-    Dense stereo works on images ``image_undistorter`` may have resized, so its
-    pixel noise is in *those* pixels. Converting it with the sparse model's
-    focal length would claim unchanged confidence for a lower-resolution run.
+    Stereo can work on smaller images than the sparse model
+    (``max_image_size``), so its pixel noise is in *those* pixels. Converting
+    it with the sparse model's focal length would claim unchanged confidence
+    for a lower-resolution run. Stereo downscales each image so its longer
+    side is at most ``max_image_size``; the focal scales with it.
     """
     try:
         import pycolmap
         rec = pycolmap.Reconstruction(str(dense / "sparse"))
-        fs = [float(c.mean_focal_length()) for c in rec.cameras.values()]
+        fs = []
+        for c in rec.cameras.values():
+            s = 1.0
+            if max_image_size and max_image_size > 0:
+                s = min(1.0, float(max_image_size) / max(c.width, c.height))
+            fs.append(float(c.mean_focal_length()) * s)
         return float(np.mean(fs)) if fs else None
     except Exception:                      # noqa: BLE001 - optional detail
         return None
@@ -535,15 +542,19 @@ def run_colmap(workspace, *, max_image_size: int = 1600,
         return out
 
     _p("mvs: undistorting", 0.1)
+    # Undistort at native size and let stereo and fusion downscale. Resizing
+    # in the undistorter crashes COLMAP 4.1's patch_match_stereo ("Check
+    # failed: width_ == bitmap.Width() (1600 vs. 1280)"); it was never hit
+    # before because every mission so far ran at its native width.
     _run(["image_undistorter", "--image_path", str(images),
           "--input_path", str(sparse), "--output_path", str(dense),
-          "--output_type", "COLMAP",
-          "--max_image_size", str(max_image_size)], "image_undistorter")
+          "--output_type", "COLMAP"], "image_undistorter")
     if num_src_images is not None:
         _limit_source_images(dense, num_src_images)
 
     pm = ["--PatchMatchStereo.geom_consistency",
-          "true" if geom_consistency else "false"]
+          "true" if geom_consistency else "false",
+          "--PatchMatchStereo.max_image_size", str(max_image_size)]
     for flag, v in (("window_step", window_step),
                     ("num_iterations", num_iterations),
                     ("num_samples", num_samples)):
@@ -560,7 +571,7 @@ def run_colmap(workspace, *, max_image_size: int = 1600,
 
     _p("mvs: fusing", 0.8)
     fused = dense / "fused.ply"
-    fu = []
+    fu = ["--StereoFusion.max_image_size", str(max_image_size)]
     if cache_size_gb is not None:
         fu += ["--StereoFusion.cache_size", str(cache_size_gb)]
     _run(["stereo_fusion", "--workspace_path", str(dense),
@@ -583,7 +594,7 @@ def run_colmap(workspace, *, max_image_size: int = 1600,
     vis_csr = None
     if vflat is not None and order is not None:
         vis_csr = translate_csr(vflat, voff, np.asarray(order, np.int32))
-    focal = _dense_focal(dense)
+    focal = _dense_focal(dense, max_image_size)
     timings["read_outputs"] = round(time.perf_counter() - t0, 2)
     if not keep_depth_maps:
         # The depth and normal maps are gigabytes and nothing reads them after

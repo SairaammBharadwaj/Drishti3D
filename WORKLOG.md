@@ -2505,3 +2505,24 @@ slower, the GPU is already saturated. Scoring: `data/perf/score.sh <trials>`.
 2. Combine passing settings; rerun on UseGeo.
 3. After the ladder (GPU free): `scripts/sfm_trial.py --run dji_1003__t10 --threads 12 --gpu-matching`; accept only with 80/80 and unchanged focal, then a full UseGeo LiDAR run.
 4. Fresh full DJI_1003 run with the winners and `timing.json`; then DEC entry.
+
+
+## 2026-09-23 (evening) — Performance plan resumed and finished: 12.2 min end to end
+
+Resumed from the checkpoint above. Finished the dense ladder on UseGeo: D3 patch
+step 2, D4 3 iterations, D2 10 sources, D5 1280 px. D5 failed first because
+COLMAP 4.1 aborts when the undistorter resizes, so resizing moved into stereo
+and fusion. The winners combined (C1) passed.
+
+A fresh DJI_1003 run with C1 lost 12% of 2 m ground cells against the old
+cloud. Re-fusing one set of depth maps at 5/4/3 views showed that 4 views
+restores most of it, and UseGeo confirmed 4 views costs no accuracy (C1m4).
+Those are now the defaults.
+
+The final fresh DJI_1003 run took **733.7 s (12.2 min)** for an 11.3-min
+video, under the 15-min target, with 80/80 cameras and 3.12 M points.
+GPU matching was tried and left off. Two of my own mistakes cost time: a queue
+loop whose `pgrep` matched itself (11 min idle), and the `_stop` shadowing
+from the earlier session. Full detail and numbers in DEC-041.
+
+Tests: 487 passed.

@@ -3234,3 +3234,97 @@ Each of these was tried on DJI_1003 and looked at in side view:
 - Found while verifying: after "Show all points" the viewer re-applied neither
   the colour mode nor hidden layers, because the colour effect did not depend
   on the model. Fixed with this change.
+
+
+## DEC-041 — Dense stereo defaults retuned by a LiDAR-scored ladder; the full job is 12.2 min
+
+**Date:** 2026-09-23
+
+**Status:** Accepted
+
+### Context
+
+DJI_1003 (11 min 18 s of video) reported 32.5 min, and that figure excluded
+exports. The target is a model in under 15 minutes. The performance review
+(`drishti3d/docs/performance_2026_09_23/OPTIMISATION_PLAN.md`) found dense
+stereo was 81% of the time and asked for settings to be tested one at a time,
+against a fixed sparse model, with accuracy gates written down in advance.
+
+### Method
+
+`scripts/dense_trial.py` reruns only dense stereo on a saved sparse model, in a
+fresh workspace. It takes the fused points through the run's own recon->ENU
+transform and `fusion.fuse`, and scores them with `score_against_lidar.py`.
+It reproduces the archived UseGeo run: RMSE 0.3238 vs 0.3237 m.
+
+Gates from the plan: RMSE and p95 no more than 5% worse, and completeness
+within 0.5 m no more than 2 points lower.
+
+### UseGeo ladder (60 images, LiDAR reference)
+
+| trial | change | PatchMatch | RMSE | p95 | complete <0.5 m | verdict |
+|---|---|---:|---:|---:|---:|---|
+| B0 | COLMAP defaults | 1212.7 s | 0.3238 | 0.4865 | 68.0% | baseline |
+| D1 | 12 sources | 1093.8 s | 0.3179 | 0.4762 | 69.3% | pass |
+| D2 | 10 sources | 1028.6 s | 0.3110 | 0.4664 | 70.6% | pass |
+| D3 | patch step 2 | 610.1 s | 0.3265 | 0.4817 | 65.5% | completeness -2.5 pts |
+| D4 | 3 iterations | 742.4 s | 0.3239 | 0.4831 | 67.1% | pass |
+| D5 | 1280 px | 911.3 s | 0.3472 | 0.5306 | 63.2% | **fail** |
+| G2 | two workers on one GPU | 1371.6 s | — | — | — | **slower** |
+| C1 | D2 + D3 + D4 | 314.6 s | 0.3137 | 0.4570 | 67.3% | pass |
+| **C1m4** | C1, fusion at 4 views | **315.7 s** | **0.3160** | **0.4613** | **70.0%** | **adopted** |
+
+### Decision
+
+New `PipelineParams` defaults: `mvs_num_src_images=10`, `mvs_window_step=2`,
+`mvs_num_iterations=3`, `mvs_min_views=4`. Resolution stays at 1600 px;
+dropping it was the only change that cost accuracy.
+
+Fusion at 4 rather than 5 views: with the other changes, 5 views kept 87.7%
+of DJI_1003's 2 m ground cells. 4 views kept 92.7% (same sparse model), and
+on UseGeo it was no less accurate and more complete.
+
+### End to end (DJI_1003, fresh run, one wall clock over everything)
+
+| | before | after |
+|---|---:|---:|
+| **complete job** | > 1,950 s (exports untimed) | **733.7 s (12.2 min, 1.08x video)** |
+| decode | 60.7 s | 39.8 s |
+| frame quality | 23.6 s | 0.1 s (overlapped with decode) |
+| SfM | 253.6 s | 177.4 s |
+| dense | 1,585.3 s | 409.4 s |
+| exports incl. hole fill | untimed | 49.5 s |
+| cameras / reprojection | 80/80, 0.303 px | 80/80, 0.303 px |
+| cloud | 2.69 M | 3.12 M |
+
+Against the old DJI_1003 cloud, the new run covers 95.6% of its 10 m cells and
+92.0% of its 2 m cells, and 97.7% of new points lie within 1 m of an old one.
+This site has no independent reference, so that is a consistency figure, not
+accuracy.
+
+### Also changed, each checked equal to what it replaced
+
+Vectorised dense visibility, parallax (identical to 1e-12 deg on 2.63 M points)
+and dense observation lineage. Binary PLY. `grab()` for skipped frames
+(bit-identical kept frames). Frame scoring on threads during decode. SfM
+threads 4 -> 12 (same camera solution). Cached GPU matcher released before a
+job: the API server had been holding 4.9 GB of the 8 GB card. Dense
+uncertainty uses the dense images' focal length. Undistort at native size,
+because COLMAP 4.1 aborts when the undistorter resizes. Wall clock and
+`timing.json`.
+
+### Not adopted
+- **GPU feature matching** (`sfm_gpu_matching`): SfM 182 -> 154 s, but a
+  different match set (focal 1614.4 vs 1615.2 px, +1.8% points). Off until
+  validated on a reference.
+- **Two stereo workers on one GPU**: 13% slower.
+- **1280 px dense**: 7% worse RMSE, 4.8 points less complete.
+
+### Consequences / limits
+- One calibrated reference scene decided these defaults. The plan asks for a
+  second before generalising, and so do I.
+- Peak RAM during decode is still 10.5 GB. Frames are released after keyframe
+  selection, but the decode itself holds them all; streaming the decode is
+  still to do.
+- 12.2 min is one run on this laptop (RTX 5060 8 GB, 24 cores). The plan asks
+  for three runs per finalist; this is one.

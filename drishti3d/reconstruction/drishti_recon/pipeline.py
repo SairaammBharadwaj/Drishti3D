@@ -119,14 +119,22 @@ class PipelineParams:
     #: Geometric consistency doubles the stereo cost and removes most of the
     #: speckle that makes an unfiltered dense cloud unusable.
     mvs_geometric: bool = True
-    #: Images that must agree before a fused point is kept.
-    mvs_min_views: int = 5
-    #: PatchMatch controls; ``None`` keeps COLMAP's default (see
-    #: ``mvs.PATCH_MATCH_DEFAULTS``: 20 sources, step 1, 5 iterations, 15
-    #: samples). The resolved values are written to the report.
-    mvs_num_src_images: int | None = None
-    mvs_window_step: int | None = None
-    mvs_num_iterations: int | None = None
+    #: Dense settings chosen by the ladder in DEC-041 (UseGeo, LiDAR-scored,
+    #: fixed sparse model). Against COLMAP's defaults -- 20 sources, patch
+    #: step 1, 5 iterations, fusion at 5 views -- PatchMatch went 1,213 s ->
+    #: 316 s while RMSE went 0.324 -> 0.316 m, p95 0.487 -> 0.461 m and
+    #: completeness within 0.5 m 68.0% -> 70.0%. One calibrated scene: the
+    #: defaults are revisited when a second reference exists. ``None`` on any
+    #: PatchMatch control means COLMAP's own default
+    #: (``mvs.PATCH_MATCH_DEFAULTS``); resolved values go to the report.
+    #:
+    #: Images that must agree before a fused point is kept. 4 rather than 5:
+    #: with 10 sources, 5 cost DJI_1003 12% of its 2 m ground cells, and 4
+    #: restored them at no accuracy cost on UseGeo.
+    mvs_min_views: int = 4
+    mvs_num_src_images: int | None = 10
+    mvs_window_step: int | None = 2
+    mvs_num_iterations: int | None = 3
     mvs_num_samples: int | None = None
     #: ``"0,0"`` runs two stereo workers on one GPU.
     mvs_gpu_index: str | None = None

@@ -210,6 +210,8 @@ def main() -> int:
     ap.add_argument("--mvs-gpu-index", default=None,
                     help="'0,0' runs two stereo workers on one GPU")
     ap.add_argument("--mvs-cache-gb", type=float, default=None)
+    ap.add_argument("--mvs-min-views", type=int, default=None,
+                    help="images that must agree in fusion (pipeline: 4)")
     ap.add_argument("--no-fill", action="store_true",
                     help="skip the inferred hole fill")
     a = ap.parse_args()
@@ -250,15 +252,20 @@ def main() -> int:
         # looser band the pipeline documents for field imagery.
         e_ransac_px=2.0,
         fill_holes=not a.no_fill,
-        mvs_num_src_images=a.mvs_num_src,
-        mvs_window_step=a.mvs_window_step,
-        mvs_num_iterations=a.mvs_iterations,
-        mvs_num_samples=a.mvs_samples,
-        mvs_gpu_index=a.mvs_gpu_index,
-        mvs_cache_gb=a.mvs_cache_gb,
     )
-    if a.mvs_max_image_size is not None:
-        params.mvs_max_image_size = a.mvs_max_image_size
+    # Only what was asked for: passing None would replace the pipeline's
+    # tuned defaults with COLMAP's.
+    for flag, field in (("mvs_max_image_size", "mvs_max_image_size"),
+                        ("mvs_num_src", "mvs_num_src_images"),
+                        ("mvs_window_step", "mvs_window_step"),
+                        ("mvs_iterations", "mvs_num_iterations"),
+                        ("mvs_samples", "mvs_num_samples"),
+                        ("mvs_gpu_index", "mvs_gpu_index"),
+                        ("mvs_cache_gb", "mvs_cache_gb"),
+                        ("mvs_min_views", "mvs_min_views")):
+        v = getattr(a, flag)
+        if v is not None:
+            setattr(params, field, v)
 
     last = {"t": 0.0}
 
@@ -303,7 +310,7 @@ def main() -> int:
                    "e_ransac_px": params.e_ransac_px,
                    "fill_holes": params.fill_holes,
                    "mvs": {k: getattr(params, k) for k in (
-                       "mvs_max_image_size", "mvs_num_src_images",
+                       "mvs_max_image_size", "mvs_num_src_images", "mvs_min_views",
                        "mvs_window_step", "mvs_num_iterations",
                        "mvs_num_samples", "mvs_gpu_index", "mvs_cache_gb")}},
         "mission_capture": manifest["capture"],
