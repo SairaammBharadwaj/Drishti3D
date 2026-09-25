@@ -153,6 +153,14 @@ class PipelineParams:
     sfm_threads: int | None = None
     #: Match features on the GPU through the CUDA ``colmap`` executable.
     sfm_gpu_matching: bool = False
+    #: After mapping with a supplied calibration, refine only the distortion
+    #: coefficients (focal and principal point fixed). On MARS-LVIG it removed
+    #: a bowl the chessboard calibration left: vertical RMSE 0.58 -> 0.48 m
+    #: (single pass) and 0.83 -> 0.52 m (multi-pass), DEC-044.
+    refine_residual_distortion: bool = True
+    #: Height of the GNSS antenna above the camera's optical centre (metres),
+    #: from platform geometry or a calibration flight. None: not applied.
+    gnss_antenna_above_camera_m: float | None = None
     depth_stride: int = 8               # pixel grid stride for depth back-projection
     #: Fill holes the cameras saw but stereo could not reconstruct -- open
     #: water above all -- with a rim-fitted surface written to ``fill.npz``,
@@ -421,7 +429,15 @@ def run(project_dir, video_path, telemetry_path, *,
                 kf_frames, K, keep_workspace=keep, fix_intrinsics=calibrated,
                 num_threads=params.sfm_threads,
                 gpu_matching=params.sfm_gpu_matching,
+                refine_residual_distortion=params.refine_residual_distortion,
                 progress=lambda m, f: _emit(progress, "sfm", f, m))
+            _rd = recon.stats.get("residual_distortion")
+            if _rd and _rd.get("applied"):
+                warnings.append(
+                    "residual lens distortion refined after mapping (focal fixed): "
+                    f"k1,k2,p1,p2 = {[round(v, 5) for v in next(iter(_rd['k1_k2_p1_p2'].values()))]}")
+            elif _rd:
+                warnings.append(f"residual distortion not refined: {_rd.get('reason')}")
         else:
             recon = sfm.reconstruct(
                 kf_frames, K, masks=masks, positions=kf_gps,
@@ -624,6 +640,14 @@ def run(project_dir, video_path, telemetry_path, *,
 
     # 8d) LEVER ARM ----------------------------------------------------------
     lever_applied = False
+    if params.gnss_antenna_above_camera_m and kf_gps is not None:
+        # Vertical part of the antenna-to-camera lever arm. It needs no heading:
+        # in near-level flight it is a height difference. Without it the model
+        # sits at antenna height -- +0.19..+0.36 m on MARS-LVIG (DEC-044).
+        kf_gps = np.asarray(kf_gps, float).copy()
+        kf_gps[:, 2] -= float(params.gnss_antenna_above_camera_m)
+        warnings.append(f"GNSS antenna {params.gnss_antenna_above_camera_m:.2f} m above "
+                        "the camera: vertical lever arm applied")
     if params.lever_arm_body is not None and kf_gps is not None and synced is not None:
         from . import sensors as sensormod
         yaws = [synced[i].yaw for i in sel]

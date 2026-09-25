@@ -266,6 +266,8 @@ def main() -> int:
     )
     if readout_s is not None:
         params.rolling_shutter_readout_s = readout_s
+    if cam.get("gnss_antenna_above_camera_m") is not None:
+        params.gnss_antenna_above_camera_m = float(cam["gnss_antenna_above_camera_m"])
     # Only what was asked for: passing None would replace the pipeline's
     # tuned defaults with COLMAP's.
     for flag, field in (("mvs_max_image_size", "mvs_max_image_size"),

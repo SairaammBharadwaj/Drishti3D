@@ -125,9 +125,65 @@ def _match_cpu(pycolmap, db, exhaustive, modern, _with_threads):
             pycolmap.match_exhaustive(str(db))
 
 
+#: Refined residual distortion larger than this (|k1|, |k2| in normalised
+#: coordinates) is treated as a failed refinement and discarded. MARS-LVIG's
+#: two flights refined to |k| < 0.005 independently.
+MAX_RESIDUAL_DISTORTION = 0.05
+
+
+def _refine_residual_distortion(pycolmap, rec):
+    """One bundle adjustment refining only lens distortion, focal held fixed.
+
+    Frames arrive already undistorted with the supplied calibration, so the
+    model is PINHOLE. A calibration that is slightly wrong leaves a residual
+    radial error of about a pixel at the image edge, which in near-nadir
+    imagery bends the surface into a bowl: on MARS-LVIG the vertical error ran
+    -0.22 / +0.20 / +0.30 / -0.27 m at 0-20 / 20-40 / 40-60 / 60-80 m from the
+    flight line, identically on two flights (DEC-044).
+
+    The camera becomes OPENCV (k1, k2, p1, p2 from zero) and only those four
+    are refined. Focal length and principal point stay fixed: freeing the
+    focal is what drifted in DEC-038. Returns a report, or None if the model is
+    not PINHOLE (nothing supplied to correct against).
+    """
+    import numpy as _np
+    before = {}
+    for cid, cam in list(rec.cameras.items()):
+        if cam.model.name != "PINHOLE":
+            return None
+        before[cid] = cam
+        fx, fy, cx, cy = [float(v) for v in cam.params]
+        rec.cameras[cid] = pycolmap.Camera(
+            model="OPENCV", width=cam.width, height=cam.height,
+            params=[fx, fy, cx, cy, 0.0, 0.0, 0.0, 0.0], camera_id=cid)
+    err0 = float(rec.compute_mean_reprojection_error())
+    opts = pycolmap.BundleAdjustmentOptions()
+    opts.refine_focal_length = False
+    opts.refine_principal_point = False
+    opts.refine_extra_params = True
+    cfg = pycolmap.BundleAdjustmentConfig()
+    for img in rec.images.values():
+        if img.has_pose:
+            cfg.add_image(img.image_id)
+    cfg.fix_gauge(pycolmap.BundleAdjustmentGauge.THREE_POINTS)
+    pycolmap.create_default_bundle_adjuster(opts, cfg, rec).solve()
+    params = {int(c): [float(v) for v in cam.params[4:]] for c, cam in rec.cameras.items()}
+    ok = all(_np.all(_np.isfinite(v)) and abs(v[0]) < MAX_RESIDUAL_DISTORTION
+             and abs(v[1]) < MAX_RESIDUAL_DISTORTION for v in params.values())
+    if not ok:
+        for cid, cam in before.items():
+            rec.cameras[cid] = cam
+        return {"applied": False, "reason": "refined distortion out of range",
+                "k1_k2_p1_p2": params}
+    return {"applied": True, "k1_k2_p1_p2": params,
+            "mean_reprojection_px": [round(err0, 4),
+                                     round(float(rec.compute_mean_reprojection_error()), 4)]}
+
+
 def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
                        keep_workspace=None, fix_intrinsics=True,
-                       num_threads=None, gpu_matching=False):
+                       num_threads=None, gpu_matching=False,
+                       refine_residual_distortion=False):
     """Run COLMAP on in-memory BGR frames and return a ``sfm.ReconResult``.
 
     This lets the COLMAP engine drop into the same pipeline as the built-in
@@ -322,6 +378,15 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
             raise RuntimeError("COLMAP produced no reconstruction")
         rec = maps[max(maps, key=lambda k: maps[k].num_reg_images()
                        if hasattr(maps[k], "num_reg_images") else len(maps[k].images))]
+        residual_distortion = None
+        if refine_residual_distortion and K is not None and fix_intrinsics:
+            _t = _time.perf_counter()
+            _p("colmap: refining residual distortion", 0.85)
+            try:
+                residual_distortion = _refine_residual_distortion(pycolmap, rec)
+            except Exception as e:                          # noqa: BLE001
+                residual_distortion = {"applied": False, "reason": f"{type(e).__name__}: {e}"}
+            sfm_timings["residual_distortion"] = round(_time.perf_counter() - _t, 2)
 
         cameras = []
         # image_id -> keyframe index. COLMAP's own image ids are database
@@ -427,6 +492,7 @@ def reconstruct_frames(frames, K, *, progress=None, single_camera=True,
                     else float(np.median(pu.sigma[np.isfinite(pu.sigma)]))),
             },
         }
+        result.stats["residual_distortion"] = residual_distortion
         if keep_workspace is not None:
             kept = Path(keep_workspace)
             shutil.rmtree(kept, ignore_errors=True)

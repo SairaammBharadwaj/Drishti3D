@@ -3479,3 +3479,48 @@ vertical RMSE on HKisland02/03.
 The HKisland03 timing rerun started after the confidence-gating edit landed.
 That edit only relabels points; both scorers use every point, so the timing
 comparison is unaffected.
+
+
+## DEC-044 — Refine residual lens distortion after mapping; model the antenna height; RTK priors not needed
+
+**Date:** 2026-09-26
+
+**Status:** Accepted
+
+### Context
+
+DEC-043 put ~40% of vertical error in large-scale warp and proposed RTK pose
+priors inside bundle adjustment as the fix. The prototype
+(`scripts/trial_pose_prior_ba.py`) showed priors made it slightly worse and
+could not reconcile cameras with RTK closer than 0.4 m. Splitting the error by
+distance from the flight line found the real cause: a distortion bowl with the
+same shape on two independent flights (TESTS_AND_RESULTS 2026-09-26).
+
+### Decisions
+
+1. **`refine_residual_distortion` (default on).** When a calibration is
+   supplied, one extra bundle adjustment after mapping refines only k1, k2, p1,
+   p2 (the camera becomes OPENCV from zero), with focal and principal point
+   fixed (DEC-038). Refinement is discarded if |k1| or |k2| >= 0.05. Dense
+   stereo picks it up through COLMAP's undistorter. End to end: vertical RMSE
+   0.555 -> 0.495 (single) and 0.828 -> 0.542 m (multi-pass); horizontal offset
+   ~0.54 -> 0.07–0.28 m.
+2. **`gnss_antenna_above_camera_m`** (camera metadata). The vertical part of
+   the lever arm, applied without heading. MARS-LVIG missions carry 0.29 m,
+   *calibrated* on HKisland02/03 (mean of four runs), not measured on the
+   aircraft. Held-out accuracy is reported with the other flight's value:
+   vertical RMSE **0.38–0.42 m single-pass, 0.48–0.53 m multi-pass**, median
+   abs error 0.18–0.25 m, p90 0.57–0.86 m.
+3. **RTK pose priors are not adopted.** They did not help once the lens was
+   corrected (0.478 vs 0.475 m) and cannot be tighter than the timing and
+   lever-arm error they carry.
+4. **A validated horizontal metric exists** (`score_horizontal_offset.py`,
+   injection re-checked every run). It measures global placement only.
+
+### Consequences / limits
+- Two flights, one site, one camera, one day. The 0.29 m value must be
+  replaced by the platform's measured geometry, or re-calibrated, for any
+  other aircraft.
+- The chessboard calibration published with MARS-LVIG is slightly wrong for
+  this lens; a supplied calibration is now treated as a starting point for
+  distortion but still as fixed for focal length.

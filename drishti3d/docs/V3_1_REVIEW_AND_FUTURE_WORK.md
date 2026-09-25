@@ -31,19 +31,21 @@ ordered by measured value where a measurement exists.
 
 ## Future work, in priority order
 
-1. **RTK as pose priors inside bundle adjustment** (plan 24, 130). Measured
-   value: ~40% of vertical error is large-scale warp; per-tile correction would
-   take multi-pass RMSE 0.92 -> 0.57 m and single-pass 0.59 -> 0.38 m. Start
-   with COLMAP's pose-prior mapper (GPS priors with covariance), judge by tile
-   bias spread. GTSAM with IMU and barometer is the fuller version.
-2. **A horizontal accuracy metric.** Nothing validated measures horizontal
-   position; cloud-to-cloud reads a 1 m horizontal shift as 2.5 cm. Candidates:
-   LiDAR intensity or roof-edge features matched to image-derived edges, or
-   surveyed targets. Without it, the timing fix's benefit to the cloud is
-   unmeasured.
-3. **Horizontal and vertical accuracy on a second site and camera.** Both
-   flights are one island, one day, one camera. The 0.12 m sigma threshold and
-   every number here need an independent site before generalising.
+1. ~~RTK as pose priors inside bundle adjustment~~ **Done differently
+   (DEC-044).** Priors did not help; the warp was a lens-distortion bowl.
+   Refining residual distortion after mapping plus a vertical lever arm took
+   held-out vertical RMSE to 0.38–0.42 m (single pass) and 0.48–0.53 m
+   (multi-pass), and horizontal offset from ~0.54 m to 0.07–0.28 m.
+2. ~~A horizontal accuracy metric~~ **Done for global placement (DEC-044):**
+   `score_horizontal_offset.py`, injection-validated. Still open: per-point
+   horizontal error (needs identifiable features or surveyed targets).
+3. **A second site and camera (now the top item).** Both flights are one
+   island, one day, one camera. The 0.12 m sigma threshold, the 0.29 m
+   antenna height and every number here need an independent site. Cheapest
+   next test: HKisland01 (8.8 of 18.8 GB already on disk, L1 extracted) is
+   held out from every calibrated value.
+3a. **Measure the antenna-to-camera lever arm** on the aircraft instead of
+   calibrating it against LiDAR, and apply the horizontal part with heading.
 4. **Mission modes and a capability matrix** (plan 14, 15, 37). Turn existing
    signals (scale source, RTK fixed fraction, time-offset uncertainty,
    registration ratio, tile-bias spread when a reference exists) into

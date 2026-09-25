@@ -1826,3 +1826,95 @@ pose priors inside bundle adjustment could (DEC-043, future work 1).
 - Whether keyframe density or dense resolution changes the single- vs
   multi-pass gap.
 - Run-to-run spread.
+
+
+## 2026-09-26 — Future work item 1: the warp was the lens, not the georeferencing (DEC-044)
+
+### Pose priors in bundle adjustment: tried, no gain
+`scripts/trial_pose_prior_ba.py` on HKisland03 single pass (20 keyframes).
+RTK positions as priors (sigma 5 cm, intrinsics fixed), dense stereo re-run
+with the pipeline's settings: vertical RMSE 0.583 -> 0.606, tile-bias std
+0.46 -> 0.54 (worse). Even forced, cameras stayed 0.40 m from RTK: the
+priors disagree with the images by ~0.5 m (timing ±0.05 s is ±0.45 m at
+8.9 m/s; lever arm unmodelled).
+
+### Diagnosis: a lens-distortion bowl across the strip
+Vertical error by lateral distance from the flight line (single pass):
+
+| distance | HKisland03 median dZ | HKisland02 median dZ |
+|---|---:|---:|
+| 0–20 m | -0.215 | -0.238 |
+| 20–40 m | +0.200 | +0.210 |
+| 40–60 m | +0.304 | +0.399 |
+| 60–80 m | -0.272 | -0.242 |
+
+The same wave on two independent flights: residual radial distortion left by
+the published chessboard calibration.
+
+### Refining only distortion after mapping (focal and principal point fixed)
+Trial (`--no-priors --refine-radial`; similarity to RTK as before):
+
+| cloud | vertical RMSE | p90 | p99 | tile-bias std | refined k1 / k2 |
+|---|---|---|---|---|---|
+| 03 single | 0.583 -> 0.475 | 0.948 -> 0.708 | 1.684 -> 1.157 | 0.46 -> 0.26 | -0.0021 / +0.0037 |
+| 02 single | 0.613 -> 0.487 | 1.011 -> 0.713 | 1.687 -> 1.297 | 0.46 -> 0.27 | -0.0027 / +0.0041 |
+| 03 multi | 0.828 -> 0.516 | 1.303 -> 0.776 | 2.407 -> 1.548 | 0.75 -> 0.32 | -0.0011 / +0.0029 |
+| 02 multi | 0.914 -> 0.519 | 1.416 -> 0.789 | 2.668 -> 1.704 | 0.79 -> 0.30 | -0.0017 / +0.0036 |
+
+Adding loose RTK priors (0.3 m) on top changed nothing (0.478 vs 0.475).
+
+### In the pipeline (`refine_residual_distortion`, default on), end to end
+
+| run | before: vertical bias / RMSE / p90 / p99 | after | C2C RMSE / p90 before -> after | wall |
+|---|---|---|---|---|
+| 03 single | -0.078 / 0.555 / 0.897 / 1.602 | +0.356 / 0.495 / 0.737 / 1.114 | 0.758 / 0.905 -> 0.744 / 0.720 | 170.3 s |
+| 02 single | -0.052 / 0.585 / 0.953 / 1.601 | +0.324 / 0.497 / 0.739 / 1.222 | 0.820 / 0.998 -> 0.789 / 0.736 | 218.3 s |
+| 03 multi | -0.134 / 0.828 / 1.308 / 2.416 | +0.285 / 0.542 / 0.812 / 1.565 | 0.756 / 1.052 -> 0.614 / 0.704 | 749.6 s |
+| 02 multi | -0.254 / 0.921 / 1.422 / 3.113* | +0.186 / 0.544 / 0.829 / 1.730 | 0.808 / 1.147 -> 0.618 / 0.720 | 811.8 s |
+
+(*C2C p99.) The pipeline refined the same coefficients as the trial. Camera-to-RTK
+residual after timing: 0.30 / 0.30 / 0.45 / 0.69 m (was 0.55–1.53).
+
+### Constant vertical offset: calibrated on the other flight
+With the bowl removed a constant +0.19..+0.36 m remains, consistent with the
+GNSS antenna sitting above the camera. Each flight corrected with the
+**other** flight's offset:
+
+| run | offset used (from) | vertical bias | RMSE | abs dZ p50 | p90 | p99 |
+|---|---|---:|---:|---:|---:|---:|
+| 03 single | +0.324 (02 single) | +0.033 | **0.377** | 0.181 | 0.572 | 1.303 |
+| 02 single | +0.356 (03 single) | -0.033 | **0.418** | 0.225 | 0.632 | 1.395 |
+| 03 multi | +0.186 (02 multi) | +0.098 | **0.484** | 0.251 | 0.762 | 1.502 |
+| 02 multi | +0.285 (03 multi) | -0.098 | **0.531** | 0.236 | 0.858 | 1.651 |
+
+### Horizontal accuracy: first validated metric
+`scripts/score_horizontal_offset.py`: one translation fitted point-to-plane on
+LiDAR surfaces sloped >= 25 degrees, coarse-to-fine robust weights. Injected
++1.00 / +0.50 m east and north recovered as 1.00 / 0.50 on every run (a fixed
+0.2 m Huber scale recovered only 70–82%, so it was changed).
+
+| run | horizontal offset (E, N) |
+|---|---|
+| 03 single, before | 0.542 m (+0.30, -0.45) |
+| 03 multi, before timing fix / after timing fix | 0.575 (-0.52, -0.24) / 0.535 (-0.44, -0.31) |
+| 02 multi, before timing fix / after timing fix | 0.569 (-0.53, -0.22) / 0.536 (-0.43, -0.32) |
+| **03 single, distortion refined** | **0.078 m** (+0.07, -0.04) |
+| **02 single, distortion refined** | **0.281 m** (+0.24, +0.15) |
+| **03 multi, distortion refined** | **0.129 m** (-0.13, +0.00) |
+| **02 multi, distortion refined** | **0.065 m** (-0.06, +0.03) |
+
+The persistent ~0.5 m south-west offset was the bowl: a curved surface fitted
+to RTK lands shifted. Global offset only; per-point horizontal error is still
+not measured.
+
+### Checks
+Vertical lever arm end to end (0.29 m, `camera.json`): HKisland03 single-pass
+bias +0.356 -> +0.073, RMSE 0.377 (not held out: 0.29 is partly fitted on this
+flight). Synthetic test recovers a known k1/k2 with focal fixed. 497 tests pass.
+
+### NOT TESTED
+- Any flight outside HKisland02/03 with the 0.29 m value (HKisland01 and other
+  MARS-LVIG sites are held out from it).
+- Residual-distortion refinement on a camera without a supplied calibration
+  (it only runs when one is supplied), and on DJI/UseGeo.
+- Per-point horizontal error.

@@ -241,6 +241,11 @@ def main() -> int:
         "distortion_applied_to_images": False,
         # Hikvision CA-050-11UC4: global shutter (MARS-LVIG, IJRR 2024, s.3).
         "shutter": "global",
+        # Calibrated, not measured: the mean constant vertical offset of four
+        # HKisland02/03 runs against the L1 (+0.19..+0.36 m, DEC-044). Accuracy
+        # claims on those flights use the other flight's value; other MARS-LVIG
+        # flights are held out from it.
+        "gnss_antenna_above_camera_m": 0.29,
         "notes": [
             "Chessboard calibration by the dataset authors, independent of the "
             "L1 reference and of any reconstruction.",

@@ -34,6 +34,38 @@ APP = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(APP / "scripts"))
 
 
+def flat_cell_dz(ours, ref, *, cell=0.5, max_std=0.05, min_returns=4):
+    """Return a function mapping UTM points to dZ against flat LiDAR cells.
+
+    Only cells with at least ``min_returns`` returns and height std under
+    ``max_std`` are used; points elsewhere, or more than 5 m off, are dropped.
+    """
+    def key(xy):
+        ij = np.floor(xy / cell).astype(np.int64)
+        return ij[:, 0] * 10_000_000 + ij[:, 1]
+
+    k = key(ref[:, :2])
+    order = np.argsort(k)
+    k, z = k[order], ref[order, 2]
+    cells, start, count = np.unique(k, return_index=True, return_counts=True)
+    s = np.add.reduceat(z, start)
+    s2 = np.add.reduceat(z * z, start)
+    mean = s / count
+    std = np.sqrt(np.maximum(s2 / count - mean ** 2, 0))
+    flat = (std < max_std) & (count >= min_returns)
+
+    def dz_of(p, return_xy=False):
+        kk = key(p[:, :2])
+        pos = np.clip(np.searchsorted(cells, kk), 0, len(cells) - 1)
+        ok = (cells[pos] == kk) & flat[pos]
+        dz = p[ok, 2] - mean[pos[ok]]
+        keep = np.abs(dz) < 5.0
+        return (dz[keep], p[ok][keep, :2]) if return_xy else dz[keep]
+
+    dz_of.n_flat = int(flat.sum())
+    return dz_of
+
+
 def main() -> int:
     import score_against_lidar as sal
 
@@ -49,11 +81,16 @@ def main() -> int:
     ap.add_argument("--crop-to-run", default=None,
                     help="score only points inside this other run's horizontal "
                          "footprint (convex hull), for like-for-like comparisons")
+    ap.add_argument("--z-correction", type=float, default=0.0,
+                    help="metres subtracted from every height before scoring: a "
+                         "constant (e.g. antenna-to-camera) offset calibrated on a "
+                         "DIFFERENT flight, never on the one being scored")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
 
     pts, _sig, frame = sal.load_reconstruction(APP / "data/runs" / a.run)
     ours = sal.to_utm(frame, pts, a.epsg)
+    ours[:, 2] -= a.z_correction
     if a.crop_to_run:
         from scipy.spatial import Delaunay
         cp, _s, cf = sal.load_reconstruction(APP / "data/runs" / a.crop_to_run)
@@ -63,33 +100,13 @@ def main() -> int:
                                          replace=False), :2])
         ours = ours[hull.find_simplex(ours[:, :2]) >= 0]
     ref = sal.load_lidar_in_box(Path(a.truth), ours.min(0) - 5, ours.max(0) + 5)
-
-    def key(xy):
-        ij = np.floor(xy / a.cell).astype(np.int64)
-        return ij[:, 0] * 10_000_000 + ij[:, 1]
-
-    k = key(ref[:, :2])
-    order = np.argsort(k)
-    k, z = k[order], ref[order, 2]
-    cells, start, count = np.unique(k, return_index=True, return_counts=True)
-    s = np.add.reduceat(z, start)
-    s2 = np.add.reduceat(z * z, start)
-    mean = s / count
-    std = np.sqrt(np.maximum(s2 / count - mean ** 2, 0))
-    flat = (std < a.max_std) & (count >= a.min_returns)
-
-    def dz_of(p):
-        kk = key(p[:, :2])
-        pos = np.searchsorted(cells, kk)
-        pos = np.clip(pos, 0, len(cells) - 1)
-        ok = (cells[pos] == kk) & flat[pos]
-        dz = p[ok, 2] - mean[pos[ok]]
-        return dz[np.abs(dz) < 5.0]
+    dz_of = flat_cell_dz(ours, ref, cell=a.cell, max_std=a.max_std,
+                         min_returns=a.min_returns)
 
     dz = dz_of(ours)
     ad = np.abs(dz)
     res = {
-        "run": a.run, "cropped_to": a.crop_to_run, "cell_m": a.cell, "flat_cells": int(flat.sum()),
+        "run": a.run, "cropped_to": a.crop_to_run, "z_correction_m": a.z_correction, "cell_m": a.cell, "flat_cells": dz_of.n_flat,
         "n_points": int(len(dz)),
         "bias_median_dz_m": float(np.median(dz)),
         "rmse_dz_m": float(np.sqrt(np.mean(dz ** 2))),
