@@ -15,9 +15,9 @@ export default function Report() {
   const dims = gte?.dimensional_accuracy
 
   return (
-    <div className="container" style={{ maxWidth: 900 }}>
-      <div className="spread">
-        <h1>Evidence Report</h1>
+    <div className="container report-page">
+      <div className="report-heading">
+        <div><p className="report-kicker">Reconstruction evidence</p><h1>Evidence report</h1><p>Quality, provenance, and limits for this reconstruction.</p></div>
         <div className="row">
           <Link to={`/projects/${id}`}><button>← Workspace</button></Link>
           <a href={api.exportUrl(id, 'report_html')} target="_blank" rel="noreferrer"><button>Open HTML</button></a>
@@ -126,7 +126,7 @@ export default function Report() {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="card" style={{ marginTop: 14 }}><h3>{title}</h3>{children}</div>
+  return <section className="card report-section"><h2>{title}</h2>{children}</section>
 }
 function KV({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) {
   return <div className="kv"><span className="k">{k}</span><span className={mono ? 'mono' : ''}>{v}</span></div>

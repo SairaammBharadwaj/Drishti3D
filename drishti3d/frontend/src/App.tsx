@@ -14,7 +14,7 @@ export default function App() {
           <svg className="brand-mark" viewBox="0 0 32 36" fill="none" aria-hidden="true"><path d="M16 2 30 10v16L16 34 2 26V10L16 2Z" stroke="currentColor" strokeWidth="1.5"/><path d="m2 10 14 8 14-8M16 18v16M9 14v8l7 4 7-4v-8" stroke="currentColor" strokeWidth="1.5"/></svg>
           <span className="brand-word">drishti<span>3D</span><small>SPATIAL INTELLIGENCE</small></span>
         </Link>
-        <button className="menu-toggle" aria-expanded={menu} aria-controls="main-nav" onClick={() => setMenu(!menu)}>{menu ? 'Close' : 'Menu'}</button>
+        <button className="menu-toggle" aria-expanded={menu} aria-controls="main-nav" aria-label={menu ? 'Close navigation menu' : 'Open navigation menu'} onClick={() => setMenu(!menu)}>{menu ? 'Close' : 'Menu'}</button>
         <nav id="main-nav" className={menu ? 'nav-open' : ''} aria-label="Main navigation">
           <NavLink to="/" end>Overview</NavLink>
           <NavLink to="/missions">Missions</NavLink>
