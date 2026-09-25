@@ -573,7 +573,12 @@ def run_colmap(workspace, *, max_image_size: int = 1600,
     fused = dense / "fused.ply"
     fu = ["--StereoFusion.max_image_size", str(max_image_size)]
     if cache_size_gb is not None:
-        fu += ["--StereoFusion.cache_size", str(cache_size_gb)]
+        # cache_size is ignored unless use_cache is on. Without it fusion loads
+        # every depth map, normal map and image at once: ~16 GB for 160
+        # full-resolution MARS-LVIG keyframes, which no cache_size setting here
+        # had ever bounded. The fused output does not depend on the cache.
+        fu += ["--StereoFusion.use_cache", "1",
+               "--StereoFusion.cache_size", str(cache_size_gb)]
     _run(["stereo_fusion", "--workspace_path", str(dense),
           "--workspace_format", "COLMAP",
           "--input_type", "geometric" if geom_consistency else "photometric",

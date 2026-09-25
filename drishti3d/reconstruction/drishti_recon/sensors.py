@@ -339,7 +339,7 @@ def detect_rolling_shutter(rotations, times, *, readout_s: float = 1 / 60.0,
 # --------------------------------------------------------------------------- #
 # lens distortion
 # --------------------------------------------------------------------------- #
-def undistort_frames(frames, K, dist):
+def undistort_frames(frames, K, dist, *, inplace=False):
     """Undistort frames so the rest of the pipeline can assume a pinhole camera.
 
     Correcting once, up front, is preferable to threading distortion coefficients
@@ -348,7 +348,9 @@ def undistort_frames(frames, K, dist):
     any that was missed would fail silently.
 
     Returns ``(frames, K_new, applied)``. ``K_new`` is the intrinsic matrix valid
-    for the undistorted images, which is *not* the input K.
+    for the undistorted images, which is *not* the input K. With ``inplace``
+    each array is overwritten and the same list is returned, so at most one
+    extra frame is in memory instead of a copy of every frame.
     """
     import cv2
 
@@ -365,5 +367,10 @@ def undistort_frames(frames, K, dist):
     K_new, _roi = cv2.getOptimalNewCameraMatrix(K, dist, (w, h), 0)
     map1, map2 = cv2.initUndistortRectifyMap(K, dist, None, K_new, (w, h),
                                              cv2.CV_16SC2)
+    if inplace:
+        # remap cannot write over its own source, so go through one temporary.
+        for f in frames:
+            f[...] = cv2.remap(f, map1, map2, cv2.INTER_LINEAR)
+        return frames, np.asarray(K_new, float), True
     out = [cv2.remap(f, map1, map2, cv2.INTER_LINEAR) for f in frames]
     return out, np.asarray(K_new, float), True

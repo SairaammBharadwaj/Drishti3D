@@ -3328,3 +3328,86 @@ because COLMAP 4.1 aborts when the undistorter resizes. Wall clock and
   still to do.
 - 12.2 min is one run on this laptop (RTX 5060 8 GB, 24 cores). The plan asks
   for three runs per finalist; this is one.
+
+
+## DEC-042 — Same-flight LiDAR on native video: MARS-LVIG, and what a 15 GB laptop can run
+
+**Date:** 2026-09-25
+
+**Status:** Accepted (reference and memory changes); time-offset fix open
+
+### Context
+
+Every accuracy figure so far came from still images (UseGeo) or from video with
+no independent truth (AirLock DJI). A public LiDAR survey of Austin covers the
+DJI videos but predates them by 4.5 years, and was rejected: construction
+change would be scored as reconstruction error. The requirement was video and
+truth captured together.
+
+### Decision 1 — MARS-LVIG is the video accuracy reference
+
+MARS-LVIG carries a DJI L1 LiDAR on the same drone, recording during the same
+flight as a 10 Hz 2448x2048 global-shutter camera, with RTK on board.
+`scripts/build_mars_lvig_mission.py` converts a bag to a mission (JPEG frames
+encoded once at their true 10 Hz, refusing on dropped frames; RTK to
+`telemetry.csv`; published calibration; the same-flight L1 cloud to
+`datasets/truth/`, which `run_mission.py` never reads). `--utc-start/--utc-end`
+trims to the L1's recording window. `scripts/fetch_mars_lvig.sh` downloads
+from Drive in verified 200 MB chunks (Drive answers an exhausted quota with an
+HTML page and HTTP 200).
+
+Only pair a bag with the L1 of the same run. HKisland_GNSS03 (2023-10-24) and
+HKisland03 (2022-11-29) fly the same route and are named alike; the L1 in
+`HKisland.7z` belongs to HKisland01/02/03 only.
+
+Result (TESTS_AND_RESULTS 2026-09-25): **0.72 m RMSE, 0.40 m median, p90
+1.09 m, p99 2.25 m**, systematic offset under 2 cm. Within a stated <= 1 m by
+RMSE, borderline at p90. One flight.
+
+### Decision 2 — heavy jobs run capped, and frames live on disk
+
+An uncapped run reached 11.9 GB and the OOM kill took VS Code with it; a
+laptop suspend froze another. All pipeline jobs now go through
+`scripts/run_capped.sh`: own systemd scope, `MemoryMax` (default 6G), 1G swap,
+**no `MemoryHigh`** (throttling made PatchMatch run 2 h with the GPU idle
+instead of failing), a systemd-inhibit sleep/lid lock for the job's lifetime,
+nice 10, OOM score 900.
+
+Pipeline memory changes, each verified byte-identical (TESTS_AND_RESULTS):
+- `_FrameStore` holds analysed frames in a memory-mapped file in the run
+  directory, deleted after keyframe selection. 671 full-resolution frames:
+  580 MB anonymous memory instead of ~10 GB.
+- `undistort_frames(..., inplace=True)` stops holding a second copy of every
+  frame.
+- `mvs.py` passes `StereoFusion.use_cache 1` with `cache_size`. Without it the
+  cache size was ignored and fusion loaded every map at once.
+- `run_mission.py --sfm-threads`: SIFT memory scales with threads x image size.
+
+Settings that fit MARS-LVIG in 6 GB: `--max-frames 200 --sfm-threads 6
+--mvs-cache-gb 1 --mvs-max-image-size 1300 --proc-width 1600`.
+
+### Decision 3 — full resolution is out of scope on this machine
+
+Full-resolution dense fusion needs ~16 GB without the cache and is
+single-threaded, slowing to over an hour per image, with it. Depth maps alone
+took 33 minutes. Wall/video > 30x. Not a production setting and not reachable
+as an experiment here.
+
+### Open — RTK time offset
+
+DJI RTK messages are stamped ~0.6 s after the matching camera frame (alignment
+RMSE 4.38 m at 0 s, 0.77 m at -0.6 s; ground speed 8.9 m/s). The
+speed-profile estimator in `sensors.estimate_time_offset` found -0.21 s on
+run A because a constant-speed survey has a flat speed profile. Proposed: after
+it, refine the offset by minimising the sim3 residual of camera centres against
+RTK over the same search range, with the same short-clip guards, and accept it
+only when clearly better. Uses video and telemetry only, never the reference.
+Expected gain on this flight ~0.1 m RMSE (0.72 -> 0.61 on the raw cloud).
+
+### Consequences / limits
+- One flight. HKisland01/02 are the next two; their L1 is already on disk.
+- Processing time is set by the keyframe budget (~11–12 min for 80 keyframes
+  of 5 MP frames), so wall/video depends on clip length: 1.7x on 380 s, 3.7x
+  on 201 s, ~1.1x expected on 10 min.
+- Interval coverage 20.7% at 1.96 sigma: `interval_not_calibrated` remains
+  correct, and nothing here is "meets requirement" (DEC-003, DEC-006).

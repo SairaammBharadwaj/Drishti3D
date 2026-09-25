@@ -248,6 +248,7 @@ def run(project_dir, video_path, telemetry_path, *,
         stride = max(1, int(np.ceil(vinfo.frame_count / params.max_analyze_frames)))
         sf = 1.0
         frames = []          # (frame_index, timestamp, bgr) at processing scale
+        store = None         # disk-backed pixels for `frames`; see _FrameStore
         pts_pre = []         # POS_MSEC sampled *before* read(), seconds
         pts_post = []        # POS_MSEC sampled *after* read(), seconds
         idx = 0
@@ -278,6 +279,10 @@ def run(project_dir, video_path, telemetry_path, *,
                     sf = params.proc_max_width / fr.shape[1]
                     fr = cv2.resize(fr, (params.proc_max_width,
                                          int(round(fr.shape[0] * sf))))
+                if store is None:
+                    store = _FrameStore(project_dir / "frames.u8", fr.shape,
+                                        vinfo.frame_count // stride + 1)
+                fr = store.put(fr)
                 frames.append((idx, idx / fps, fr))
                 if _score_pool is not None:
                     _scored.append(_score_pool.submit(frame_quality._per_frame, fr))
@@ -319,13 +324,13 @@ def run(project_dir, video_path, telemetry_path, *,
     distortion_applied = False
     if _dist is not None:
         from . import sensors as sensormod
-        imgs = [f[2] for f in frames]
-        imgs, K, distortion_applied = sensormod.undistort_frames(imgs, K, _dist)
+        # In place: returning new arrays held a second copy of every analysed
+        # frame at once, which is what pushed 280 MARS-LVIG frames past 6 GB.
+        _, K, distortion_applied = sensormod.undistort_frames(
+            [f[2] for f in frames], K, _dist, inplace=True)
         if distortion_applied:
-            frames = [(fi, ts, im) for (fi, ts, _), im in zip(frames, imgs)]
             warnings.append("lens distortion corrected; intrinsics updated to "
                             "the undistorted camera")
-        del imgs          # a second reference to every analysed image
 
     # 4) FRAME QUALITY -------------------------------------------------------
     with stage_timer("quality"):
@@ -362,7 +367,8 @@ def run(project_dir, video_path, telemetry_path, *,
         else:
             sel, timeline = kf.select(frames, metrics, preset=params.preset,
                                       gps_enu=gps_enu_all)
-        kf_frames = [frames[i][2] for i in sel]
+        # Copied out of the frame store, which is deleted below.
+        kf_frames = [np.array(frames[i][2]) for i in sel]
         # Keyframe index -> decoded video frame index, built once and named for
         # what it is. `sel` holds positions in the *analysed* array, and
         # `frames[i][0]` is the decoded index of that analysed frame. The two
@@ -379,7 +385,10 @@ def run(project_dir, video_path, telemetry_path, *,
         # 2,391 x 1600 x 900 x 3 = 10.3 GB on DJI_1003 against 346 MB for the
         # 80 keyframes, on a 16 GB machine.
         frames = [(fi, ts, None) for fi, ts, _ in frames]
-        kf_gps = gps_enu_all[sel] if gps_enu_all is not None else None
+        if store is not None:
+            store.close()
+            store = None
+        kf_gps =gps_enu_all[sel] if gps_enu_all is not None else None
         kf_acc = [synced[i].gps_accuracy for i in sel] if synced is not None else None
         _emit(progress, "keyframes", 1.0, f"{len(sel)} keyframes")
 
@@ -975,6 +984,52 @@ def _usable_pts(t, _np):
     return (len(t) >= 2 and bool(_np.all(_np.isfinite(t)))
             and not bool(_np.allclose(t, 0.0))
             and bool(_np.all(_np.diff(t) > 0)))
+
+
+class _FrameStore:
+    """Analysed frames in a disk-backed array instead of anonymous memory.
+
+    Every analysed frame is held from decoding until keyframe selection. At
+    1600 px from 2448x2048 MARS-LVIG video that is 6.4 MB a frame, and 280 of
+    them (plus the undistortion copy since removed) OOM-killed a 6 GB job.
+    Pages of a file mapping are reclaimable -- under memory pressure the kernel
+    writes them out instead of killing the process -- and each slot is an
+    ordinary ndarray view, so no consumer changes and the pixels are
+    bit-identical to holding them in RAM.
+
+    ``capacity`` comes from the container's frame count, which can be wrong;
+    frames beyond it are kept in RAM rather than failing the run.
+    """
+
+    def __init__(self, path, shape, capacity):
+        import weakref
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._mm = np.lib.format.open_memmap(
+            self.path, mode="w+", dtype=np.uint8,
+            shape=(max(int(capacity), 1),) + tuple(shape))
+        self._n = 0
+        # Removes the file even if the pipeline raises before close().
+        self._finalizer = weakref.finalize(self, _FrameStore._unlink, self.path)
+
+    @staticmethod
+    def _unlink(path):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+    def put(self, img):
+        if self._n >= len(self._mm) or img.shape != self._mm.shape[1:]:
+            return img
+        slot = self._mm[self._n]
+        slot[...] = img
+        self._n += 1
+        return slot
+
+    def close(self):
+        self._mm = None
+        self._finalizer()
 
 
 def _adopt_pts(frames, pts_s, fps, *, pts_post=None):

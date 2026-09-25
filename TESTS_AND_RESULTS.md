@@ -1541,3 +1541,114 @@ Against the old cloud: camera centres agree to a median 0.03 m; 96.0% of 10 m
 and 92.3% of 2 m cells kept; 98.5% of new points within 1 m of an old point.
 The same pattern as DJI_1003 (95.6% / 92.0% / 97.7%). No independent
 reference exists for this site, so this is consistency, not accuracy.
+
+
+## 2026-09-25 — First same-flight accuracy on native video: MARS-LVIG HKisland03 (DEC-042)
+
+The first reference captured **in the same flight as the imagery**. MARS-LVIG
+(HKU, IJRR 2024) flies a DJI M300 RTK with a 2448x2048 global-shutter camera at
+10 Hz and, on the gimbal, a DJI Zenmuse L1 LiDAR recording simultaneously
+(stated 10 cm H / 5 cm V after DJI Terra). RTK fixed for 100% of samples.
+HKisland03: bag starts 2022-11-29 14:16:07 HKT, 380 s, 3,800 frames; the L1
+recorded 14:17:44.3–14:21:05.3 (201 s, 14.56 M points, UTM 50N).
+Scored with `score_against_lidar.py --epsg 32650 --sample 0` (every point).
+
+### Results
+
+| run | median | RMSE | p90 | p95 | p99 | wall / video |
+|---|---:|---:|---:|---:|---:|---:|
+| A. whole video, 200 frames analysed, 79 keyframes | 0.401 | **0.720** | 1.092 | 1.398 | 2.253 | 651.7 s / 380 s = 1.7x |
+| A'. same run's raw `fused.ply`, RTK time offset re-estimated (-0.50 s) | 0.321 | **0.615** | 0.902 | — | 1.961 | — |
+| B. LiDAR window only, 200 frames, 80 keyframes, fusion cache fix | 0.370 | **0.753** | 1.045 | 1.449 | 2.970 | 745.7 s / 201.1 s = 3.7x |
+| B'. same run's raw `fused.ply`, same scorer as A' (offset -0.54 s) | 0.360 | 0.741 | 1.022 | — | 2.941 | — |
+| C. full resolution (2448 px, 160 keyframes) | — | — | — | — | — | not completed; see below |
+
+Common settings for A and B: COLMAP engine, `balanced`, `--proc-width 1600
+--mvs-max-image-size 1300 --sfm-threads 6 --mvs-cache-gb 1 --max-frames 200`,
+published chessboard calibration, run through `scripts/run_capped.sh`.
+
+Run A detail: 79/79 registered, reprojection 0.284 px, 1,530,569 points,
+1.37% of points > 5 m from any LiDAR return (excluded). Systematic offset
+E +0.001 / N -0.013 / U -0.008 m: **georeferencing by RTK is essentially
+exact**; the error is surface noise, not bias. Completeness within 0.25 m
+23.1%, within 0.5 m 45.8%. Interval coverage at 1.96 sigma 20.7%; actual error
+is 5.05x the predicted sigma.
+
+Run A error by terrain (distance to LiDAR, every point):
+
+| subset | share | median | RMSE | p90 |
+|---|---:|---:|---:|---:|
+| local LiDAR roughness < 0.1 m (smooth) | 77.0% | 0.35 | 0.63 | 0.95 |
+| roughness 0.1–0.3 m | 19.9% | 0.54 | 0.87 | 1.31 |
+| roughness 0.3–1 m | 3.0% | 0.96 | 1.39 | 2.10 |
+| roughness > 1 m | 0.1% | 1.56 | 2.09 | 3.34 |
+| height < 1 m (shoreline, surf) | 17.1% | 0.50 | 0.97 | 1.35 |
+| height 30–60 m | 6.3% | 0.24 | 0.51 | 0.93 |
+| predicted sigma, lowest quartile | 25% | 0.25 | 0.43 | 0.67 |
+| predicted sigma, 3rd quartile | 25% | 0.51 | 0.80 | 1.26 |
+
+The uncertainty model ranks points correctly but is about 5x optimistic.
+
+### Camera-RTK time offset (RTK arrives late)
+
+Umeyama sim3 of run A's COLMAP camera centres onto RTK, as a function of the
+shift applied to keyframe times (`frame_index / fps`):
+
+| shift | 0 s | -0.3 s | -0.5 s | **-0.6 s** | -0.7 s | -1.0 s |
+|---|---:|---:|---:|---:|---:|---:|
+| alignment RMSE | 4.384 m | 2.361 m | 1.135 m | **0.772 m** | 0.931 m | 2.731 m |
+
+Ground speed is 8.94 m/s, so ~0.6 s of RTK message latency is ~5.4 m along
+track. The pipeline's speed-profile estimator found only -0.212 s
+(confidence 0.38) on run A — a constant-speed survey has a nearly flat speed
+profile — and reported a 2.28 m alignment RMSE. On run B it found -0.586 s
+(confidence 0.35) and reported 1.33 m. A' vs A suggests correct timing is
+worth ~0.1 m RMSE on this flight. **Not yet fixed in the pipeline.**
+`keyframes.json` also appears to time frames one frame early
+(frame 152 -> 15.112 s = 151 / 9.992); the position-based offset absorbs it.
+
+### Full resolution (run C) could not complete on this laptop
+
+`quality` preset, 671 frames analysed at 2448 px, 160 keyframes, dense at
+2448 px, 9 GB cap. SfM needed `--sfm-threads 3` (6 threads OOM'd in SIFT).
+PatchMatch finished all 160 photometric + geometric depth maps in ~33 min
+(25 GB, kept in `data/runs/mars_hkisland03_win__full`). Fusion then failed
+both ways: without `use_cache` it needs ~16 GB; with it COLMAP fuses on one
+thread and slowed from 58 s (image 22) to 840 s (image 23) to > 60 min
+(image 24). Abandoned. Wall/video would have been > 30x in any case.
+
+### Processing time
+
+Stages, run B: decode 11.2 s, SfM 170.8 s, dense 510.9 s, exports 22.7 s.
+Time is set by the keyframe cap (80), not by clip length: run A (380 s of
+video) took 651.7 s and run B (201 s) 745.7 s. On a 10-minute video the same
+budget would be ~1.1–1.2x, like DJI_1003 (1.08x); on a 3.4-minute clip it is
+3.7x.
+
+### Scorer and memory-change checks
+
+- `scripts/score_colmap_fused.py` recovers keyframe times by pixel matching;
+  on run A it matched all 79 keyframes (best/second error ratio >= 79.7) and
+  gave the same score as reading `keyframes.json`.
+- Disk-backed frame store + in-place undistortion: pixels and undistorted K
+  byte-identical to the old path (40 real frames); `frame_metrics.json` and
+  `keyframes.json` identical old vs new on a 60-frame run. SfM differed
+  (51 vs 50 registered) but two new-code runs also differ from each other
+  (reprojection 0.2383091 vs 0.2383291): COLMAP run-to-run variation.
+  487 tests pass. Decoding 671 full-resolution frames now uses 580 MB of
+  anonymous memory instead of ~10 GB.
+
+### Other runs this session
+- HKisland_GNSS03 (2023-10-24, a different flight over the same route):
+  79/79, 0.282 px, 1.41 M points, 645.8 s. **Not scored** — its own L1 is in
+  `GNSS.7z` (46 GB); the HKisland L1 is 11 months older.
+- Austin (AirLock DJI_1001–1007): public StratMap 2021 LiDAR covers all of
+  them, but the 4.5-year gap was rejected as a reference.
+
+### NOT TESTED
+- A second flight: HKisland01/02 (L1 already in `HKisland.7z`) are
+  downloading; Drive quota pauses them.
+- Run-to-run spread on the same flight.
+- The position-based time offset inside the pipeline.
+- Dimensional (point-to-point) accuracy; this is point-to-surface.
+- Anything above 1600 px processing on this 15 GB machine.

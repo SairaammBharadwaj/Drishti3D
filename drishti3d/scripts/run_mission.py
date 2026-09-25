@@ -212,6 +212,10 @@ def main() -> int:
     ap.add_argument("--mvs-cache-gb", type=float, default=None)
     ap.add_argument("--mvs-min-views", type=int, default=None,
                     help="images that must agree in fusion (pipeline: 4)")
+    ap.add_argument("--sfm-threads", type=int, default=None,
+                    help="COLMAP SfM threads (pipeline: half the cores, max 16). "
+                         "Each SIFT thread holds its own image buffers, so fewer "
+                         "threads is the memory lever on large frames")
     ap.add_argument("--no-fill", action="store_true",
                     help="skip the inferred hole fill")
     a = ap.parse_args()
@@ -262,7 +266,8 @@ def main() -> int:
                         ("mvs_samples", "mvs_num_samples"),
                         ("mvs_gpu_index", "mvs_gpu_index"),
                         ("mvs_cache_gb", "mvs_cache_gb"),
-                        ("mvs_min_views", "mvs_min_views")):
+                        ("mvs_min_views", "mvs_min_views"),
+                        ("sfm_threads", "sfm_threads")):
         v = getattr(a, flag)
         if v is not None:
             setattr(params, field, v)
