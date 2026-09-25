@@ -33,6 +33,8 @@ code.
 
 ---
 
+> **2026-09-25:** see `drishti3d/docs/V3_1_REVIEW_AND_FUTURE_WORK.md` for the prioritised future work from the V3.1 plan review and the MARS-LVIG results (DEC-042, DEC-043). Top item: RTK as pose priors inside bundle adjustment.
+
 ## P0 — Critical
 
 **Reopened 2026-09-21.** "P0: Nothing" was wrong, and a critical review

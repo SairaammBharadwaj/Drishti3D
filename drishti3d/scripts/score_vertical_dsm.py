@@ -46,11 +46,22 @@ def main() -> int:
     ap.add_argument("--max-std", type=float, default=0.05)
     ap.add_argument("--min-returns", type=int, default=4)
     ap.add_argument("--inject", type=float, nargs="*", default=[0.30, 1.00, -0.10])
+    ap.add_argument("--crop-to-run", default=None,
+                    help="score only points inside this other run's horizontal "
+                         "footprint (convex hull), for like-for-like comparisons")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
 
     pts, _sig, frame = sal.load_reconstruction(APP / "data/runs" / a.run)
     ours = sal.to_utm(frame, pts, a.epsg)
+    if a.crop_to_run:
+        from scipy.spatial import Delaunay
+        cp, _s, cf = sal.load_reconstruction(APP / "data/runs" / a.crop_to_run)
+        other = sal.to_utm(cf, cp, a.epsg)
+        rng = np.random.default_rng(0)
+        hull = Delaunay(other[rng.choice(len(other), min(len(other), 50_000),
+                                         replace=False), :2])
+        ours = ours[hull.find_simplex(ours[:, :2]) >= 0]
     ref = sal.load_lidar_in_box(Path(a.truth), ours.min(0) - 5, ours.max(0) + 5)
 
     def key(xy):
@@ -78,7 +89,7 @@ def main() -> int:
     dz = dz_of(ours)
     ad = np.abs(dz)
     res = {
-        "run": a.run, "cell_m": a.cell, "flat_cells": int(flat.sum()),
+        "run": a.run, "cropped_to": a.crop_to_run, "cell_m": a.cell, "flat_cells": int(flat.sum()),
         "n_points": int(len(dz)),
         "bias_median_dz_m": float(np.median(dz)),
         "rmse_dz_m": float(np.sqrt(np.mean(dz ** 2))),

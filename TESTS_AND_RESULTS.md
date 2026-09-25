@@ -1736,3 +1736,93 @@ Camera-RTK time offset on HKisland02: pipeline -0.628 s; position fit -0.50 s
 - Horizontal/vertical sources of the -0.14 to -0.24 m bias: not yet known
   (candidates: RTK antenna-to-camera lever arm, RTK time lag, dense-stereo
   bias at 1300 px).
+
+
+## 2026-09-25 (night) — Timing fix, confidence gating, single-pass test, warp (DEC-043)
+
+All vertical figures below use `scripts/score_vertical_dsm.py`, which re-ran
+its injection check on every cloud (+0.30 / +1.00 / -0.10 m recovered within
+0.3 mm). Settings as run B unless stated.
+
+### 1. Position-based time offset in the pipeline
+
+| flight | speed estimate | position refinement | camera-RTK alignment RMSE | C2C RMSE | vertical RMSE / bias |
+|---|---:|---:|---|---:|---|
+| HKisland02 | -0.628 s | -0.409 s | 1.53 -> **0.878 m** | 0.809 -> 0.808 | 0.925 -> 0.921 / -0.239 -> -0.254 |
+| HKisland03 | -0.586 s | -0.446 s | 1.33 -> **0.692 m** | 0.753 -> 0.756 | 0.826 -> 0.828 / -0.136 -> -0.134 |
+
+(Pipeline offsets are in its own timestamp convention, one frame early; the
+independent scorer found -0.50 and -0.54 s.) The camera track fits RTK about
+twice as well. The cloud's measured accuracy did not change: a timing error
+moves the model along track, horizontally, and neither validated metric here
+measures horizontal position. 495 tests pass (487 before today) with the new unit tests.
+
+### 2. Which points to measure from (threshold chosen on 02, tested on 03)
+
+| subset | HKisland02 keep | C2C p90 | vertical RMSE / p90 | HKisland03 keep | C2C p90 | vertical RMSE / p90 |
+|---|---:|---:|---|---:|---:|---|
+| all | 100% | 1.146 | 0.925 / 1.426 | 100% | 1.045 | 0.826 / 1.302 |
+| HIGH class (confidence >= 0.6) | 86.4% | 1.108 | 0.883 / 1.367 | 86.3% | 1.010 | 0.802 / 1.264 |
+| sigma_major <= p25 | 25% | 0.603 | 0.521 / 0.788 | 25% | 0.535 | 0.434 / 0.662 |
+| sigma_major <= p50 | 50% | 0.803 | 0.659 / 1.032 | 50% | 0.683 | 0.551 / 0.876 |
+| height > 1 m (no surf line) | 75% | 0.962 | 0.948 / 1.477 | 77% | 0.884 | 0.837 / 1.350 |
+
+Cross-validated: sigma_major <= **0.120 m** chosen on 02 (C2C p90 <= 1.0 m,
+keeps 83%) keeps **81%** of 03 with C2C RMSE 0.611 / p90 0.853 and vertical RMSE
+**0.686** / p90 **1.096** (from 0.826 / 1.302). At 0.087 m: 44% kept, vertical
+RMSE 0.523 / p90 0.820. Dense confidence depends on view count alone and fusion
+already requires 4 views, which is why the HIGH class barely separates.
+Adopted as `measure_max_sigma_major_m = 0.12` (DEC-043).
+
+### 3. Single-pass test (V3.1 plan section 67)
+
+43% (03) and 54% (02) of flight time is over ground already seen more than
+30 s earlier, so the multi-pass numbers above are not single-pass numbers. The
+first-visit stretch of each flight (no ground revisited) was reconstructed
+alone at the same keyframe density (~0.4/s) and compared with the multi-pass
+cloud cropped to the same footprint.
+
+| | HKisland03 single (49.4 s, 20 kf) | HKisland03 multi, same ground | HKisland02 single (63.2 s, 25 kf) | HKisland02 multi, same ground |
+|---|---:|---:|---:|---:|
+| vertical bias | **-0.078** | -0.178 | **-0.052** | -0.310 |
+| vertical RMSE | **0.555** | 0.848 | **0.585** | 0.942 |
+| abs dZ p50 / p90 | 0.349 / 0.897 | 0.540 / 1.346 | 0.375 / 0.953 | 0.600 / 1.450 |
+| abs dZ p99 | 1.602 | 2.469 | 1.601 | 2.868 |
+| wall / video | 162.5 s / 49.4 s | — | 216.3 s / 63.2 s | — |
+
+The single pass is **more** accurate on the same ground, on both flights.
+
+### 4. Why: large-scale warp, not layering
+
+Height spread of our points inside flat 1 m LiDAR cells (LiDAR std < 5 cm):
+single pass median 0.049 / 0.051 m, multi-pass 0.067 / 0.073 m (03 / 02).
+Layering exists but is centimetres.
+
+Median vertical error per 40 m tile, and the RMSE left if each tile's bias
+were removed:
+
+| cloud | tiles | tile bias range | tile bias std | RMSE | RMSE without tile bias |
+|---|---:|---|---:|---:|---:|
+| 02 multi-pass | 55 | -1.22 .. +2.14 m | 0.79 | 0.921 | **0.573** |
+| 03 multi-pass | 56 | -1.05 .. +2.01 m | 0.74 | 0.828 | **0.507** |
+| 02 single-pass | 29 | -0.81 .. +0.99 m | 0.45 | 0.585 | **0.382** |
+| 03 single-pass | 32 | -0.96 .. +0.87 m | 0.45 | 0.555 | **0.347** |
+
+About 40% of the vertical error is low-frequency bending of the model, larger
+over longer flights. A single similarity to RTK cannot remove it; RTK used as
+pose priors inside bundle adjustment could (DEC-043, future work 1).
+
+### 5. Small fixes
+- A declared global shutter (`camera.json: "shutter": "global"`) disables the
+  rolling-shutter check, which had warned "mild smear" on MARS-LVIG's
+  global-shutter camera. MARS missions now declare it.
+- The alignment time offset stores its uncertainty: offsets within 10% + 2 cm
+  of the best residual (±0.05 s on HKisland03, from the curve in section 1 of
+  the earlier entry).
+
+### NOT TESTED
+- Horizontal accuracy (no validated metric).
+- The sigma threshold on any other site, camera or altitude.
+- Whether keyframe density or dense resolution changes the single- vs
+  multi-pass gap.
+- Run-to-run spread.

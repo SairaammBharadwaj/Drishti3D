@@ -247,3 +247,33 @@ def test_similarity_fit_absorbs_a_scale_error_the_others_expose():
     # so a reconstruction 5% too large fits at 1/1.05, not 1.05.
     assert out["after_similarity_fit"]["fitted_scale"] == pytest.approx(
         1 / 1.05, rel=1e-6)
+
+
+def test_uncertain_points_are_not_high_confidence():
+    """A point's predicted uncertainty, not only its view count, gates HIGH.
+
+    Dense confidence depends on view count alone and fusion already requires
+    four views, so without this nearly every dense point was HIGH (DEC-043).
+    """
+    import numpy as np
+    from drishti_recon import fusion
+    from drishti_recon.provenance import Provenance
+    rng = np.random.default_rng(0)
+    pts = rng.uniform(0, 50, (400, 3))
+    conf = np.full(400, 0.85)                        # all "high" by view count
+    sig_major = np.where(np.arange(400) < 200, 0.05, 0.30)
+    base = fusion.fuse(pts, np.zeros((400, 3), np.uint8), conf, voxel=0,
+                       remove_outliers=False, compute_normals=False,
+                       sigma_major=sig_major)
+    assert (base.provenance == int(Provenance.OBSERVED_HIGH_CONFIDENCE)).all()
+    gated = fusion.fuse(pts, np.zeros((400, 3), np.uint8), conf, voxel=0,
+                        remove_outliers=False, compute_normals=False,
+                        sigma_major=sig_major, max_sigma_major_m=0.12)
+    high = gated.provenance == int(Provenance.OBSERVED_HIGH_CONFIDENCE)
+    assert high.sum() == 200
+    assert (gated.sigma_major[high] <= 0.12).all()
+    # A low-confidence point is never promoted by a small sigma.
+    low = fusion.fuse(pts, np.zeros((400, 3), np.uint8), np.full(400, 0.3), voxel=0,
+                      remove_outliers=False, compute_normals=False,
+                      sigma_major=np.full(400, 0.01), max_sigma_major_m=0.12)
+    assert not (low.provenance == int(Provenance.OBSERVED_HIGH_CONFIDENCE)).any()

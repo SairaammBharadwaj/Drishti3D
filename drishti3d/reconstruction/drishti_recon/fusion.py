@@ -70,8 +70,16 @@ def _statistical_outlier_np(pts, k=12, std_ratio=2.0):
 
 def fuse(points, colors, confidence, *, voxel: float = 0.2,
          remove_outliers: bool = True, compute_normals: bool = True,
-         sigma=None, sigma_major=None) -> PointCloud:
+         sigma=None, sigma_major=None,
+         max_sigma_major_m: float | None = None) -> PointCloud:
     """Clean and label a metric-frame cloud.
+
+    ``max_sigma_major_m`` demotes a point to ``OBSERVED_LOW_CONFIDENCE`` when its
+    predicted uncertainty exceeds it, whatever its confidence. Dense confidence
+    is a function of view count alone, and fusion already requires four views,
+    so 86% of MARS-LVIG dense points were "high confidence" -- a class whose
+    error (vertical p90 1.26 m) barely differed from the whole cloud's (1.30 m).
+    ``sigma_major`` ranks real error much better (DEC-043).
 
     ``sigma`` / ``sigma_major`` are optional per-point uncertainties carried
     through the same downsampling and outlier indexing as colour and confidence,
@@ -157,6 +165,10 @@ def fuse(points, colors, confidence, *, voxel: float = 0.2,
             sigma_major = None if sigma_major is None else sigma_major[keep]
 
     provenance = np.array([int(classify(c)) for c in confidence], int)
+    if max_sigma_major_m is not None and sigma_major is not None:
+        too_uncertain = np.isfinite(sigma_major) & (sigma_major > max_sigma_major_m)
+        high = provenance == int(Provenance.OBSERVED_HIGH_CONFIDENCE)
+        provenance[high & too_uncertain] = int(Provenance.OBSERVED_LOW_CONFIDENCE)
     return PointCloud(points, colors, confidence, provenance, normals,
                       sigma, sigma_major, np.asarray(src, np.int32))
 

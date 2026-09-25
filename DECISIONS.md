@@ -3421,3 +3421,61 @@ Expected gain on this flight ~0.1 m RMSE (0.72 -> 0.61 on the raw cloud).
   on 201 s, ~1.1x expected on 10 min.
 - Interval coverage 20.7% at 1.96 sigma: `interval_not_calibrated` remains
   correct, and nothing here is "meets requirement" (DEC-003, DEC-006).
+
+
+## DEC-043 — Fix timing and confidence now; the remaining error is warp, which needs RTK inside bundle adjustment
+
+**Date:** 2026-09-25
+
+**Status:** Accepted (items 1–4); item 5 is the top of future work
+
+### Context
+
+After DEC-042 the question was which parts of the ~0.8–0.9 m vertical RMSE are
+fixable now, measured on two same-flight LiDAR references with a validated
+vertical scorer (TESTS_AND_RESULTS 2026-09-25, night). The V3.1 plan
+(`Drishti3D Intelligence Edition V3.1`, 88 pp.) was reviewed at the same time
+(`drishti3d/docs/V3_1_REVIEW_AND_FUTURE_WORK.md`).
+
+### Decisions
+
+1. **Time offset by position agreement.** `sensors.refine_time_offset_by_alignment`
+   runs after the speed-profile estimate and replaces it only when its sim3
+   residual is at least 20% lower and its minimum is not on the search edge,
+   with at least 8 cameras spanning two dimensions. Camera-to-RTK alignment
+   improved 1.53 -> 0.88 m and 1.33 -> 0.69 m. Uses no reference.
+2. **Uncertainty gates the HIGH class.** `fusion.fuse(max_sigma_major_m=...)`,
+   default `PipelineParams.measure_max_sigma_major_m = 0.12`. Chosen on
+   HKisland02, tested unchanged on HKisland03: 81% kept, vertical RMSE
+   0.826 -> 0.686 m, p90 1.302 -> 1.096 m. This changes what is measurable by
+   default; set None to restore the old rule. One site and one camera chose it.
+3. **Shutter type is camera metadata** (plan section 29). `"shutter": "global"`
+   in `camera.json` turns the rolling-shutter check off instead of letting a
+   1/60 s default raise false warnings.
+4. **Synchronisation uncertainty is stored** (plan section 8) as
+   `time_offset.uncertainty_s`.
+
+### Findings that set future priorities
+
+- **Single-pass is more accurate than multi-pass on the same ground**
+  (vertical RMSE 0.555 vs 0.848 m and 0.585 vs 0.942 m). Revisits currently
+  hurt, because the pipeline has no mechanism to make passes agree.
+- **About 40% of vertical error is large-scale warp.** Per-40 m-tile biases
+  span -1.2 to +2.1 m on multi-pass clouds; removing them would leave RMSE
+  0.51–0.57 m (multi) and 0.35–0.38 m (single).
+- **Horizontal accuracy remains unmeasured.** Every result here is vertical or
+  point-to-surface.
+
+### 5. Next (not done): RTK positions as pose priors in bundle adjustment
+
+The plan's sections 24 and 130 recommend GNSS inside the optimisation rather
+than a similarity afterwards; the tile analysis measures what that is worth
+here. COLMAP's pose-prior mapper accepts GPS priors with covariance. Start
+there, before a full GTSAM graph, and judge it by the per-tile bias spread and
+vertical RMSE on HKisland02/03.
+
+### Process note
+
+The HKisland03 timing rerun started after the confidence-gating edit landed.
+That edit only relabels points; both scorers use every point, so the timing
+comparison is unaffected.

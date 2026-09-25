@@ -239,6 +239,13 @@ def main() -> int:
             intrinsics["distortion"] = [cam["k1"], cam["k2"], cam["p1"],
                                         cam["p2"], cam["k3"]]
 
+    # Shutter type is camera metadata (V3.1 plan section 29), not something to
+    # guess from motion: a declared global shutter disables the smear check,
+    # and a declared readout replaces the 1/60 s default.
+    shutter = str(cam.get("shutter", "")).lower()
+    readout_s = (0.0 if shutter == "global" else
+                 float(cam["readout_ms"]) / 1000.0 if cam.get("readout_ms") else None)
+
     run_dir = APP / "data/runs" / f"{a.mission}__{a.tag}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -257,6 +264,8 @@ def main() -> int:
         e_ransac_px=2.0,
         fill_holes=not a.no_fill,
     )
+    if readout_s is not None:
+        params.rolling_shutter_readout_s = readout_s
     # Only what was asked for: passing None would replace the pipeline's
     # tuned defaults with COLMAP's.
     for flag, field in (("mvs_max_image_size", "mvs_max_image_size"),

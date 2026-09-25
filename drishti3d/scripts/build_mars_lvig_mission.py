@@ -239,6 +239,8 @@ def main() -> int:
         "fx": K[0], "fy": K[4], "cx": K[2], "cy": K[5],
         "k1": d[0], "k2": d[1], "p1": d[2], "p2": d[3], "k3": d[4],
         "distortion_applied_to_images": False,
+        # Hikvision CA-050-11UC4: global shutter (MARS-LVIG, IJRR 2024, s.3).
+        "shutter": "global",
         "notes": [
             "Chessboard calibration by the dataset authors, independent of the "
             "L1 reference and of any reconstruction.",

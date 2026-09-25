@@ -216,3 +216,78 @@ def test_edge_pinned_peak_is_not_accepted():
     res = sensors.estimate_time_offset(t, cam, t + 5.0, cam, search_s=0.5)
     assert not res.accepted
     assert "edge" in res.reason or "below" in res.reason
+
+
+# --------------------------------------------------------------------------- #
+# time offset by position agreement (constant-speed surveys)
+# --------------------------------------------------------------------------- #
+def _lawnmower(t, speed=8.9, leg=400.0, spacing=60.0):
+    """Constant-speed survey legs joined by half-circle turns, like MARS-LVIG.
+
+    Speed never changes, so the speed-profile estimator has nothing to lock on
+    to; position still differs between offsets on every leg.
+    """
+    turn = np.pi * spacing / 2
+    period = leg + turn
+    s = speed * np.asarray(t, float)
+    k = np.floor(s / period).astype(int)
+    u = s - k * period
+    x = np.where(u < leg, u, leg)
+    y = k * spacing + np.where(u < leg, 0.0, spacing / 2 * (1 - np.cos((u - leg) / (spacing / 2))))
+    x = np.where(u < leg, x, leg + spacing / 2 * np.sin((u - leg) / (spacing / 2)))
+    x = np.where(k % 2 == 1, leg - x, x)
+    return np.stack([x, y, np.full_like(x, 95.0)], 1)
+
+
+def _unknown_frame(p, seed=3):
+    """The reconstruction's arbitrary scale, rotation and origin."""
+    rng = np.random.default_rng(seed)
+    q, _ = np.linalg.qr(rng.normal(size=(3, 3)))
+    return 0.07 * (p @ q.T) + rng.normal(size=3)
+
+
+@pytest.mark.parametrize("true_offset", [-0.6, -0.25, 0.4])
+def test_alignment_recovers_offset_that_speed_cannot(true_offset):
+    kf_t = np.arange(0, 200, 2.5)               # keyframes, video clock
+    tel_t = np.arange(-3, 203, 0.2)             # 5 Hz GNSS, telemetry clock
+    # Camera at video time v is where the GNSS says it is at v + offset.
+    cam = _unknown_frame(_lawnmower(kf_t + true_offset))
+    tel = _lawnmower(tel_t)
+    res = sensors.refine_time_offset_by_alignment(kf_t, cam, tel_t, tel, search_s=2.0)
+    assert res.accepted, res.reason
+    assert abs(res.offset_s - true_offset) < 0.03, (
+        f"recovered {res.offset_s:.3f}s, true {true_offset:.3f}s")
+
+
+def test_alignment_refuses_a_straight_line():
+    t = np.arange(0, 40, 1.0)
+    line = np.stack([8.9 * t, np.zeros_like(t), np.full_like(t, 95.0)], 1)
+    res = sensors.refine_time_offset_by_alignment(t, _unknown_frame(line), t, line)
+    assert not res.accepted
+    assert "straight line" in res.reason
+
+
+def test_alignment_does_not_invent_an_offset():
+    kf_t = np.arange(0, 200, 2.5)
+    tel_t = np.arange(-3, 203, 0.2)
+    cam = _unknown_frame(_lawnmower(kf_t))
+    res = sensors.refine_time_offset_by_alignment(kf_t, cam, tel_t, _lawnmower(tel_t))
+    # Already aligned at the starting offset: nothing clearly better exists.
+    assert not res.accepted or abs(res.offset_s) < 0.03
+
+
+def test_alignment_reports_sync_uncertainty():
+    kf_t = np.arange(0, 200, 2.5)
+    tel_t = np.arange(-3, 203, 0.2)
+    cam = _unknown_frame(_lawnmower(kf_t - 0.5))
+    res = sensors.refine_time_offset_by_alignment(kf_t, cam, tel_t, _lawnmower(tel_t))
+    assert res.accepted
+    assert res.uncertainty_s is not None and 0 < res.uncertainty_s < 0.3
+    assert res.to_dict()["uncertainty_s"] == res.uncertainty_s
+
+
+def test_declared_global_shutter_is_not_assessed():
+    rots = [np.eye(3)] * 5
+    res = sensors.detect_rolling_shutter(rots, np.arange(5.0), readout_s=0.0)
+    assert res.severity == "none"
+    assert "global shutter" in res.message

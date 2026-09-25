@@ -41,12 +41,17 @@ class TimeOffsetResult:
     search_s: float = 0.0
     n_samples: int = 0
     curve: list = field(default_factory=list)   # (offset, correlation) pairs
+    #: Half-width of the offsets the data cannot tell apart (V3.1 plan section
+    #: 8: store synchronisation uncertainty, do not assume perfect sync). Set by
+    #: the alignment refinement: offsets whose residual is within 10% + 2 cm of
+    #: the minimum, at least half a search step. None when not estimated.
+    uncertainty_s: float | None = None
 
     def to_dict(self) -> dict:
         return {"offset_s": self.offset_s, "correlation": self.correlation,
                 "confidence": self.confidence, "accepted": self.accepted,
                 "reason": self.reason, "search_s": self.search_s,
-                "n_samples": self.n_samples}
+                "n_samples": self.n_samples, "uncertainty_s": self.uncertainty_s}
 
 
 def _speed_profile(times, positions, grid):
@@ -205,6 +210,103 @@ def estimate_time_offset(video_times, cam_centers, tel_times, tel_positions, *,
                                    zip(offsets, corrs) if np.isfinite(c)])
 
 
+def refine_time_offset_by_alignment(video_times, cam_centers, tel_times,
+                                    tel_positions, *, start_s: float = 0.0,
+                                    search_s: float = 2.0, step_s: float = 0.02,
+                                    max_search_fraction: float = 0.25,
+                                    min_cameras: int = 8,
+                                    min_gain: float = 0.8) -> TimeOffsetResult:
+    """Refine the video-to-telemetry offset by where the positions agree best.
+
+    :func:`estimate_time_offset` correlates speed profiles, which carry almost
+    no timing information on a constant-speed survey: on MARS-LVIG HKisland03
+    (8.9 m/s throughout) it found -0.21 s at confidence 0.38, while the DJI RTK
+    messages actually lag the camera by ~0.6 s -- 5 m along track -- and the
+    georegistration absorbed the rest as a 2.28 m residual.
+
+    Here each candidate offset re-samples the GNSS track at the keyframe times
+    and fits the same 7-DoF similarity georegistration fits; the offset with the
+    smallest residual wins. Positions, unlike speeds, differ between offsets on
+    every straight leg, so a lawnmower survey is well conditioned. Returns the
+    offset to **add to video timestamps**, like :func:`estimate_time_offset`.
+
+    Accepted only when all of these hold, so it never overrides the speed
+    estimate on data that cannot support it:
+
+    * at least ``min_cameras`` cameras spanning two dimensions (a straight line
+      leaves the similarity's roll free, so the residual cannot resolve time);
+    * the minimum is not on the edge of the search window;
+    * it beats the residual at ``start_s`` by the factor ``min_gain``.
+
+    Uses only the reconstruction and the telemetry -- never a reference.
+    """
+    from .geo import umeyama_sim3
+
+    vt = np.asarray(video_times, float)
+    cc = np.asarray(cam_centers, float)
+    tt = np.asarray(tel_times, float)
+    tp = np.asarray(tel_positions, float)
+
+    def fail(reason):
+        return TimeOffsetResult(float(start_s), 0.0, 0.0, False, reason,
+                                search_s, int(len(vt)))
+
+    if len(vt) < min_cameras or len(tt) < 4:
+        return fail(f"fewer than {min_cameras} cameras")
+    sv = np.linalg.svd(cc - cc.mean(0), compute_uv=False)
+    if sv[0] <= 0 or sv[1] / sv[0] < 0.05:
+        return fail("camera path is nearly a straight line; the similarity "
+                    "cannot resolve timing")
+    span = float(vt.max() - vt.min())
+    search_s = float(min(search_s, max(max_search_fraction * span, step_s)))
+    order = np.argsort(tt)
+    tt, tp = tt[order], tp[order]
+
+    def residual(off):
+        tq = vt + off
+        inside = (tq >= tt[0]) & (tq <= tt[-1])
+        if inside.sum() < min_cameras:
+            return np.nan
+        dst = np.column_stack([np.interp(tq[inside], tt, tp[:, j]) for j in range(3)])
+        sim = umeyama_sim3(cc[inside], dst)
+        r = dst - sim.apply(cc[inside])
+        return float(np.sqrt((r ** 2).sum(1).mean()))
+
+    offsets = np.round(start_s + np.arange(-search_s, search_s + step_s / 2, step_s), 6)
+    res = np.array([residual(o) for o in offsets])
+    if not np.isfinite(res).any():
+        return fail("no offset leaves enough cameras inside the telemetry")
+    k = int(np.nanargmin(res))
+    best = float(offsets[k])
+    # Sub-step refinement through the minimum and its neighbours.
+    if 0 < k < len(res) - 1 and np.isfinite(res[k - 1]) and np.isfinite(res[k + 1]):
+        y0, y1, y2 = res[k - 1], res[k], res[k + 1]
+        denom = y0 - 2 * y1 + y2
+        if denom > 1e-12:
+            best = float(offsets[k] + 0.5 * (y0 - y2) / denom * step_s)
+    r0 = residual(start_s)
+    rb = float(res[k])
+    gain = rb / r0 if r0 and np.isfinite(r0) and r0 > 0 else 1.0
+    edge = k <= 1 or k >= len(res) - 2
+    accepted = bool(not edge and gain <= min_gain)
+    reason = "" if accepted else (
+        "residual minimum at the edge of the search window" if edge else
+        f"residual {rb:.3f} m is not clearly below {r0:.3f} m at the speed-based "
+        f"offset (ratio {gain:.2f} > {min_gain})")
+    # Offsets within 10% (plus 2 cm, about RTK noise) of the best residual are
+    # not distinguishable; never report less than half the search step.
+    near = offsets[np.isfinite(res) & (res <= 1.10 * rb + 0.02)]
+    half_width = (max(float((near.max() - near.min()) / 2), step_s / 2)
+                  if len(near) else None)
+    # `correlation` does not apply here; the residuals are in `curve`
+    # (offset, RMSE m), and confidence is the relative residual reduction.
+    return TimeOffsetResult(best, 0.0, float(np.clip(1.0 - gain, 0, 1)), accepted,
+                            reason, search_s, int(len(vt)),
+                            curve=[(float(o), float(r)) for o, r in
+                                   zip(offsets, res) if np.isfinite(r)],
+                            uncertainty_s=half_width)
+
+
 # --------------------------------------------------------------------------- #
 # lever arm
 # --------------------------------------------------------------------------- #
@@ -298,6 +400,12 @@ def detect_rolling_shutter(rotations, times, *, readout_s: float = 1 / 60.0,
     estimates motion *during* readout and is a much larger change. Saying the
     assumption is violated is more useful than a silently degraded number.
     """
+    if readout_s is not None and readout_s <= 0:
+        # A global shutter exposes every row at once: there is no readout skew
+        # to estimate. MARS-LVIG's global-shutter camera was warned about as
+        # "mild smear" under the 1/60 s default, a false alarm (DEC-043).
+        return RollingShutterCheck(0.0, 0.0, 0.0, 0.0, "none",
+                                   "global shutter declared; not applicable")
     R = [np.asarray(m, float) for m in rotations]
     t = np.asarray(times, float)
     if len(R) < 2 or len(t) != len(R):

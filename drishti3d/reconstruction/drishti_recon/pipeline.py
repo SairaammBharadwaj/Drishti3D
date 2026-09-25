@@ -95,6 +95,13 @@ class PipelineParams:
     #: Estimate the constant video-to-telemetry time offset from the
     #: reconstructed motion, and re-synchronise if it is confidently non-zero.
     estimate_time_offset: bool = True
+    #: Points whose predicted horizontal-major uncertainty exceeds this (metres)
+    #: are labelled low confidence, and so are not measured from by default.
+    #: 0.12 m was chosen on MARS-LVIG HKisland02 to bring cloud-to-cloud p90
+    #: under 1 m, then tested unchanged on HKisland03: 81% of points kept,
+    #: vertical p90 1.30 -> 1.10 m, RMSE 0.83 -> 0.69 m (DEC-043). One site,
+    #: one camera: None disables it.
+    measure_max_sigma_major_m: float | None = 0.12
     time_offset_search_s: float = 2.0
     #: Sensor readout time, used only to judge rolling-shutter severity.
     rolling_shutter_readout_s: float = 1 / 60.0
@@ -553,6 +560,8 @@ def run(project_dir, video_path, telemetry_path, *,
     # time offset is estimated from the reconstructed motion, and the rolling-
     # shutter check reads the recovered poses.
     time_offset = None
+    time_offset_speed = None
+    time_offset_alignment = None
     rs_check = None
     if not no_gps and synced is not None and len(recon.cameras) >= 4:
         from . import sensors as sensormod
@@ -567,6 +576,28 @@ def run(project_dir, video_path, telemetry_path, *,
             time_offset = sensormod.estimate_time_offset(
                 kf_times, kf_centres, tel_t, tel_p,
                 search_s=params.time_offset_search_s)
+            time_offset_speed = time_offset
+            # Refine by position agreement: on a constant-speed survey the speed
+            # profile is nearly flat and the estimate above lands short
+            # (HKisland03: -0.21 s found, ~-0.6 s true). Only replaces it when
+            # clearly better; see refine_time_offset_by_alignment.
+            refined = sensormod.refine_time_offset_by_alignment(
+                kf_times, kf_centres, tel_t, tel_p,
+                start_s=time_offset.offset_s if time_offset.accepted else 0.0,
+                search_s=params.time_offset_search_s)
+            time_offset_alignment = refined
+            if refined.accepted:
+                r_best = min(r for _, r in refined.curve)
+                r_start = dict(refined.curve).get(
+                    round(time_offset.offset_s if time_offset.accepted else 0.0, 6))
+                warnings.append(
+                    f"time offset refined by position agreement to "
+                    f"{refined.offset_s:+.3f}s (speed profile gave "
+                    f"{time_offset_speed.offset_s:+.3f}s; +/-"
+                    f"{refined.uncertainty_s or 0:.2f}s); camera-to-GNSS "
+                    f"residual {r_best:.2f} m"
+                    + (f" vs {r_start:.2f} m" if r_start is not None else ""))
+                time_offset = refined
             if time_offset.accepted and abs(time_offset.offset_s) > 0.02:
                 # Re-synchronise every frame on the corrected clock; a constant
                 # offset otherwise slides each frame onto the wrong GNSS sample
@@ -579,14 +610,16 @@ def run(project_dir, video_path, telemetry_path, *,
                 kf_acc = [synced[i].gps_accuracy for i in sel]
                 warnings.append(
                     f"video-to-telemetry time offset {time_offset.offset_s:+.3f}s "
-                    f"estimated (correlation {time_offset.correlation:.2f}) and applied")
+                    + ("from position agreement" if time_offset is time_offset_alignment
+                       else f"estimated (correlation {time_offset.correlation:.2f})")
+                    + " and applied")
             elif time_offset.reason:
                 warnings.append(f"time offset not applied: {time_offset.reason}")
 
         rs_check = sensormod.detect_rolling_shutter(
             [c.R for c in recon.cameras], kf_times,
             readout_s=params.rolling_shutter_readout_s)
-        if rs_check.message:
+        if rs_check.message and rs_check.severity != "none":
             warnings.append(rs_check.message)
 
     # 8d) LEVER ARM ----------------------------------------------------------
@@ -757,7 +790,8 @@ def run(project_dir, video_path, telemetry_path, *,
                 # dense point inherit a sparse point's sigma through indexing.
                 _sig = _sigmaj = None
         cloud = fusion.fuse(_pts, _cols, _conf,
-                            voxel=params.voxel, sigma=_sig, sigma_major=_sigmaj)
+                            voxel=params.voxel, sigma=_sig, sigma_major=_sigmaj,
+                            max_sigma_major_m=params.measure_max_sigma_major_m)
         # Merge depth-prior points as a SEPARATE, measurement-excluded layer so
         # the trust map can show observed (green) vs AI-inferred (purple) geometry.
         if dense_enu is not None and len(dense_enu):
@@ -862,6 +896,10 @@ def run(project_dir, video_path, telemetry_path, *,
             scale_source=scale_source, coverage=cov_summary,
             sensors={
                 "time_offset": time_offset.to_dict() if time_offset else None,
+                "time_offset_speed": (time_offset_speed.to_dict()
+                                      if time_offset_speed else None),
+                "time_offset_alignment": (time_offset_alignment.to_dict()
+                                          if time_offset_alignment else None),
                 "rolling_shutter": rs_check.to_dict() if rs_check else None,
                 "lever_arm_body_m": (list(params.lever_arm_body)
                                      if params.lever_arm_body else None),
