@@ -3361,8 +3361,18 @@ HKisland03 (2022-11-29) fly the same route and are named alike; the L1 in
 `HKisland.7z` belongs to HKisland01/02/03 only.
 
 Result (TESTS_AND_RESULTS 2026-09-25): **0.72 m RMSE, 0.40 m median, p90
-1.09 m, p99 2.25 m**, systematic offset under 2 cm. Within a stated <= 1 m by
-RMSE, borderline at p90. One flight.
+1.09 m, p99 2.25 m** cloud-to-cloud. Within a stated <= 1 m by RMSE,
+borderline at p90. One flight.
+
+**Correction (same day, after injection tests):** the cloud-to-cloud scorer
+cannot see a 0.3 m vertical or a 1 m horizontal shift, so the "systematic
+offset under 2 cm" originally written here was not a measurement and is
+withdrawn. A validated vertical height-map scorer (recovers injected +0.30 /
++1.00 / -0.10 m shifts to within 2 mm) finds the reconstruction **14–24 cm
+below the LiDAR**, with vertical RMSE 0.83–0.93 m on flat ground over two
+flights (HKisland02, HKisland03). Horizontal accuracy is not yet measured by
+any validated method. Two independent L1 surveys agree to 0.077 m RMSE, so the
+reference is not the limit.
 
 ### Decision 2 — heavy jobs run capped, and frames live on disk
 

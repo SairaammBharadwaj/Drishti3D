@@ -1652,3 +1652,87 @@ budget would be ~1.1–1.2x, like DJI_1003 (1.08x); on a 3.4-minute clip it is
 - The position-based time offset inside the pipeline.
 - Dimensional (point-to-point) accuracy; this is point-to-surface.
 - Anything above 1600 px processing on this 15 GB machine.
+
+
+## 2026-09-25 (later) — Second flight (HKisland02) and methodology verification (DEC-042 corrected)
+
+### HKisland02, same settings as HKisland03 run B
+
+LiDAR window 06:08:26.1–06:13:08.7 UTC (282.6 s, 19.77 M L1 points); bag
+starts 06:06:40, first kept frame 06:08:26.10, 2,828 frames: same flight.
+Same route as HKisland03 (279 x 431 m, 95.6–95.9 m), flown slower.
+80 keyframes, 1,872,524 points, **798.6 s for 282.8 s of video (2.8x)**.
+
+| flight | median | RMSE | p90 | p95 | p99 | cloud-to-cloud offset E/N/Up |
+|---|---:|---:|---:|---:|---:|---|
+| HKisland02 | 0.413 | 0.809 | 1.146 | 1.552 | 3.137 | -0.016 / -0.018 / -0.051 |
+| HKisland03 (run B) | 0.370 | 0.753 | 1.045 | 1.449 | 2.970 | -0.018 / -0.014 / -0.022 |
+
+Cloud-to-cloud (`score_against_lidar.py`, every point). See the injection test
+below before reading the offset column.
+
+Camera-RTK time offset on HKisland02: pipeline -0.628 s; position fit -0.50 s
+(alignment 3.045 m at 0 s, 0.879 m at -0.50 s). With HKisland03's -0.54 to
+-0.6 s, the RTK lag is a property of the feed, not of one flight.
+
+### Methodology checks
+
+1. **Same flight.** Every LiDAR window lies inside its bag, and the kept
+   video span matches the LiDAR span (282.8 s vs 282.6 s). Pass.
+2. **Truth isolation.** `run_mission.py` passes `pipeline.run` only the video,
+   telemetry and parameters; nothing in `reconstruction/` reads
+   `datasets/truth`. Pass.
+3. **Reference repeatability.** The HKisland02 and HKisland03 L1 surveys are
+   independent flights over the same ground. All 19,766,311 points of 02 against
+   all 14,555,477 of 03: median 0.052 m, RMSE 0.077 m, p90 0.108 m, p95 0.137 m,
+   p99 0.218 m, vertical bias -0.0013 m (a 10% sample gave the same to 1 mm).
+   The reference is ~10x finer than the errors being measured. Pass.
+4. **Cloud-to-cloud scorer, error injection (HKisland02 cloud):** FAIL for
+   offsets.
+
+   | injected | median | RMSE | p90 | reported offset E/N/Up |
+   |---|---:|---:|---:|---|
+   | none | 0.413 | 0.809 | 1.146 | -0.016 / -0.018 / -0.051 |
+   | +1.00 m up | 0.673 | 1.063 | 1.625 | -0.018 / +0.016 / **+0.469** |
+   | +0.30 m up | 0.397 | 0.821 | 1.183 | -0.021 / -0.006 / **+0.054** |
+   | +1.00 m east | 0.395 | 0.856 | 1.301 | **+0.025** / -0.021 / -0.057 |
+   | scale +1% | 0.557 | 1.061 | 1.664 | -0.017 / -0.018 / -0.011 |
+   | scale +0.2% | 0.435 | 0.850 | 1.234 | -0.016 / -0.018 / -0.043 |
+   | noise 0.30 m/axis | 0.448 | 0.850 | 1.242 | -0.014 / -0.016 / -0.044 |
+   | noise 1.00 m/axis | 0.728 | 1.196 | 1.931 | -0.009 / -0.012 / -0.022 |
+
+   Nearest-point distance slides along the surface: a 0.3 m vertical shift is
+   invisible and a 1 m horizontal shift reads as 2.5 cm. It still ranks gross
+   damage (scale, large noise). **Its "systematic offset" is not a
+   measurement**, and the "offset under 2 cm" in DEC-042 is withdrawn.
+5. **Vertical height-map scorer (new): Pass.** LiDAR binned to 0.5 m cells;
+   only cells with >= 4 returns and height std < 5 cm are kept (flat,
+   unambiguous ground and roofs); each reconstructed point in such a cell gets
+   dZ = z - cell mean.
+
+   | injected | HKisland02 median dZ | HKisland03 median dZ |
+   |---|---:|---:|
+   | none | **-0.239** | **-0.136** |
+   | +0.30 m | +0.061 (+0.300) | +0.164 (+0.300) |
+   | +1.00 m | +0.759 (+0.998) | +0.864 (+1.000) |
+   | -0.10 m | -0.339 (-0.100) | -0.236 (-0.100) |
+
+   Real vertical error on flat ground:
+
+   | flight | points | median dZ (bias) | RMSE dZ | abs dZ p50 / p90 / p99 |
+   |---|---:|---:|---:|---|
+   | HKisland02 | 323,082 | -0.239 | 0.925 | 0.566 / 1.426 / 2.868 |
+   | HKisland03 | 335,092 | -0.136 | 0.826 | 0.508 / 1.302 / 2.445 |
+
+   The reconstruction sits 14–24 cm below the LiDAR, and vertical error on
+   flat ground is larger than the cloud-to-cloud figures suggested.
+
+### What is and is not measured now
+- Vertical: validated metric, two flights. Bias -0.14 to -0.24 m; RMSE 0.83–0.93 m.
+- Surface agreement (cloud-to-cloud): 0.75–0.81 m RMSE, ranks damage correctly
+  but under-reads shifts; quote it as surface noise, not as accuracy.
+- **Horizontal: not validated.** No metric here detects a 1 m horizontal
+  shift. Needs identifiable features (edges, painted marks) or surveyed points.
+- Horizontal/vertical sources of the -0.14 to -0.24 m bias: not yet known
+  (candidates: RTK antenna-to-camera lever arm, RTK time lag, dense-stereo
+  bias at 1300 px).
