@@ -70,6 +70,13 @@ and distinctive research ideas, see:
   measured effect
 - [`docs/BENCHMARK.md`](docs/BENCHMARK.md) — the truth harness and the rule that
   no accuracy claim may be published unless it generated it
+- [`docs/VIDEO_ACCURACY_MARS_LVIG.md`](docs/VIDEO_ACCURACY_MARS_LVIG.md) — native
+  video scored against same-flight LiDAR: validated metrics, what was fixed,
+  and current accuracy (vertical RMSE 0.38–0.42 m single pass, one site)
+- [`docs/V3_1_REVIEW_AND_FUTURE_WORK.md`](docs/V3_1_REVIEW_AND_FUTURE_WORK.md) —
+  the V3.1 plan against the code, and prioritised future work
+- [`MODEL_LICENSE_MANIFEST.md`](MODEL_LICENSE_MANIFEST.md) — model, dataset and
+  dependency licences (MARS-LVIG and UseGeo are non-commercial)
 - [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) — the reproducible environment
   (and why the bundled datasets are not in this checkout)
 - [`docs/UNCOMMON_AND_DISTINCTIVE_IDEAS.md`](docs/UNCOMMON_AND_DISTINCTIVE_IDEAS.md)
@@ -161,6 +168,12 @@ assumption as a warning**.
 - With ordinary GPS, absolute accuracy is **GPS-limited (often metre-level)**;
   with RTK/PPK the report labels scale as RTK-derived.
 - Centimetre accuracy is never claimed without measured ground-truth evidence.
+- Every accuracy metric is re-validated by injecting a known error before its
+  result is trusted; cloud-to-cloud distance cannot see sub-metre shifts, so
+  placement is scored with `score_vertical_dsm.py` and
+  `score_horizontal_offset.py`.
+- Heavy jobs run through `scripts/run_capped.sh` (own memory cap and a sleep
+  lock) so a runaway job cannot take the desktop or editor down.
 
 ## Testing
 
