@@ -247,8 +247,8 @@ export const api = {
    *
    * 43 MB for that cloud, and no parse beyond a typed-array view.
    */
-  modelFull: async (id: string, onProgress?: (frac: number) => void) => {
-    const res = await fetch(`${BASE}/api/projects/${id}/model.bin`)
+  modelFull: async (id: string, onProgress?: (frac: number) => void, signal?: AbortSignal) => {
+    const res = await fetch(`${BASE}/api/projects/${id}/model.bin`, { signal })
     if (!res.ok) throw new Error(`model.bin: ${res.status}`)
     const total = Number(res.headers.get('Content-Length') || 0)
     let buf: ArrayBuffer

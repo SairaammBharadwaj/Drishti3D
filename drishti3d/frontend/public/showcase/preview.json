@@ -1,0 +1,35 @@
+{
+  "format": {
+    "version": 2,
+    "record_bytes": 16,
+    "fields": "x,y,z float32 (east, up, north; local units) + r,g,b uint8 + provenance uint8"
+  },
+  "project_id": "051960beb15a4e1a8b851a8fa5bcc6e1",
+  "title": "DJI_1003 \u00b7 Austin, TX",
+  "code": "ATX / 1003",
+  "place": "Austin, TX",
+  "capture": "11 min 18 s of native 1080p DJI video with per-frame SRT GPS",
+  "scale": "metric \u00b7 GPS-georeferenced",
+  "credit": "Source footage: AirLock (WACV 2026), CC BY 4.0. Reconstruction by Drishti3D.",
+  "cloud_points": 3124856,
+  "registered": "80/80",
+  "points_in_scene": 3665632,
+  "sampled_points": 150000,
+  "sampled_by_provenance": {
+    "0": 104536,
+    "1": 23472,
+    "6": 21992
+  },
+  "crop_enu_m": null,
+  "origin_enu": [
+    64.03482055664062,
+    -26.20487837801602,
+    -493.35794318144616
+  ],
+  "metres_per_unit": 800.6235517977652,
+  "view": {
+    "angle": 0.35,
+    "elevation_deg": 34
+  },
+  "built": "2026-09-26"
+}

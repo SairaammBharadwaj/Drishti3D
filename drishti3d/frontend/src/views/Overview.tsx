@@ -16,7 +16,7 @@ export default function Overview() {
         <div className="hero-actions"><Link className="action primary-action" to="/new">Start a reconstruction <span aria-hidden="true">↗</span></Link><a className="text-action" href="#how-it-works">Explore the workflow <span aria-hidden="true">↓</span></a></div>
         <div className="hero-note"><span className="outline-cube" aria-hidden="true">◇</span><span>Built for a closer look.<br /><strong>Designed to make uncertainty visible.</strong></span></div>
       </div>
-      <div className="hero-visual"><ScenePreview /><div className="visual-footnote"><span>REAL GEOMETRY. RESEARCH EXAMPLE.</span><Link to="/prototype">Explore full scene ↗</Link></div></div>
+      <div className="hero-visual"><ScenePreview /></div>
     </section>
     <div className="principles-strip"><span className="eyebrow">A DIFFERENT VIEW OF THE GROUND</span><span>Single-pass input</span><span>Traceable geometry</span><span>Evidence-aware measurements</span></div>
     <section className="story-section" id="how-it-works">
