@@ -104,8 +104,12 @@ export default function Report() {
       )}
 
       <Section title="Performance">
-        <KV k="Processing time" v={`${q.performance.processing_time_s.toFixed(1)} s`} />
-        <KV k="Processing / video ratio" v={num(q.performance.processing_to_video_ratio, 2, '×')} />
+        {q.performance.end_to_end_s != null && <>
+          <KV k="End-to-end time" v={`${q.performance.end_to_end_s.toFixed(1)} s`} />
+          <KV k="End-to-end / video ratio" v={num(q.performance.end_to_end_ratio, 2, '×')} />
+        </>}
+        <KV k="Stage time (excludes exports)" v={`${q.performance.processing_time_s.toFixed(1)} s`} />
+        <KV k="Stage time / video ratio" v={num(q.performance.processing_to_video_ratio, 2, '×')} />
       </Section>
 
       {q.warnings.length > 0 && (

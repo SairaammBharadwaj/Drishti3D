@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, PROVENANCE, type Project, type Job, type QualityReport, type ModelPayload } from '../api'
+import { api, PROVENANCE, processingTime, recommendedProcessing, type Project, type Job, type QualityReport, type ModelPayload } from '../api'
 import ReconstructionNotice from '../ReconstructionNotice'
 import PointCloudViewer from '../PointCloudViewer'
 
@@ -84,7 +84,10 @@ export default function Presentation() {
       if (current.status === 'done') await reveal(current.id, token)
       else if (current.status === 'processing') { setJob(null); setElapsed(0); setPhase('running') }
       else {
-        const next = await api.process(current.id, { preset: 'balanced', mask_backend: 'none', do_mesh: true, densify: 'none' })
+        // The same settings as a mission started from the wizard: dense stereo
+        // on COLMAP when this server has it, the built-in engine otherwise.
+        const caps = await api.capabilities().catch(() => null)
+        const next = await api.process(current.id, recommendedProcessing(caps))
         if (generation.current !== token) return
         setJob(next); setElapsed(0); setPhase('running')
       }
@@ -131,7 +134,7 @@ export default function Presentation() {
         <Stat label="Reconstructed points" value={fmt(q.cloud.n_points, 0)} note="Geometry in the output cloud" />
         <Stat label="Camera registration" value={fmt(q.reconstruction.registered_fraction * 100, 1, '%')} note={`${q.reconstruction.n_registered} of ${q.reconstruction.n_keyframes} keyframes recovered`} />
         <Stat label="Reprojection error" value={fmt(q.reconstruction.median_reproj_err, 2, ' px')} note="Image consistency · lower is better" />
-        <Stat label="Processing time" value={fmt(q.performance.processing_time_s, 1, ' s')} note={`${fmt(q.performance.processing_to_video_ratio, 2, '×')} video duration`} />
+        <Stat label="Processing time" value={fmt(processingTime(q).seconds, 1, ' s')} note={`${fmt(processingTime(q).ratio, 2, '×')} video duration${processingTime(q).endToEnd ? ' · end to end' : ' · excludes exports'}`} />
       </div>
       <div className="demo-output-grid"><section className="demo-media"><div className="demo-panel-title"><span>INTERACTIVE 3D / POINT CLOUD</span><span>{fmt(model.points.length, 0)} displayed points</span></div><div className="demo-viewer-tools"><button className={mode === 'true' ? 'active' : ''} onClick={() => setMode('true')}>True colour</button><button className={mode === 'provenance' ? 'active' : ''} onClick={() => setMode('provenance')}>Evidence colours</button><label>Point size <input aria-label="Point size" type="range" min="0.3" max="4" step="0.1" value={size} onChange={e => setSize(Number(e.target.value))} /></label></div><div className="demo-viewer">{model.points.length ? <PointCloudViewer model={model} colorMode={mode} splat={false} pointSize={size} visibleProvenance={layers} picking={false} onPick={noop} onHover={noop} activePoints={[]} savedLines={[]} /> : <p>No geometry was reconstructed from this capture.</p>}</div><div className="demo-media-footer">Drag to rotate · Scroll to zoom · Right-drag to pan · Blue line: recovered camera path</div></section>
       <aside className="card"><h3>What is the model made of?</h3><p className="muted">Evidence classes describe how each point was obtained. They are not an independent accuracy score.</p>{PROVENANCE.map(p => <div className="demo-provenance" key={p.code}><div className="spread"><span>{p.label}</span><strong>{fmt((q.cloud.class_fractions[p.key] ?? 0) * 100, 1, '%')}</strong></div><div className="bar"><span style={{ width: `${Math.max(0, Math.min(1, q.cloud.class_fractions[p.key] ?? 0)) * 100}%`, background: `rgb(${p.color.join(',')})` }} /></div></div>)}<div className="notebox">{metricScale ? `Scale source: ${q.alignment?.scale_source}. Measurement accuracy depends on calibration, geometry, and positioning quality.` : 'Relative scale: explore the shape; real-world distances are not established for this capture.'}</div></aside></div>

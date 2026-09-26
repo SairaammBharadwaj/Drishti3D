@@ -21,6 +21,10 @@ export interface Intrinsics {
   fy: number
   cx: number
   cy: number
+  model?: string
+  distortion?: number[]
+  source_width?: number
+  source_height?: number
 }
 
 export interface Job {
@@ -40,7 +44,53 @@ export interface AiBackend { name: string; available: boolean; setup: string }
 export interface Capabilities {
   engines: { opencv_sfm: boolean; colmap: boolean }
   ai_backends: AiBackend[]
-  optional: { mesh_open3d: boolean; las_export: boolean; torch: boolean }
+  optional: {
+    mesh_open3d: boolean; las_export: boolean; torch: boolean
+    dense_mvs?: { available: boolean; detail?: string; setup?: string }
+  }
+}
+
+export type Engine = 'opencv' | 'colmap' | 'auto'
+export type Densify = 'none' | 'mvs' | 'depth'
+
+export interface ProcessOptions {
+  preset: string
+  mask_backend: string
+  do_mesh: boolean
+  engine: Engine
+  densify: Densify
+  max_analyze_frames?: number
+  proc_max_width?: number
+  intrinsics?: Intrinsics
+}
+
+/**
+ * The settings the DJI, UseGeo and AGZ-dense missions were processed with
+ * (`run_mission.py --engine colmap --densify mvs --max-frames 2400
+ * --proc-width 1600`), so a mission started from the web matches them.
+ * Without COLMAP it falls back to the built-in engine at the pipeline's own
+ * defaults, and without CUDA dense stereo to a sparse cloud.
+ */
+export function recommendedProcessing(caps: Capabilities | null): ProcessOptions {
+  const base = { preset: 'balanced', mask_backend: 'none', do_mesh: true }
+  if (!caps?.engines.colmap) return { ...base, engine: 'opencv', densify: 'none' }
+  return {
+    ...base, engine: 'colmap',
+    densify: caps.optional.dense_mvs?.available ? 'mvs' : 'none',
+    max_analyze_frames: 2400, proc_max_width: 1600,
+  }
+}
+
+/**
+ * How long the run took. The end-to-end clock when the run recorded one; the
+ * older stage sum otherwise, which leaves out exports and so reads low
+ * (DJI_1003: 653.6 s summed, 733.7 s end to end).
+ */
+export function processingTime(q: QualityReport) {
+  const p = q.performance
+  if (p.end_to_end_s != null)
+    return { seconds: p.end_to_end_s, ratio: p.end_to_end_ratio ?? null, endToEnd: true }
+  return { seconds: p.processing_time_s, ratio: p.processing_to_video_ratio, endToEnd: false }
 }
 
 export interface CameraEnu { frame_index: number; C: Vec3 }
@@ -100,8 +150,12 @@ export interface QualityReport {
     scale_source: string; note: string
   } | null
   performance: {
+    /** Sum of stage timings before exports; understates the job. */
     processing_time_s: number; video_duration_s: number
     processing_to_video_ratio: number | null
+    /** One clock around the whole run, exports included (timing.json). */
+    end_to_end_s?: number | null
+    end_to_end_ratio?: number | null
   }
   ground_truth_evaluation: {
     surface_accuracy_m: { median: number; mean: number; p90: number; rmse: number }
@@ -169,9 +223,7 @@ export const api = {
     return fetch(`${BASE}/api/projects/${id}/intrinsics`, { method: 'POST', body: fd }).then(j<Project>)
   },
 
-  process: (id: string, body: {
-    preset: string; mask_backend: string; do_mesh: boolean; densify?: string; intrinsics?: Intrinsics
-  }) => fetch(`${BASE}/api/projects/${id}/process`, {
+  process: (id: string, body: ProcessOptions) => fetch(`${BASE}/api/projects/${id}/process`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }).then(j<Job>),

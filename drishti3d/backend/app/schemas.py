@@ -1,7 +1,7 @@
 """Pydantic request/response schemas."""
 from __future__ import annotations
 
-from typing import Optional, Any
+from typing import Literal, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -60,8 +60,17 @@ class ProcessRequest(BaseModel):
     preset: str = "balanced"          # fast|balanced|quality
     mask_backend: str = "none"        # none|optical_flow|semantic
     do_mesh: bool = True
-    engine: str = "opencv"            # opencv|colmap|auto
-    densify: str = "none"             # none|depth (monocular depth-prior fusion)
+    engine: Literal["opencv", "colmap", "auto"] = "opencv"
+    #: none: sparse only. mvs: COLMAP dense stereo -- observed and measurable,
+    #: needs the COLMAP engine. depth: monocular depth prior -- AI-assisted,
+    #: excluded from measurement.
+    densify: Literal["none", "mvs", "depth"] = "none"
+    #: Frames decoded and scored, at most; None keeps the pipeline default
+    #: (240). The DJI and UseGeo missions were processed with 2400.
+    max_analyze_frames: Optional[int] = Field(None, ge=2, le=20000)
+    #: Longest processing width in pixels; None keeps the pipeline default
+    #: (1280). The DJI missions were processed at 1600.
+    proc_max_width: Optional[int] = Field(None, ge=320, le=4096)
     intrinsics: Optional[Intrinsics] = None
 
 

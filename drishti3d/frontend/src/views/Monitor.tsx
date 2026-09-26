@@ -23,6 +23,17 @@ export default function Monitor() {
   const [elapsed, setElapsed] = useState(0)
   const start = useRef(Date.now())
 
+  // Opened without a job (a bookmark, or a finished mission): there is no live
+  // run to follow, so show the mission's own state rather than "queued 0%".
+  useEffect(() => {
+    if (jobId || !id) return
+    api.getProject(id).then((p) => {
+      if (p.status === 'done') setEv({ status: 'done', stage: 'done', progress: 1, message: 'reconstruction complete' })
+      else if (p.status === 'failed') setEv({ status: 'failed', stage: '', progress: 0, message: 'failed', error: 'The last run failed. Start a new reconstruction to retry.' })
+      else setEv({ status: p.status === 'processing' ? 'running' : 'queued', stage: '', progress: 0, message: 'no live job on this page; open the mission from the library' })
+    }).catch(() => {})
+  }, [jobId, id])
+
   useEffect(() => {
     if (!jobId) return
     const t = setInterval(() => setElapsed((Date.now() - start.current) / 1000), 250)

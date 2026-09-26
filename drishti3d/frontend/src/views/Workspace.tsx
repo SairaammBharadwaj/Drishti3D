@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  api, PROVENANCE, enuToLatLon,
+  api, PROVENANCE, enuToLatLon, processingTime,
   type ModelPayload, type QualityReport, type Trajectory,
   type Measurement, type MeasurementKind, type FrameMetric, type Keyframe, type Vec3,
 } from '../api'
@@ -229,7 +229,7 @@ export default function Workspace() {
                 <div className="kv"><span className="k">Align. RMSE (H/V)</span><span>{quality.alignment.alignment_rmse_horizontal_m.toFixed(2)} / {quality.alignment.alignment_rmse_vertical_m.toFixed(2)} m</span></div>
               </>
             ) : <div className="kv"><span className="k">Alignment</span><span>relative scale only</span></div>}
-            <div className="kv"><span className="k">Proc. / video</span><span>{fmt(quality.performance.processing_to_video_ratio, 1, '×')}</span></div>
+            <div className="kv"><span className="k">Proc. / video</span><span title={processingTime(quality).endToEnd ? 'End to end, exports included' : 'Stage sum; excludes exports'}>{fmt(processingTime(quality).ratio, 2, '×')}</span></div>
             {quality.alignment && <div className="notebox warn" style={{ marginTop: 8, fontSize: 12 }}>{quality.alignment.note}</div>}
           </>
         )}

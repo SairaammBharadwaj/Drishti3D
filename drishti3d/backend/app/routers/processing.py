@@ -26,6 +26,11 @@ def start_processing(project_id: str, body: ProcessRequest,
         raise HTTPException(400, "upload a video before processing")
     # telemetry is optional: without it the pipeline runs in relative-scale mode
     # (shape only, not georeferenced/metric)
+    if body.densify == "mvs" and body.engine == "opencv":
+        # The pipeline would skip dense stereo with a warning and hand back a
+        # sparse cloud that looks like a successful dense run finished.
+        raise HTTPException(400, "dense stereo (densify=mvs) needs the COLMAP "
+                                 "engine; choose engine=colmap")
 
     job = Job(project_id=project_id, status="queued")
     p.status = "processing"
