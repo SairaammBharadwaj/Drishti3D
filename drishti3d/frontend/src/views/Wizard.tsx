@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { api, type Project } from '../api'
+import {
+  api, recommendedProcessing,
+  type Capabilities, type Densify, type Engine, type ProcessOptions, type Project,
+} from '../api'
 
 export default function Wizard() {
   const nav = useNavigate()
@@ -18,16 +21,44 @@ export default function Wizard() {
   const [preset, setPreset] = useState('balanced')
   const [maskBackend, setMaskBackend] = useState('none')
   const [doMesh, setDoMesh] = useState(true)
-  const [densify, setDensify] = useState('none')
+  const [engine, setEngine] = useState<Engine>('opencv')
+  const [densify, setDensify] = useState<Densify>('none')
+  // '' leaves the pipeline default in place (240 frames, 1280 px).
+  const [maxFrames, setMaxFrames] = useState('')
+  const [procWidth, setProcWidth] = useState('')
   const [useIntr, setUseIntr] = useState(false)
   const [intr, setIntr] = useState({ fx: '', fy: '', cx: '', cy: '' })
+  const [caps, setCaps] = useState<Capabilities | null>(null)
+  const capsRef = useRef<Capabilities | null>(null)
+
+  const applyProfile = (o: ProcessOptions) => {
+    setEngine(o.engine); setDensify(o.densify)
+    setMaxFrames(o.max_analyze_frames ? String(o.max_analyze_frames) : '')
+    setProcWidth(o.proc_max_width ? String(o.proc_max_width) : '')
+  }
+
+  // Default to what this server can actually run: the COLMAP + dense stereo
+  // settings the demo missions used when it can, the built-in engine if not.
+  useEffect(() => {
+    api.capabilities().then((c) => {
+      capsRef.current = c; setCaps(c); applyProfile(recommendedProcessing(c))
+    }).catch(() => { capsRef.current = null; setCaps(null) })
+  }, [])
 
   useEffect(() => {
     if (resumeId) return
     setProject(null); setName(''); setDescription(''); setStep(0); setErr(null)
     setResuming(false); setUseIntr(false); setIntr({ fx: '', fy: '', cx: '', cy: '' })
-    setPreset('balanced'); setMaskBackend('none'); setDoMesh(true); setDensify('none')
+    setPreset('balanced'); setMaskBackend('none'); setDoMesh(true)
+    applyProfile(recommendedProcessing(capsRef.current))
   }, [resumeId])
+
+  const colmapReady = Boolean(caps?.engines.colmap)
+  const mvsReady = colmapReady && Boolean(caps?.optional.dense_mvs?.available)
+  const changeEngine = (e: Engine) => {
+    if (e === 'colmap') applyProfile(recommendedProcessing(caps))
+    else applyProfile({ ...recommendedProcessing(null), engine: e })
+  }
 
   useEffect(() => {
     if (!resumeId || project?.id === resumeId) return
@@ -67,7 +98,11 @@ export default function Wizard() {
         throw new Error('intrinsics must be positive numbers')
       await api.setIntrinsics(project.id, intrinsics)
     }
-    const job = await api.process(project.id, { preset, mask_backend: maskBackend, do_mesh: doMesh, densify, intrinsics })
+    const opts: ProcessOptions = { preset, mask_backend: maskBackend, do_mesh: doMesh, engine, densify, intrinsics }
+    const frames = parseInt(maxFrames, 10), width = parseInt(procWidth, 10)
+    if (Number.isFinite(frames)) opts.max_analyze_frames = frames
+    if (Number.isFinite(width)) opts.proc_max_width = width
+    const job = await api.process(project.id, opts)
     nav(`/projects/${project.id}/monitor?job=${job.id}`)
   })
 
@@ -145,6 +180,13 @@ export default function Wizard() {
           <h3 style={{ marginTop: 12 }}>Processing options</h3>
           <div className="row">
             <div>
+              <label htmlFor="engine">Reconstruction engine</label>
+              <select id="engine" value={engine} onChange={(e) => changeEngine(e.target.value as Engine)}>
+                <option value="colmap" disabled={!colmapReady}>COLMAP{colmapReady ? '' : ' (not installed)'}</option>
+                <option value="opencv">built-in (OpenCV)</option>
+              </select>
+            </div>
+            <div>
               <label htmlFor="preset">Preset</label>
               <select id="preset" value={preset} onChange={(e) => setPreset(e.target.value)}>
                 <option value="fast">fast</option>
@@ -162,7 +204,8 @@ export default function Wizard() {
             </div>
             <div>
               <label htmlFor="densification">Densification</label>
-              <select id="densification" value={densify} onChange={(e) => setDensify(e.target.value)}>
+              <select id="densification" value={densify} onChange={(e) => setDensify(e.target.value as Densify)}>
+                <option value="mvs" disabled={engine !== 'colmap' || !mvsReady}>dense stereo (observed, measurable){mvsReady ? '' : ' (needs COLMAP with CUDA)'}</option>
                 <option value="none">classical only (sparse)</option>
                 <option value="depth">depth prior (dense, AI-assisted)</option>
               </select>
@@ -172,6 +215,24 @@ export default function Wizard() {
               <label className="checkline"><input type="checkbox" checked={doMesh} onChange={(e) => setDoMesh(e.target.checked)} /> Generate mesh</label>
             </div>
           </div>
+          <div className="row">
+            <div>
+              <label htmlFor="max-frames">Frames analysed (max)</label>
+              <input id="max-frames" type="number" min={2} max={20000} step={1} inputMode="numeric" style={{ width: 130 }}
+                placeholder="240 (default)" value={maxFrames} onChange={(e) => setMaxFrames(e.target.value)} />
+            </div>
+            <div>
+              <label htmlFor="proc-width">Processing width (px)</label>
+              <input id="proc-width" type="number" min={320} max={4096} step={16} inputMode="numeric" style={{ width: 130 }}
+                placeholder="1280 (default)" value={procWidth} onChange={(e) => setProcWidth(e.target.value)} />
+            </div>
+          </div>
+          {engine === 'colmap' && densify === 'mvs' && (
+            <div className="notebox">The settings the DJI demo missions were processed with: COLMAP structure-from-motion, then dense multi-view stereo. Every dense point is agreed on by at least four real images, so it counts as observed geometry and can be measured. Needs a CUDA GPU. An 11-minute 1080p video took 12–13 minutes on the development laptop.</div>
+          )}
+          {engine === 'opencv' && (
+            <div className="notebox">The built-in engine needs no external tools and produces a sparse cloud. For a dense, measurable model, choose COLMAP with dense stereo.</div>
+          )}
           {densify === 'depth' && (
             <div className="notebox">Fuses a monocular depth prior (Depth Anything V2, GPU) to fill single-pass holes. Added points are tagged <b>AI-assisted</b> — shown as a distinct trust-map layer and excluded from measurements by default.</div>
           )}

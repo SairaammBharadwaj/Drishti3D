@@ -63,7 +63,23 @@ def _load_json(project_id: str, filename: str):
 
 @router.get("/{project_id}/quality")
 def get_quality(project_id: str, db: Session = Depends(get_db)):
-    return _load_json(project_id, "quality_report.json")
+    q = _load_json(project_id, "quality_report.json")
+    # `performance.processing_time_s` is the sum of stage timings taken before
+    # exports run, so it understates the job (653.6 s against 733.7 s on
+    # DJI_1003) and put "0.96x video" on screen for a run that took 1.08x.
+    # timing.json is one monotonic clock around the whole run; add it rather
+    # than replace the stage sum, which remains what it says it is.
+    timing = storage.artifacts_dir(project_id) / "timing.json"
+    if timing.exists():
+        try:
+            t = json.loads(timing.read_text())
+        except ValueError:
+            t = {}
+        if t.get("wall_s") is not None:
+            perf = q.setdefault("performance", {})
+            perf["end_to_end_s"] = t["wall_s"]
+            perf["end_to_end_ratio"] = t.get("wall_over_video")
+    return q
 
 
 @router.get("/{project_id}/trajectory")

@@ -57,9 +57,12 @@ You can also use **Present inference** on a mission card.
 
 1. Play the original capture in the embedded video player.
 2. Click **Generate 3D & metrics** for an unprocessed mission. The page follows
-   the real job and automatically opens the results when it finishes. This uses
-   the balanced OpenCV pipeline with optional mesh export; runtime depends on
-   footage and hardware. Upload and calibration are available under **New reconstruction**.
+   the real job and automatically opens the results when it finishes. It uses
+   the same settings as the wizard's defaults: COLMAP with dense stereo, 2400
+   frames analysed at 1600 px (the settings of the DJI missions) when this server
+   has a CUDA COLMAP, and the built-in OpenCV engine otherwise. Runtime depends on
+   footage and hardware; an 11-minute 1080p video took 12–13 minutes on the
+   development laptop. Upload and calibration are available under **New reconstruction**.
 3. For a completed mission, **Reveal 3D & metrics** opens its saved artifacts.
    This is explicitly labelled presentation playback, so you can prepare a
    reconstruction before presenting without implying instant inference.

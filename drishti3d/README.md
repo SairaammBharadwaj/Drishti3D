@@ -173,7 +173,10 @@ assumption as a warning**.
   placement is scored with `score_vertical_dsm.py` and
   `score_horizontal_offset.py`.
 - Heavy jobs run through `scripts/run_capped.sh` (own memory cap and a sleep
-  lock) so a runaway job cannot take the desktop or editor down.
+  lock) so a runaway job cannot take the desktop or editor down. Jobs started
+  from the web UI run the pipeline in a child process inside the same capped
+  scope (`DRISHTI_JOB_MEM`, default `6G`; `off` disables it, and it is skipped
+  where systemd is unavailable, with a warning on the job).
 
 ## Testing
 
