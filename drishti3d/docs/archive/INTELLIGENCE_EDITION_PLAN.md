@@ -1,6 +1,6 @@
 # Intelligence Edition — execution tracker
 
-Source: "DRONE-TO-3D: Intelligence Edition — Final Master Architecture" (root PDF).
+Source: "DRONE-TO-3D: Intelligence Edition — Final Master Architecture" ([`INTELLIGENCE_EDITION_MASTER_ARCHITECTURE.pdf`](INTELLIGENCE_EDITION_MASTER_ARCHITECTURE.pdf), in this folder).
 This file maps every section of that document to repository status and work items.
 Order of execution follows the document's own §37 rule: highest technical risk
 first, dashboard last.

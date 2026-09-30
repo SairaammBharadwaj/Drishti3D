@@ -17,9 +17,10 @@ at a **stated tolerance**, receiving either an answer with its evidence and
 uncertainty, or a concrete explanation of which evidence is missing.
 
 It targets problem statement **SIH26158 — Single-Pass Drone Video to Accurate 3D
-Model Generation System**. The full product and research plan is
-[DRISHTI3D_MVP_PLAN.md](DRISHTI3D_MVP_PLAN.md); this overview records what is
-actually built.
+Model Generation System** ([statement](drishti3d/docs/PROBLEM_STATEMENT.md)). The
+original product and research plan, now archived, is
+[DRISHTI3D_MVP_PLAN.md](drishti3d/docs/archive/DRISHTI3D_MVP_PLAN.md); this
+overview records what is actually built.
 
 **Who uses it:** a field mapping or infrastructure assessment team that needs
 dimensions and coverage information before leaving a site.
@@ -363,7 +364,7 @@ it never computes one.
 
 ```text
 Drishti3D/
-├── DRISHTI3D_MVP_PLAN.md        the product and research plan being executed
+├── README.md                    front page: what it is, results, how to run
 ├── PROJECT_OVERVIEW.md          this file
 ├── DECISIONS.md  WORKLOG.md  SYSTEM_FLOW.md
 ├── TESTS_AND_RESULTS.md  NEXT_STEPS.md
@@ -380,8 +381,9 @@ Drishti3D/
     ├── scripts/                 dataset inventory, mission build, mission run
     ├── eval/                    benchmark harness, calibration, metrics
     ├── tests/                   pytest suite
+    ├── deploy/                  read-only public showcase: image and server kit
     ├── data/                    local DB, project artifacts, raw captures
-    └── docs/                    engineering docs and archived benchmarks
+    └── docs/                    engineering docs, benchmarks; docs/archive/ for superseded plans
 ```
 
 **Responsibilities**
