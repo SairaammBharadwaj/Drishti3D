@@ -4,32 +4,32 @@
     "record_bytes": 16,
     "fields": "x,y,z float32 (east, up, north; local units) + r,g,b uint8 + provenance uint8"
   },
-  "project_id": "051960beb15a4e1a8b851a8fa5bcc6e1",
-  "title": "DJI_1003 \u00b7 Austin, TX",
-  "code": "ATX / 1003",
-  "place": "Austin, TX",
-  "capture": "11 min 18 s of native 1080p DJI video with per-frame SRT GPS",
-  "scale": "metric \u00b7 GPS-georeferenced",
-  "credit": "Source footage: AirLock (WACV 2026), CC BY 4.0. Reconstruction by Drishti3D.",
-  "cloud_points": 3124856,
-  "registered": "80/80",
-  "points_in_scene": 3665632,
+  "project_id": "288ca0888eee49f8b64446e5ffe6d6d0",
+  "title": "HKisland03 \u00b7 Hong Kong",
+  "code": "HK / 03",
+  "place": "Hong Kong \u00b7 HKisland03",
+  "capture": "49 s native video \u00b7 RTK telemetry \u00b7 same-flight LiDAR reference",
+  "scale": "metric \u00b7 RTK-aligned",
+  "credit": "MARS-LVIG HKisland03 \u00b7 single-pass reconstruction by Drishti3D. Independent LiDAR evaluation is reported separately.",
+  "cloud_points": 686309,
+  "registered": "20/20",
+  "points_in_scene": 858721,
   "sampled_points": 150000,
   "sampled_by_provenance": {
-    "0": 104536,
-    "1": 23472,
-    "6": 21992
+    "0": 51984,
+    "1": 67924,
+    "6": 30092
   },
   "crop_enu_m": null,
   "origin_enu": [
-    64.03482055664062,
-    -26.20487837801602,
-    -493.35794318144616
+    15.860443115234375,
+    39.91477966308594,
+    -97.72670845592116
   ],
-  "metres_per_unit": 800.6235517977652,
+  "metres_per_unit": 187.94473266601562,
   "view": {
-    "angle": 0.35,
-    "elevation_deg": 34
+    "angle": 2.0,
+    "elevation_deg": 38
   },
-  "built": "2026-09-26"
+  "built": "2026-09-27"
 }

@@ -111,8 +111,23 @@ th { color: var(--muted); font-weight: 600; }
 .wpanel.right { border-right: none; border-left: 1px solid var(--border); }
 .viewer-wrap { position: relative; background: #05080b; min-width: 0; min-height: 0; overflow: hidden; }
 .viewer-canvas { width: 100%; height: 100%; display: block; }
-.viewer-overlay { position: absolute; left: 12px; bottom: 12px; background: rgba(10,14,20,0.82);
-  border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; pointer-events: none; }
+.viewer-overlay {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  max-width: calc(100% - 24px);
+  padding: 8px 10px;
+  color: #f8f1e7;
+  background: rgba(17, 18, 16, 0.92);
+  border: 1px solid rgba(255, 236, 205, 0.34);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-line;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
 .viewer-hint { position: absolute; left: 12px; top: 12px; background: rgba(10,14,20,0.82);
   border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; }
 
@@ -248,9 +263,59 @@ th { color: var(--muted); font-weight: 600; }
    transfer, not for rendering, so the viewer says what it is showing and
    offers the rest rather than quietly presenting a subsample as the cloud. */
 .viewer-detail {
-  position: absolute; left: 12px; bottom: 52px; z-index: 5;
-  display: flex; gap: 8px; align-items: center;
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 24px);
+  padding: 9px 10px 9px 12px;
+  color: #fff8ed;
+  background: rgba(17, 18, 16, 0.92);
+  border: 1px solid rgba(255, 236, 205, 0.34);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+  line-height: 1.25;
+  backdrop-filter: blur(8px);
 }
-.viewer-detail button {
-  font-size: 12px; padding: 4px 10px;
+.viewer-detail-summary { display: grid; grid-template-columns: auto auto; column-gap: 6px; align-items:baseline; }
+.viewer-detail-kicker { grid-column: 1 / -1; color: #e9ba80; font: 10px/1.2 var(--mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.viewer-detail strong { color: #fffaf3; font: 600 15px/1.2 var(--mono, monospace); }
+.viewer-detail strong + span { color: #e8dfd3; white-space: nowrap; }
+
+/* The canvas is deliberately dark even in the light product theme. Keep the
+   full-cloud action unmistakable rather than inheriting page button colours. */
+.viewer-detail .viewer-detail-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 8px 10px 8px 12px;
+  background: #c94732;
+  color: #fff8ed;
+  border: 1px solid #f5c78d;
+  border-radius: 4px;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.viewer-detail .viewer-detail-button > span { color: #fff1d5; font-size: 16px; line-height: 1; }
+.viewer-detail .viewer-detail-button:hover:not(:disabled) {
+  background: #e15942;
+  border-color: #fff1d5;
+  color: #fffaf3;
+}
+.viewer-detail .viewer-detail-button:focus-visible {
+  outline: 2px solid #fff8ed;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .viewer-detail { align-items: stretch; flex-direction: column; gap: 8px; }
+  .viewer-detail .viewer-detail-button { width: 100%; }
 }

@@ -1,11 +1,11 @@
 """Build the homepage scene's metadata and first-paint sample.
 
-The homepage shows one real reconstruction: by default the whole of DJI_1003,
-native 11-minute drone video with GPS. When this installation has that mission
-the page streams every point from the API (`/api/projects/<id>/model.bin`,
-3.67 M points including the inferred fill); this script writes the small
-uniform sample it paints first, and falls back to where the mission is absent,
-plus the metadata that places both in the same frame.
+The homepage shows one real reconstruction: by default HKisland03, a
+single-pass MARS-LVIG flight with RTK and same-flight LiDAR evaluation. When
+this installation has that mission the page streams every point from the API;
+this script writes the small uniform sample it paints first, and falls back to
+where the mission is absent, plus the metadata that places both in the same
+frame.
 
 Writes, under ``public/showcase/``:
 
@@ -24,7 +24,7 @@ byte-identical. The inferred fill (open water, holes) is included as its own
 class, as the workspace shows it; the preview is never an input to anything.
 
 Usage (from the repository's drishti3d directory):
-  .venv/bin/python frontend/scripts/build-preview.py            # whole DJI_1003
+  .venv/bin/python frontend/scripts/build-preview.py            # whole HKisland03
   .venv/bin/python frontend/scripts/build-preview.py --box -300 600 -200 650
 """
 from __future__ import annotations
@@ -41,20 +41,22 @@ APP = ROOT.parent                                    # drishti3d/
 OUT = ROOT / "public/showcase"
 FILL_CODE = 6
 
-#: The whole of DJI_1003, viewed from the south: the river and its bridges
-#: across the middle, the downtown towers beyond it.
+#: HKisland03's LiDAR-scored single pass. The complete real cloud is used;
+#: no synthetic geometry or benchmark truth enters the browser payload.
 DEFAULTS = {
-    "project": "051960beb15a4e1a8b851a8fa5bcc6e1",
+    "project": "288ca0888eee49f8b64446e5ffe6d6d0",
     "box": None,
     "points": 150_000,
-    "view": {"angle": 0.35, "elevation_deg": 34},
-    "title": "DJI_1003 · Austin, TX",
-    "code": "ATX / 1003",
-    "place": "Austin, TX",
-    "capture": "11 min 18 s of native 1080p DJI video with per-frame SRT GPS",
-    "scale": "metric · GPS-georeferenced",
-    "credit": "Source footage: AirLock (WACV 2026), CC BY 4.0. "
-              "Reconstruction by Drishti3D.",
+    # Oblique coastline view: keeps the dense observed terrain prominent in
+    # the homepage while preserving enough depth to read as a 3D model.
+    "view": {"angle": 2.0, "elevation_deg": 38},
+    "title": "HKisland03 · Hong Kong",
+    "code": "HK / 03",
+    "place": "Hong Kong · HKisland03",
+    "capture": "49 s native video · RTK telemetry · same-flight LiDAR reference",
+    "scale": "metric · RTK-aligned",
+    "credit": "MARS-LVIG HKisland03 · single-pass reconstruction by Drishti3D. "
+              "Independent LiDAR evaluation is reported separately.",
 }
 
 
