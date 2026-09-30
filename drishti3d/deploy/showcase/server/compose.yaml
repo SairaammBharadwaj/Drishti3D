@@ -1,0 +1,43 @@
+# The showcase on the server laptop.
+#
+# Two ways in, both outbound tunnels, so nothing listens on the network:
+#   - Tailscale Funnel publishes 127.0.0.1:7860 at the stable address,
+#     https://<hostname>.<tailnet>.ts.net (set up once, see README.md). Free,
+#     but bandwidth-capped at ~200 KB/s.
+#   - `tunnel` below is a Cloudflare quick tunnel: ~2.6 MB/s from this laptop,
+#     but a random *.trycloudflare.com address that changes on restart.
+# The app sends page visits on the stable address to the quick tunnel's
+# current address, and serves them over Funnel when it has none
+# (backend/app/tunnel.py). The image is built on the workstation and shipped
+# by deploy.sh.
+services:
+  showcase:
+    image: drishti3d-showcase:latest
+    container_name: drishti3d-showcase
+    # Back after a crash, a reboot or an unattended-upgrade restart.
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7860:7860"
+    environment:
+      DRISHTI_QUICKTUNNEL_METRICS: http://tunnel:20241/quicktunnel
+      DRISHTI_REDIRECT_HOSTS: .ts.net
+    # All six missions loaded measured ~3 GB; the cap leaves the rest of an
+    # 8 GB laptop to the system, and an overrun kills only the container.
+    mem_limit: 5g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/api/health', timeout=5)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.3
+    container_name: drishti3d-tunnel
+    restart: unless-stopped
+    # The metrics port stays inside this compose network; the app reads the
+    # current hostname from it.
+    command: tunnel --no-autoupdate --metrics 0.0.0.0:20241 --url http://showcase:7860
+    depends_on:
+      - showcase
+    mem_limit: 256m

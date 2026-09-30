@@ -1,9 +1,11 @@
 """SQLAlchemy engine/session (SQLite now, PostgreSQL/PostGIS later)."""
 from __future__ import annotations
 
+from fastapi import Request
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+from . import config, sandbox
 from .config import DB_PATH, ensure_dirs
 
 ensure_dirs()
@@ -15,8 +17,14 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 Base = declarative_base()
 
 
-def get_db():
-    db = SessionLocal()
+def get_db(request: Request):
+    if config.READ_ONLY:
+        # The read-only middleware has already refused anything that is not a
+        # sandboxed write, and set the visitor's sandbox id.
+        db = sandbox.session(request.state.sandbox_id,
+                             write=request.method not in ("GET", "HEAD"))
+    else:
+        db = SessionLocal()
     try:
         yield db
     finally:

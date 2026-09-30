@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project
 from ..schemas import ExportRequest
-from .. import storage
+from .. import cloud_pack, storage
 
 router = APIRouter(prefix="/api/projects", tags=["artifacts"])
 
@@ -146,24 +146,8 @@ def get_model_binary(project_id: str, fill: bool = True):
     many of the points it is.
     """
     import io
-    npz = _artifact(project_id, "cloud.npz")
-    d = np.load(npz)
-    pts = np.ascontiguousarray(d["points"], dtype="<f4")
+    pts, cols, prov, n_fill = _full_cloud(project_id, fill)
     n = len(pts)
-    cols = np.ascontiguousarray(
-        d["colors"] if "colors" in d.files else np.full((n, 3), 200),
-        dtype=np.uint8)
-    prov = np.ascontiguousarray(
-        d["provenance"] if "provenance" in d.files else np.zeros(n),
-        dtype=np.uint8)
-    n_fill = 0
-    f = _load_fill(project_id) if fill else None
-    if f is not None and len(f[0]):
-        n_fill = len(f[0])
-        pts = np.concatenate([pts, np.asarray(f[0], dtype="<f4")])
-        cols = np.concatenate([cols, np.asarray(f[1], dtype=np.uint8)])
-        prov = np.concatenate([prov, np.full(n_fill, _FILL_CODE, np.uint8)])
-        n = len(pts)
 
     buf = io.BytesIO()
     buf.write(_CLOUD_MAGIC)
@@ -179,6 +163,50 @@ def get_model_binary(project_id: str, fill: bool = True):
                  "X-Point-Count": str(n),
                  "X-Fill-Count": str(n_fill),
                  "Cache-Control": "no-cache"})
+
+
+def _full_cloud(project_id: str, fill: bool):
+    """Every point the viewer shows: the cloud, then the inferred fill."""
+    d = np.load(_artifact(project_id, "cloud.npz"))
+    pts = np.ascontiguousarray(d["points"], dtype="<f4")
+    n = len(pts)
+    cols = np.ascontiguousarray(
+        d["colors"] if "colors" in d.files else np.full((n, 3), 200),
+        dtype=np.uint8)
+    prov = np.ascontiguousarray(
+        d["provenance"] if "provenance" in d.files else np.zeros(n),
+        dtype=np.uint8)
+    n_fill = 0
+    f = _load_fill(project_id) if fill else None
+    if f is not None and len(f[0]):
+        n_fill = len(f[0])
+        pts = np.concatenate([pts, np.asarray(f[0], dtype="<f4")])
+        cols = np.concatenate([cols, np.asarray(f[1], dtype=np.uint8)])
+        prov = np.concatenate([prov, np.full(n_fill, _FILL_CODE, np.uint8)])
+    return pts, cols, prov, n_fill
+
+
+def pack_for(project_id: str, fill: bool = True) -> bytes:
+    """The cloud as model.pack sends it, built once per artifact revision."""
+    key = (project_id, storage.artifact_revision(project_id), fill)
+
+    def build():
+        pts, cols, prov, _ = _full_cloud(project_id, fill)
+        return cloud_pack.encode(pts, cols, prov)
+    return cloud_pack.cached(key, build)
+
+
+@router.get("/{project_id}/model.pack")
+def get_model_pack(project_id: str, fill: bool = True):
+    """The same points as model.bin, 2.7x smaller: see cloud_pack.py.
+
+    For display over a slow link. Positions are quantised to about 2 cm on a
+    1.4 km scene; measurements never use them, they are made on the
+    full-precision cloud here.
+    """
+    data = pack_for(project_id, fill)
+    return Response(content=data, media_type="application/octet-stream",
+                    headers={"Content-Length": str(len(data))})
 
 
 @router.get("/{project_id}/keyframes")

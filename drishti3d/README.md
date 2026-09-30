@@ -146,6 +146,41 @@ docker compose up --build
 # frontend: http://localhost:8080   backend API: http://localhost:8000
 ```
 
+### Public showcase (read-only)
+
+To show finished missions to people outside the team, export them as a
+bundle and serve it read-only. The default set is six missions (about 1 GB):
+the LiDAR-scored HKisland02/03 passes, UseGeo 1, DJI_1003/1001 and AGZ dense.
+
+```bash
+.venv/bin/python scripts/export_showcase.py --out data/showcase --dry-run   # what and how big
+.venv/bin/python scripts/export_showcase.py --out data/showcase
+(cd frontend && npm run build)                                              # the API serves the SPA
+DRISHTI_READ_ONLY=1 DRISHTI_DATA_DIR=data/showcase \
+    .venv/bin/uvicorn backend.app.main:app --port 8001
+```
+
+A read-only server refuses creating, uploading, processing, refining and
+deleting missions. Measuring and asking questions still work: each visitor
+writes to a temporary copy of the database, so nobody else sees their
+results and the published missions never change (`backend/app/sandbox.py`).
+Source videos are not exported. Every mission carries a credit for its source
+dataset, shown on every page; the script refuses a mission that has none.
+
+To host it, assemble the image source and build it. The folder is also exactly
+what to upload to a Hugging Face Docker Space (port 7860, uid 1000):
+
+```bash
+.venv/bin/python scripts/build_space.py --bundle data/showcase --out data/space
+docker build -t drishti3d-showcase data/space
+docker run --rm -p 7860:7860 --memory 6g drishti3d-showcase                  # http://127.0.0.1:7860
+huggingface-cli upload <you>/<space> data/space . --repo-type=space          # publish
+```
+
+The folder is built from an allow-list, because all of it becomes public. The
+Gymnasium footage (Wikimedia Commons, CC BY-SA, author not recorded) and the
+research lab made from it are left out until they can be credited.
+
 ---
 
 ## Telemetry schema

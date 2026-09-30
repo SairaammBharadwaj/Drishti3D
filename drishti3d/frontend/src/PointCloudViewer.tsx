@@ -34,6 +34,8 @@ export default function PointCloudViewer(props: Props) {
     raycaster: THREE.Raycaster
     radius: number
     markerGroup: THREE.Group
+    /** Draw on the next frame. The loop draws only after a change. */
+    invalidate: () => void
     dispose: () => void
   } | null>(null)
 
@@ -173,19 +175,33 @@ export default function PointCloudViewer(props: Props) {
     const raycaster = new THREE.Raycaster()
     raycaster.params.Points = { threshold: radius * 0.01 }
 
+    // Draw only when something changed. Redrawing every point 60 times a
+    // second while nothing moves kept the graphics chip busy for no visible
+    // difference -- on millions of points that is the whole machine on a
+    // laptop or phone. controls.update() still runs each frame (cheap) and
+    // reports 'change' while the camera moves, including the damped glide.
     let raf = 0
-    const animate = () => { raf = requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera) }
+    let dirty = true
+    const invalidate = () => { dirty = true }
+    controls.addEventListener('change', invalidate)
+    const animate = () => {
+      raf = requestAnimationFrame(animate)
+      controls.update()
+      if (dirty) { dirty = false; renderer.render(scene, camera) }
+    }
     animate()
 
     const onResize = () => {
       const nw = mount.clientWidth, nh = mount.clientHeight
       camera.aspect = nw / nh; camera.updateProjectionMatrix(); renderer.setSize(nw, nh)
       controls.handleResize()
+      invalidate()
     }
     window.addEventListener('resize', onResize)
 
     const dispose = () => {
       cancelAnimationFrame(raf)
+      controls.removeEventListener('change', invalidate)
       window.removeEventListener('resize', onResize)
       controls.dispose(); renderer.dispose()
       geom.dispose(); mat.dispose(); sprite.dispose()
@@ -194,7 +210,7 @@ export default function PointCloudViewer(props: Props) {
 
     ctx.current = {
       renderer, scene, camera, controls, points, basePositions,
-      trueColors, provColors, provCodes, raycaster, radius, markerGroup, dispose,
+      trueColors, provColors, provCodes, raycaster, radius, markerGroup, invalidate, dispose,
     }
     return dispose
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -222,6 +238,7 @@ export default function PointCloudViewer(props: Props) {
     colorAttr.needsUpdate = true
     posAttr.needsUpdate = true
     c.points.geometry.computeBoundingSphere()
+    c.invalidate()
     // The scene effect above rebuilds the geometry in true colour with every
     // layer shown whenever the model or the full cloud changes, so this has to
     // re-run then too -- otherwise "show all points" silently drops the chosen
@@ -247,6 +264,7 @@ export default function PointCloudViewer(props: Props) {
       m.size = c.radius * 0.004 * props.pointSize
     }
     m.needsUpdate = true
+    c.invalidate()
   }, [props.pointSize, props.splat])
 
   // ---- measurement markers -----------------------------------------------
@@ -267,7 +285,11 @@ export default function PointCloudViewer(props: Props) {
     props.savedLines.forEach((l) => { addLine(l, 0x2ecc71); l.forEach((p) => addDot(p, 0x2ecc71)) })
     props.activePoints.forEach((p) => addDot(p, 0xff9a3c))
     addLine(props.activePoints, 0xff9a3c)
+    c.invalidate()
   }, [props.activePoints, props.savedLines])
+
+  // Any other prop change redraws too, so a scene update cannot be missed.
+  useEffect(() => { ctx.current?.invalidate() })
 
   // ---- pointer handlers (pick / hover) -----------------------------------
   useEffect(() => {

@@ -1,4 +1,5 @@
 // Typed client for the Drishti3D backend API.
+import { decodePack } from './cloudPack'
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? ''
 
 export type Vec3 = [number, number, number]
@@ -184,6 +185,59 @@ export interface Measurement {
 
 export interface ExportList { available: Record<string, string> }
 
+/** The id this browser's measurements and questions are kept under on a
+ *  read-only showcase, where each visitor writes to a private copy of the
+ *  database (backend/app/sandbox.py). Other servers ignore it. */
+const sandboxId = (() => {
+  const key = 'drishti3d.sandbox'
+  try {
+    const kept = localStorage.getItem(key)
+    if (kept && /^[a-f0-9]{32}$/.test(kept)) return kept
+  } catch { /* storage blocked: keep the id for this page only */ }
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(16)),
+    (b) => b.toString(16).padStart(2, '0')).join('')
+  try { localStorage.setItem(key, id) } catch { /* as above */ }
+  return id
+})()
+
+function send(url: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers)
+  headers.set('X-Drishti-Sandbox', sandboxId)
+  return fetch(url, { ...init, headers })
+}
+
+export interface Deployment {
+  /** A public showcase: finished missions only, nothing can be processed. */
+  read_only: boolean
+  /** Credit lines the published missions' sources require. */
+  credits: string[]
+}
+
+/** The whole body, reporting the fraction received when the size is known. */
+async function readAll(res: Response, onProgress?: (frac: number) => void): Promise<Uint8Array<ArrayBuffer>> {
+  const total = Number(res.headers.get('Content-Length') || 0)
+  if (!onProgress || !res.body || !total) return new Uint8Array(await res.arrayBuffer())
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let got = 0
+  // At most once per percent. Reporting every network chunk re-rendered the
+  // whole workspace hundreds of times during one download, and that work
+  // slowed the download itself: 26-45 s in the page against 10-12 s for the
+  // same file fetched alone (2026-09-29).
+  let shown = -1
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value); got += value.length
+    const pct = Math.floor((got / total) * 100)
+    if (pct !== shown) { shown = pct; onProgress(got / total) }
+  }
+  const merged = new Uint8Array(got)
+  let at = 0
+  for (const c of chunks) { merged.set(c, at); at += c.length }
+  return merged
+}
+
 async function j<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let detail = res.statusText
@@ -194,46 +248,47 @@ async function j<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  health: () => fetch(`${BASE}/api/health`).then(j<{ status: string }>),
-  capabilities: () => fetch(`${BASE}/api/capabilities`).then(j<Capabilities>),
+  health: () => send(`${BASE}/api/health`).then(j<{ status: string }>),
+  deployment: () => send(`${BASE}/api/deployment`).then(j<Deployment>),
+  capabilities: () => send(`${BASE}/api/capabilities`).then(j<Capabilities>),
 
-  listProjects: () => fetch(`${BASE}/api/projects`).then(j<Project[]>),
-  getProject: (id: string) => fetch(`${BASE}/api/projects/${id}`).then(j<Project>),
+  listProjects: () => send(`${BASE}/api/projects`).then(j<Project[]>),
+  getProject: (id: string) => send(`${BASE}/api/projects/${id}`).then(j<Project>),
   videoUrl: (id: string) => `${BASE}/api/projects/${id}/video`,
   createProject: (name: string, description: string) =>
-    fetch(`${BASE}/api/projects`, {
+    send(`${BASE}/api/projects`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description }),
     }).then(j<Project>),
   deleteProject: (id: string) =>
-    fetch(`${BASE}/api/projects/${id}`, { method: 'DELETE' }).then(j),
+    send(`${BASE}/api/projects/${id}`, { method: 'DELETE' }).then(j),
 
   uploadVideo: (id: string, file: File) => {
     const fd = new FormData(); fd.append('file', file)
-    return fetch(`${BASE}/api/projects/${id}/video`, { method: 'POST', body: fd }).then(j<Project>)
+    return send(`${BASE}/api/projects/${id}/video`, { method: 'POST', body: fd }).then(j<Project>)
   },
   uploadTelemetry: (id: string, file: File) => {
     const fd = new FormData(); fd.append('file', file)
-    return fetch(`${BASE}/api/projects/${id}/telemetry`, { method: 'POST', body: fd }).then(j<Project>)
+    return send(`${BASE}/api/projects/${id}/telemetry`, { method: 'POST', body: fd }).then(j<Project>)
   },
   setIntrinsics: (id: string, intr: Intrinsics) => {
     const fd = new FormData()
     fd.append('fx', String(intr.fx)); fd.append('fy', String(intr.fy))
     fd.append('cx', String(intr.cx)); fd.append('cy', String(intr.cy))
-    return fetch(`${BASE}/api/projects/${id}/intrinsics`, { method: 'POST', body: fd }).then(j<Project>)
+    return send(`${BASE}/api/projects/${id}/intrinsics`, { method: 'POST', body: fd }).then(j<Project>)
   },
 
-  process: (id: string, body: ProcessOptions) => fetch(`${BASE}/api/projects/${id}/process`, {
+  process: (id: string, body: ProcessOptions) => send(`${BASE}/api/projects/${id}/process`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }).then(j<Job>),
 
-  getJob: (id: string) => fetch(`${BASE}/api/jobs/${id}`).then(j<Job>),
+  getJob: (id: string) => send(`${BASE}/api/jobs/${id}`).then(j<Job>),
   eventsUrl: (jobId: string) => `${BASE}/api/jobs/${jobId}/events`,
 
-  quality: (id: string) => fetch(`${BASE}/api/projects/${id}/quality`).then(j<QualityReport>),
-  trajectory: (id: string) => fetch(`${BASE}/api/projects/${id}/trajectory`).then(j<Trajectory>),
-  model: (id: string) => fetch(`${BASE}/api/projects/${id}/model`).then(j<ModelPayload>),
+  quality: (id: string) => send(`${BASE}/api/projects/${id}/quality`).then(j<QualityReport>),
+  trajectory: (id: string) => send(`${BASE}/api/projects/${id}/trajectory`).then(j<Trajectory>),
+  model: (id: string) => send(`${BASE}/api/projects/${id}/model`).then(j<ModelPayload>),
 
   /**
    * Every point, not the 120,000-point preview.
@@ -248,27 +303,20 @@ export const api = {
    * 43 MB for that cloud, and no parse beyond a typed-array view.
    */
   modelFull: async (id: string, onProgress?: (frac: number) => void, signal?: AbortSignal) => {
-    const res = await fetch(`${BASE}/api/projects/${id}/model.bin`, { signal })
-    if (!res.ok) throw new Error(`model.bin: ${res.status}`)
-    const total = Number(res.headers.get('Content-Length') || 0)
-    let buf: ArrayBuffer
-    if (onProgress && res.body && total) {
-      const reader = res.body.getReader()
-      const chunks: Uint8Array[] = []
-      let got = 0
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        chunks.push(value); got += value.length
-        onProgress(got / total)
-      }
-      const merged = new Uint8Array(got)
-      let at = 0
-      for (const c of chunks) { merged.set(c, at); at += c.length }
-      buf = merged.buffer
-    } else {
-      buf = await res.arrayBuffer()
+    // The packed form is 2.7x smaller, which is most of the wait on a slow
+    // link (backend/app/cloud_pack.py). It needs the browser's built-in gzip
+    // decoder; anything without one gets the plain form.
+    if (typeof DecompressionStream !== 'undefined') {
+      const res = await send(`${BASE}/api/projects/${id}/model.pack`, { signal })
+      if (!res.ok) throw new Error(`model.pack: ${res.status}`)
+      const packed = await readAll(res, onProgress)
+      const raw = await new Response(
+        new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
+      return decodePack(raw)
     }
+    const res = await send(`${BASE}/api/projects/${id}/model.bin`, { signal })
+    if (!res.ok) throw new Error(`model.bin: ${res.status}`)
+    const buf = (await readAll(res, onProgress)).buffer
     const view = new DataView(buf)
     const magic = String.fromCharCode(
       view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3))
@@ -282,49 +330,49 @@ export const api = {
     const provenance = new Uint8Array(buf, off, n)
     return { n, xyz, rgb, provenance }
   },
-  keyframes: (id: string) => fetch(`${BASE}/api/projects/${id}/keyframes`).then(j<Keyframe[]>),
-  frameMetrics: (id: string) => fetch(`${BASE}/api/projects/${id}/frame_metrics`).then(j<FrameMetric[]>),
-  exports: (id: string) => fetch(`${BASE}/api/projects/${id}/exports`).then(j<ExportList>),
+  keyframes: (id: string) => send(`${BASE}/api/projects/${id}/keyframes`).then(j<Keyframe[]>),
+  frameMetrics: (id: string) => send(`${BASE}/api/projects/${id}/frame_metrics`).then(j<FrameMetric[]>),
+  exports: (id: string) => send(`${BASE}/api/projects/${id}/exports`).then(j<ExportList>),
   exportUrl: (id: string, key: string) => `${BASE}/api/projects/${id}/exports/${key}`,
 
   createMeasurement: (id: string, body: {
     kind: MeasurementKind; points: Vec3[]; allow_inferred: boolean
-  }) => fetch(`${BASE}/api/projects/${id}/measurements`, {
+  }) => send(`${BASE}/api/projects/${id}/measurements`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }).then(j<Measurement>),
   listMeasurements: (id: string) =>
-    fetch(`${BASE}/api/projects/${id}/measurements`).then(j<Measurement[]>),
+    send(`${BASE}/api/projects/${id}/measurements`).then(j<Measurement[]>),
   deleteMeasurement: (id: string, mid: string) =>
-    fetch(`${BASE}/api/projects/${id}/measurements/${mid}`, { method: 'DELETE' }).then(j),
+    send(`${BASE}/api/projects/${id}/measurements/${mid}`, { method: 'DELETE' }).then(j),
 
   // --- measurement questions ---------------------------------------------- //
   listQuestions: (id: string) =>
-    fetch(`${BASE}/api/projects/${id}/questions`).then(j<Question[]>),
+    send(`${BASE}/api/projects/${id}/questions`).then(j<Question[]>),
   createQuestion: (id: string, body: {
     kind: MeasurementKind; points: Vec3[]; tolerance_m: number | null
     label?: string; threshold_m?: number | null; allow_inferred?: boolean
-  }) => fetch(`${BASE}/api/projects/${id}/questions`, {
+  }) => send(`${BASE}/api/projects/${id}/questions`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }).then(j<Question>),
   /** Changes only the requirement. The measurement is re-decided, not re-measured. */
   setTolerance: (id: string, qid: string, tolerance_m: number) =>
-    fetch(`${BASE}/api/projects/${id}/questions/${qid}`, {
+    send(`${BASE}/api/projects/${id}/questions/${qid}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tolerance_m }),
     }).then(j<Question>),
   deleteQuestion: (id: string, qid: string) =>
-    fetch(`${BASE}/api/projects/${id}/questions/${qid}`, { method: 'DELETE' }).then(j),
+    send(`${BASE}/api/projects/${id}/questions/${qid}`, { method: 'DELETE' }).then(j),
   questionEvidence: (id: string, qid: string) =>
-    fetch(`${BASE}/api/projects/${id}/questions/${qid}/evidence`).then(j<QuestionEvidence>),
+    send(`${BASE}/api/projects/${id}/questions/${qid}/evidence`).then(j<QuestionEvidence>),
   refineQuestion: (id: string, qid: string, budget_frames = 4) =>
-    fetch(`${BASE}/api/projects/${id}/questions/${qid}/refine`, {
+    send(`${BASE}/api/projects/${id}/questions/${qid}/refine`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ budget_frames }),
     }).then(j<Refinement>),
   listRefinements: (id: string, qid: string) =>
-    fetch(`${BASE}/api/projects/${id}/questions/${qid}/refinements`).then(j<Refinement[]>),
+    send(`${BASE}/api/projects/${id}/questions/${qid}/refinements`).then(j<Refinement[]>),
 }
 
 

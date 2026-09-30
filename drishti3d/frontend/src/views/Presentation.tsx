@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, PROVENANCE, processingTime, recommendedProcessing, type Project, type Job, type QualityReport, type ModelPayload } from '../api'
+import { useReadOnly } from '../deployment'
 import ReconstructionNotice from '../ReconstructionNotice'
 import PointCloudViewer from '../PointCloudViewer'
 
@@ -11,6 +12,7 @@ const layers = new Set([0, 1, 2, 3, 4])
 export default function Presentation() {
   const { id } = useParams()
   const nav = useNavigate()
+  const readOnly = useReadOnly()
   const [projects, setProjects] = useState<Project[]>([])
   const [project, setProject] = useState<Project | null>(null)
   const [phase, setPhase] = useState<'source' | 'running' | 'results'>('source')
@@ -113,11 +115,11 @@ export default function Presentation() {
     </header>
     <ol className="demo-steps" aria-label="Demo progress">{['Original capture', 'Reconstruction', 'Spatial intelligence'].map((s, i) => <li key={s} aria-current={i === (phase === 'source' ? 0 : phase === 'running' ? 1 : 2) ? 'step' : undefined}><span>0{i + 1}</span>{s}</li>)}</ol>
     {error && <div className="notebox warn" role="alert">{error}</div>}
-    {!id && <div className="demo-empty card"><h2>Choose a capture to begin</h2><p>Select a mission above, or upload a video to create your own reconstruction.</p><Link to="/new"><button className="primary">Upload a new capture →</button></Link></div>}
+    {!id && <div className="demo-empty card"><h2>Choose a capture to begin</h2>{readOnly === false ? <><p>Select a mission above, or upload a video to create your own reconstruction.</p><Link to="/new"><button className="primary">Upload a new capture →</button></Link></> : <p>Select a mission above.</p>}</div>}
     {id && !project && !error && <p role="status">Loading capture…</p>}
     {project && phase !== 'results' && <div className="demo-intro">
       <section className="demo-media"><div className="demo-panel-title"><span>01 / ORIGINAL FOOTAGE</span><span>{project.name}</span></div>
-        {project.has_video ? <video key={project.id} ref={video} controls playsInline preload="metadata" src={api.videoUrl(project.id)} onError={() => setVideoError(true)} /> : <p>No video uploaded.</p>}
+        {readOnly ? <p className="notebox">The original footage is not part of this online showcase; the reconstruction and its evidence are.</p> : readOnly === false && (project.has_video ? <video key={project.id} ref={video} controls playsInline preload="metadata" src={api.videoUrl(project.id)} onError={() => setVideoError(true)} /> : <p>No video uploaded.</p>)}
         {videoError && <p className="notebox warn">This browser cannot play the original format. <a href={api.videoUrl(project.id)}>Download the source video</a> to play it locally. Inference can still run.</p>}
         <div className="demo-media-footer">Original capture · {project.has_telemetry ? 'Flight telemetry attached' : 'Video only · relative scale'} · {project.intrinsics ? 'Camera calibration supplied' : 'Camera parameters estimated'}</div>
       </section>

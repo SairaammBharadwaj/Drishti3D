@@ -4,9 +4,11 @@ import {
   api, recommendedProcessing,
   type Capabilities, type Densify, type Engine, type ProcessOptions, type Project,
 } from '../api'
+import { useReadOnly } from '../deployment'
 
 export default function Wizard() {
   const nav = useNavigate()
+  const readOnly = useReadOnly()
   const [params, setParams] = useSearchParams()
   const resumeId = params.get('project')
   const [resuming, setResuming] = useState(Boolean(resumeId))
@@ -108,6 +110,7 @@ export default function Wizard() {
 
   const canProcess = project?.has_video
 
+  if (readOnly) return <div className="library"><div className="empty-state"><span className="outline-cube" aria-hidden="true">◇</span><h2>New reconstructions aren’t available here.</h2><p>This is a read-only showcase of finished missions. Reconstruction runs on the team’s own hardware.</p><Link className="action primary-action" to="/missions">Explore the missions ↗</Link></div></div>
   return (
     <div className="wizard-page">
       <div className="page-heading"><div><div className="eyebrow">CAPTURE → RECONSTRUCTION</div><h1>A new perspective.</h1><p>{project ? project.name : 'Set up your mission. Let the footage do the talking.'}</p></div><Link className="text-action" to="/missions">← Mission library</Link></div>
