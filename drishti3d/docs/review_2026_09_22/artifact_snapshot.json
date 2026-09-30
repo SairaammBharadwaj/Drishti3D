@@ -1,0 +1,270 @@
+{
+  "review_date": "2026-09-22",
+  "reviewed_revision": "9506a31e41f2550652e38fce33914788602ee5ee",
+  "note": "Read-only snapshot of previously saved results. Not a new reconstruction or independent re-run of the scorer.",
+  "artifacts": {
+    "drishti3d/data/runs/usegeo_1__first/artifacts/quality_report.json": {
+      "sha256": "f3ecb67b9d3effc2c6c38753e95aaa852c8d037ee6e123b8b1461c0f100380a3",
+      "saved_artifact_values": {
+        "frames": {
+          "total_analyzed": 60,
+          "accepted": 60,
+          "rejected": 0,
+          "accepted_fraction": 1.0,
+          "keyframes": 60
+        },
+        "reconstruction": {
+          "engine": "colmap",
+          "n_keyframes": 60,
+          "n_registered": 60,
+          "registered_fraction": 1.0,
+          "n_points": 45759,
+          "median_reproj_err": 0.2709556770373795,
+          "p90_reproj_err": 0.6653444094597648,
+          "mean_track_length": 4.657641119779716,
+          "mean_tri_angle": null,
+          "n_observations": 213129,
+          "uncertainty": {
+            "sigma_px_estimated": 0.20115691306993655,
+            "n_with_covariance": 45759,
+            "n_observable": 45759,
+            "error": null,
+            "median_sigma_recon_frame": 0.0010281595006446673
+          },
+          "workspace": "/home/naveen/Drishti3D/drishti3d/data/runs/usegeo_1__first/colmap_workspace"
+        },
+        "cloud": {
+          "n_points": 2138943,
+          "bbox_min": [
+            -196.262821071554,
+            -186.64143707099603,
+            -86.94678702528977
+          ],
+          "bbox_max": [
+            198.2807076133758,
+            194.207056123098,
+            -58.95320302077488
+          ],
+          "dimensions_m": [
+            394.5435286849298,
+            380.84849319409403,
+            27.993584004514886
+          ],
+          "median_point_spacing_m": 0.12877972922325642,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 1935786,
+            "OBSERVED_LOW_CONFIDENCE": 203157,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0,
+            "AI_GEOMETRICALLY_VERIFIED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.9050199093664487,
+            "OBSERVED_LOW_CONFIDENCE": 0.09498009063355124,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0,
+            "AI_GEOMETRICALLY_VERIFIED": 0.0
+          }
+        },
+        "alignment": {
+          "scale": 32.17460430711664,
+          "n_inliers": 60,
+          "n_total": 60,
+          "alignment_rmse_3d_m": 0.29322780621519634,
+          "alignment_rmse_horizontal_m": 0.2876646467590304,
+          "alignment_rmse_vertical_m": 0.056847140146000244,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS.",
+          "normalized_rmse": 0.2873115485986726,
+          "scale_sigma": 0.011005580253745506,
+          "degenerate": true,
+          "degeneracy": "planar trajectory (out-of-plane geometry is weakly constrained)",
+          "conditioning": {
+            "principal_extent_m": [
+              110.33232577102042,
+              16.729621863515266,
+              1.5560742051879928
+            ],
+            "vertical_extent_m": 5.451011757712549,
+            "extent_ratios": [
+              0.15162937739783802,
+              0.014103520380939046
+            ],
+            "sigma_source": "weights_as_inverse_sigma",
+            "median_sigma_h_m": 1.0,
+            "median_sigma_v_m": 1.6,
+            "scored_in": "mahalanobis",
+            "sigma_recon_m": 0.1338562821231769,
+            "median_sigma_total_h_m": 1.0089189780472163,
+            "error_budget": "gnss_dominated"
+          },
+          "scale_sigma_relative": 0.00034205798301958305
+        },
+        "performance": {
+          "processing_time_s": 1401.3,
+          "video_duration_s": 125.44,
+          "processing_to_video_ratio": 11.17107780612245
+        }
+      }
+    },
+    "drishti3d/data/runs/usegeo_1__first/lidar_score.json": {
+      "sha256": "1585abef6f7c054b6ce10381275e3b268a67917369e73621cca7340aa2bb3f4c",
+      "saved_artifact_values": {
+        "run": "usegeo_1__first",
+        "epsg": 32632,
+        "n_reconstructed": 2138943,
+        "n_reference_in_extent": 85605011,
+        "accuracy_recon_to_lidar": {
+          "n": 199956,
+          "median_m": 1.360457577555151,
+          "mean_m": 1.2030081445759295,
+          "p90_m": 1.6401107279614577,
+          "p99_m": 1.7777218643378814,
+          "rmse_m": 1.283310412907889
+        },
+        "unmatched_fraction": 0.00022,
+        "unmatched_note": "points further than 5.0 m from any LiDAR return; excluded from the error distribution because they measure absence, not error",
+        "completeness_lidar_to_recon": {
+          "n": 114284,
+          "median_m": 1.5696028736224483,
+          "mean_m": 1.6116537320975848,
+          "p90_m": 1.9540417720802798,
+          "p99_m": 5.54730384861621,
+          "rmse_m": 1.8304404217474328
+        },
+        "completeness_note": "reference points inside the horizontal convex hull of the reconstruction only; outside it a distance measures where we did not fly",
+        "systematic_offset_m": {
+          "east": -0.003830526431556791,
+          "north": -0.005257781129330397,
+          "up": 1.2452484529726178,
+          "note": "median signed offset of the reconstruction from the reference; a planar flight leaves the vertical weakly constrained and this is where that shows"
+        },
+        "accuracy_after_removing_offset": {
+          "n": 199956,
+          "median_m": 0.2991653269648045,
+          "mean_m": 0.2962378772094771,
+          "p90_m": 0.4662651525675076,
+          "p99_m": 0.6636884442102297,
+          "rmse_m": 0.330336374937855
+        },
+        "completeness_within_0_25m": 0.0146302194532918,
+        "completeness_within_0_50m": 0.042070631059465895,
+        "interval_check": {
+          "n": 199956,
+          "median_predicted_sigma_m": 0.09280774718622807,
+          "median_actual_error_m": 1.360457577555151,
+          "ratio_actual_over_predicted": 14.65887944489436,
+          "coverage_at_1_96_sigma": 0.045510012202684594,
+          "note": "nominal coverage is 0.95; this is one-sided point-to-surface distance, not a signed dimensional error, so it is a first check and not a calibration"
+        }
+      }
+    },
+    "drishti3d/data/runs/agz_dense_pass__dense_mvs/artifacts/quality_report.json": {
+      "sha256": "a35797bd0d4706ccee852594a80a8c27fd12dd3a7062966829dd752afc1b0493",
+      "saved_artifact_values": {
+        "frames": {
+          "total_analyzed": 184,
+          "accepted": 184,
+          "rejected": 0,
+          "accepted_fraction": 1.0,
+          "keyframes": 80
+        },
+        "reconstruction": {
+          "engine": "colmap",
+          "n_keyframes": 80,
+          "n_registered": 80,
+          "registered_fraction": 1.0,
+          "n_points": 22589,
+          "median_reproj_err": 0.32619251022996826,
+          "p90_reproj_err": 0.915193418883785,
+          "mean_track_length": 3.90566204789942,
+          "mean_tri_angle": null,
+          "n_observations": 88225,
+          "uncertainty": {
+            "sigma_px_estimated": 0.4798085833253551,
+            "n_with_covariance": 22589,
+            "n_observable": 22589,
+            "error": null,
+            "median_sigma_recon_frame": 0.0011950461466579624
+          },
+          "workspace": "/home/naveen/Drishti3D/drishti3d/data/runs/agz_dense_pass__dense_mvs/colmap_workspace"
+        },
+        "cloud": {
+          "n_points": 251785,
+          "bbox_min": [
+            -41.44771559532771,
+            -97.3695805083068,
+            -62.86466976836268
+          ],
+          "bbox_max": [
+            97.46859795708806,
+            115.07128430327768,
+            5.653465828416414
+          ],
+          "dimensions_m": [
+            138.91631355241577,
+            212.44086481158448,
+            68.51813559677909
+          ],
+          "median_point_spacing_m": 0.10016322673646483,
+          "class_counts": {
+            "OBSERVED_HIGH_CONFIDENCE": 201680,
+            "OBSERVED_LOW_CONFIDENCE": 50105,
+            "AI_ASSISTED": 0,
+            "DYNAMIC_EXCLUDED": 0,
+            "UNOBSERVED": 0,
+            "AI_GEOMETRICALLY_VERIFIED": 0
+          },
+          "class_fractions": {
+            "OBSERVED_HIGH_CONFIDENCE": 0.8010008539031317,
+            "OBSERVED_LOW_CONFIDENCE": 0.19899914609686836,
+            "AI_ASSISTED": 0.0,
+            "DYNAMIC_EXCLUDED": 0.0,
+            "UNOBSERVED": 0.0,
+            "AI_GEOMETRICALLY_VERIFIED": 0.0
+          }
+        },
+        "alignment": {
+          "scale": 16.955175203404817,
+          "n_inliers": 80,
+          "n_total": 80,
+          "alignment_rmse_3d_m": 6.143111987759555,
+          "alignment_rmse_horizontal_m": 4.915387160282755,
+          "alignment_rmse_vertical_m": 3.6846701288829906,
+          "scale_source": "gps",
+          "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS.",
+          "normalized_rmse": 0.5242345619427358,
+          "scale_sigma": 0.19434880410221803,
+          "degenerate": false,
+          "conditioning": {
+            "principal_extent_m": [
+              60.21379430782922,
+              5.431650116508524,
+              4.403100347614708
+            ],
+            "vertical_extent_m": 24.872013895148655,
+            "extent_ratios": [
+              0.09020607618148854,
+              0.07312444595510569
+            ],
+            "sigma_source": "weights_as_inverse_sigma",
+            "median_sigma_h_m": 9.396617456704218,
+            "median_sigma_v_m": 15.034587930726751,
+            "scored_in": "mahalanobis",
+            "sigma_recon_m": 0.6317469363681781,
+            "median_sigma_total_h_m": 9.417830104219325,
+            "error_budget": "gnss_dominated"
+          },
+          "scale_sigma_relative": 0.011462506389387842
+        },
+        "performance": {
+          "processing_time_s": 1243.463,
+          "video_duration_s": 184.48,
+          "processing_to_video_ratio": 6.740367519514311
+        }
+      }
+    }
+  }
+}

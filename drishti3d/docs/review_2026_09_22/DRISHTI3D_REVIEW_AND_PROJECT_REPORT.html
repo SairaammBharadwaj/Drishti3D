@@ -1,0 +1,1831 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10.2" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Drishti3D — Review &amp; Project Report</title>
+  <style>
+
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">@page { size: A4; margin: 17mm 16mm 19mm; }
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { max-width: 1020px; margin: 0 auto; padding: 48px; color: #202d3b; background: #fff; font: 15px/1.6 "DejaVu Sans", Arial, sans-serif; }
+header { border-top: 8px solid #185e56; padding: 34px 0 24px; border-bottom: 1px solid #b9cdca; }
+header h1 { font-size: 38px; line-height: 1.15; color: #143c37; }
+header .subtitle { font-size: 20px; color: #526c69; }
+header .date { color: #61716e; }
+h1, h2, h3 { line-height: 1.25; color: #173f3b; break-after: avoid; }
+h1 { margin-top: 48px; font-size: 29px; }
+h2 { margin-top: 30px; font-size: 22px; }
+h3 { margin-top: 22px; font-size: 17px; }
+p { margin: 10px 0; orphans: 3; widows: 3; }
+a { color: #14675d; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+strong { color: #152f38; }
+table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 13px; line-height: 1.45; }
+th { background: #e8f1ee; color: #153f38; text-align: left; }
+th, td { border: 1px solid #cbd8d5; padding: 8px 9px; vertical-align: top; overflow-wrap: anywhere; }
+th:first-child, td:first-child { min-width: 90px; }
+tr { break-inside: avoid; }
+thead { display: table-header-group; }
+pre { padding: 14px; background: #f0f4f3; border-left: 3px solid #4c857b; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 "DejaVu Sans Mono", monospace; break-inside: avoid; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: .9em; overflow-wrap: anywhere; }
+li { margin: 6px 0; }
+nav#TOC { padding: 20px 0; }
+nav#TOC > ul { padding-left: 20px; }
+nav#TOC li { margin: 4px 0; }
+@media print {
+body { max-width: none; margin: 0; padding: 0; font-size: 9.5pt; line-height: 1.48; }
+header { padding-top: 45mm; min-height: 225mm; border-bottom: 0; break-after: page; }
+header h1 { font-size: 34pt; }
+header .subtitle { font-size: 16pt; }
+h1 { break-before: page; margin-top: 0; font-size: 23pt; }
+h2 { font-size: 15pt; margin-top: 20px; }
+h3 { font-size: 12pt; }
+table { font-size: 8.3pt; margin: 12px 0; }
+th, td { padding: 5px 6px; }
+pre { font-size: 8pt; }
+nav#TOC { font-size: 9pt; }
+nav#TOC > h2 { margin-top: 0; }
+a { text-decoration: none; }
+}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Drishti3D — Review &amp; Project Report</h1>
+<p class="subtitle">SIH26158 · Independent evidence, market comparison
+and measurement roadmap</p>
+<p class="date">22 September 2026 · Reviewed revision 9506a31</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#critical-review-what-will-actually-improve-drishti3ds-chances" id="toc-critical-review-what-will-actually-improve-drishti3ds-chances">Critical
+review: what will actually improve Drishti3D&#39;s chances</a>
+<ul>
+<li><a href="#1-verdict" id="toc-1-verdict">1. Verdict</a></li>
+<li><a href="#2-what-the-organisers-actually-ask-for" id="toc-2-what-the-organisers-actually-ask-for">2. What the organisers
+actually ask for</a></li>
+<li><a href="#3-what-the-saved-results-proveand-what-they-do-not" id="toc-3-what-the-saved-results-proveand-what-they-do-not">3. What the
+saved results prove—and what they do not</a></li>
+<li><a href="#4-highest-value-implementation-gaps" id="toc-4-highest-value-implementation-gaps">4. Highest-value
+implementation gaps</a></li>
+<li><a href="#5-comparable-products-and-research" id="toc-5-comparable-products-and-research">5. Comparable products and
+research</a></li>
+<li><a href="#6-measurement-improvement-plan" id="toc-6-measurement-improvement-plan">6. Measurement improvement
+plan</a></li>
+<li><a href="#7-ordered-delivery-backlog" id="toc-7-ordered-delivery-backlog">7. Ordered delivery backlog</a></li>
+<li><a href="#8-questions-a-strict-judge-is-likely-to-ask" id="toc-8-questions-a-strict-judge-is-likely-to-ask">8. Questions a
+strict judge is likely to ask</a></li>
+</ul></li>
+<li><a href="#drishti3d-current-project-and-technical-report" id="toc-drishti3d-current-project-and-technical-report">Drishti3D:
+current project and technical report</a>
+<ul>
+<li><a href="#1-executive-abstract" id="toc-1-executive-abstract">1.
+Executive abstract</a></li>
+<li><a href="#2-problem-users-and-objectives" id="toc-2-problem-users-and-objectives">2. Problem, users and
+objectives</a></li>
+<li><a href="#3-end-user-workflow" id="toc-3-end-user-workflow">3.
+End-user workflow</a></li>
+<li><a href="#4-architecture-and-data-flow" id="toc-4-architecture-and-data-flow">4. Architecture and data
+flow</a></li>
+<li><a href="#5-technology-stack-actual-versus-optional" id="toc-5-technology-stack-actual-versus-optional">5. Technology stack:
+actual versus optional</a></li>
+<li><a href="#6-reconstruction-and-measurement-methodology" id="toc-6-reconstruction-and-measurement-methodology">6. Reconstruction
+and measurement methodology</a></li>
+<li><a href="#7-implemented-capability-and-maturity-register" id="toc-7-implemented-capability-and-maturity-register">7. Implemented
+capability and maturity register</a></li>
+<li><a href="#8-validation-and-current-evidence" id="toc-8-validation-and-current-evidence">8. Validation and current
+evidence</a></li>
+<li><a href="#9-feasibility-resources-and-deployment" id="toc-9-feasibility-resources-and-deployment">9. Feasibility,
+resources and deployment</a></li>
+<li><a href="#10-risks-and-mitigations" id="toc-10-risks-and-mitigations">10. Risks and mitigations</a></li>
+<li><a href="#11-impact-and-benefits-hypotheses-with-measurable-outcomes" id="toc-11-impact-and-benefits-hypotheses-with-measurable-outcomes">11.
+Impact and benefits: hypotheses with measurable outcomes</a></li>
+<li><a href="#12-development-roadmap-and-presentation-message" id="toc-12-development-roadmap-and-presentation-message">12. Development
+roadmap and presentation message</a></li>
+</ul></li>
+<li><a href="#sih-2026-presentation-handoff" id="toc-sih-2026-presentation-handoff">SIH 2026 presentation handoff</a>
+<ul>
+<li><a href="#slide-1--title-and-problem-identity" id="toc-slide-1--title-and-problem-identity">Slide 1 — Title and problem
+identity</a></li>
+<li><a href="#slide-2--proposed-solution-and-distinctive-contribution" id="toc-slide-2--proposed-solution-and-distinctive-contribution">Slide 2
+— Proposed solution and distinctive contribution</a></li>
+<li><a href="#slide-3--technical-approach" id="toc-slide-3--technical-approach">Slide 3 — Technical
+approach</a></li>
+<li><a href="#slide-4--feasibility-risks-and-validation" id="toc-slide-4--feasibility-risks-and-validation">Slide 4 —
+Feasibility, risks and validation</a></li>
+<li><a href="#slide-5--impact-and-benefits" id="toc-slide-5--impact-and-benefits">Slide 5 — Impact and
+benefits</a></li>
+<li><a href="#slide-6--research-and-references" id="toc-slide-6--research-and-references">Slide 6 — Research and
+references</a></li>
+<li><a href="#demonstration-sequence-and-handoff-checklist" id="toc-demonstration-sequence-and-handoff-checklist">Demonstration
+sequence and handoff checklist</a></li>
+</ul></li>
+<li><a href="#drishti3d--review-and-sih-report-pack" id="toc-drishti3d--review-and-sih-report-pack">Drishti3D — review and
+SIH report pack</a>
+<ul>
+<li><a href="#verification-performed" id="toc-verification-performed">Verification performed</a></li>
+<li><a href="#official-source-trail" id="toc-official-source-trail">Official source trail</a></li>
+<li><a href="#presentation-sources-and-a-date-discrepancy" id="toc-presentation-sources-and-a-date-discrepancy">Presentation
+sources and a date discrepancy</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="critical-review-what-will-actually-improve-drishti3ds-chances">Critical
+review: what will actually improve Drishti3D&#39;s chances</h1>
+<p><strong>Review date:</strong> 22 September 2026. <strong>Code
+reviewed:</strong> <code>9506a31</code>. Companion: <a href="PROJECT_REPORT.md">current project report</a>, <a href="README.md">source trail and verification</a>.</p>
+<h2 id="1-verdict">1. Verdict</h2>
+<p>Drishti3D now has a substantial working prototype: reconstruction,
+georeferencing, measurement evidence, targeted refinement, exports and a
+coherent frontend. The previous review&#39;s regression failures are fixed.
+The strongest progress is that the system increasingly distinguishes a
+plausible result from a defensible measurement.</p>
+<p>However, <strong>the repository does not yet demonstrate that the
+project meets the organiser&#39;s principal accuracy, completeness and speed
+expectations</strong>. A polished viewer, millions of points, low
+reprojection error and passing tests cannot substitute for those
+demonstrations. The next iteration should be an
+evaluation-and-integration sprint, not another broad feature
+expansion.</p>
+<p>The key risk is credibility: the latest dimensional experiment is
+useful exploratory evidence, but its nearest-LiDAR endpoint construction
+does not establish the advertised physical dimensional accuracy.
+Correcting that claim before judges discover the weakness makes the
+project stronger.</p>
+<h2 id="2-what-the-organisers-actually-ask-for">2. What the organisers
+actually ask for</h2>
+<p>The <a href="https://www.sih.gov.in/sih2026PS">official portal</a>
+describes an AI-enabled reconstruction system using one UAV video
+trajectory, with georeferenced metric output suitable for analysis. The
+linked <a href="https://drive.google.com/file/d/119hjXkLhMW_AhQ4cyYz-XJgcVz4BA-hD/view">organiser
+attachment, page 2</a> supplies the numerical expectations absent from
+earlier local reviews.</p>
+<table>
+<thead>
+<tr>
+<th>Scoring category</th>
+<th style="text-align: right;">Weight</th>
+<th>Consequence for this project</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reconstruction accuracy</td>
+<td style="text-align: right;">30%</td>
+<td>Independent physical references must take priority over internally
+estimated confidence.</td>
+</tr>
+<tr>
+<td>Completeness</td>
+<td style="text-align: right;">20%</td>
+<td>Demonstrate how much of the visible scene was reconstructed,
+including difficult surfaces.</td>
+</tr>
+<tr>
+<td>Processing speed</td>
+<td style="text-align: right;">20%</td>
+<td>Benchmark the whole required workflow on the specified video
+duration.</td>
+</tr>
+<tr>
+<td>Innovation</td>
+<td style="text-align: right;">15%</td>
+<td>Prove the measurement-question and refinement workflow&#39;s added
+value.</td>
+</tr>
+<tr>
+<td>Scalability</td>
+<td style="text-align: right;">10%</td>
+<td>Show memory, video-length and job-recovery behaviour.</td>
+</tr>
+<tr>
+<td>User interface</td>
+<td style="text-align: right;">5%</td>
+<td>Improve task clarity and evidence visibility; avoid spending most
+remaining effort on cosmetics.</td>
+</tr>
+</tbody>
+</table>
+<p>The accuracy target is <strong>at most 1 metre</strong>, and
+processing should take <strong>under 15 minutes for a 10-minute
+video</strong>. The attachment calls for the entire visible scene, lists
+OBJ, PLY, LAS, GeoTIFF, GLB/GLTF and FBX, and accepts a web or desktop
+viewer. It does not define whether the accuracy statistic is RMSE, a
+percentile or a maximum, nor specify benchmark hardware. Report several
+statistics and seek clarification without assuming the most favourable
+interpretation. The format list also needs clarification about mandatory
+coverage versus acceptable alternatives.</p>
+<table>
+<thead>
+<tr>
+<th>Requirement or challenge</th>
+<th>Evidence in the current project</th>
+<th>Review status / remaining proof</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One moving-UAV video trajectory</td>
+<td>Video ingestion, keyframes and sequential reconstruction exist.</td>
+<td>Implemented path; principal saved studies use videos assembled from
+still frames, so native-video behaviour needs direct evaluation.</td>
+</tr>
+<tr>
+<td>1080p/4K video, GPS and flight metadata</td>
+<td>Video/telemetry upload, timestamp handling and georegistration.</td>
+<td>Test native 1080p and 4K captures, long files, missing records and
+inconsistent clocks end to end.</td>
+</tr>
+<tr>
+<td>Metric, georeferenced output; ≤1 m spatial target</td>
+<td>ENU reconstruction, projected LAS, georeference sidecars.</td>
+<td>Not demonstrated against independent checkpoints. UseGeo raw
+surface-distance RMSE is 1.283 m.</td>
+</tr>
+<tr>
+<td>Entire visible scene</td>
+<td>Dense MVS and internal visibility/coverage classifications.</td>
+<td>No independent visible-surface completeness score; own-cloud volume
+statistics are not that score.</td>
+</tr>
+<tr>
+<td>Under 15 minutes for 10 minutes of video</td>
+<td>Stage timings and CPU/COLMAP comparisons exist.</td>
+<td>No qualifying benchmark. Existing dense runs exceed 20 minutes on
+much shorter derived videos.</td>
+</tr>
+<tr>
+<td>Mesh or point-cloud output</td>
+<td>Point clouds and coloured GLB meshes exist.</td>
+<td>Point-cloud route is credible; vertex colouring is not UV
+photo-texturing.</td>
+</tr>
+<tr>
+<td>Listed output formats</td>
+<td>PLY, LAS and GLB are wired, alongside reports and trajectory
+exports.</td>
+<td>GeoTIFF and FBX are missing. OBJ/standalone GLTF are not established
+web export options; generic mesh-writer capability is insufficient
+proof.</td>
+</tr>
+<tr>
+<td>Terrain, roofs/facades, roads, vegetation and obstacles</td>
+<td>General geometry and dynamic masking support.</td>
+<td>Need per-scene/per-surface results, particularly facades, thin
+obstacles and vegetation. Semantic labelling is useful, not clearly a
+mandatory output.</td>
+</tr>
+<tr>
+<td>Blur, compression, illumination and motion</td>
+<td>Quality filters, masking and robust matching components.</td>
+<td>Stress-test controlled degradations; identify failure limits instead
+of claiming immunity.</td>
+</tr>
+<tr>
+<td>GPS noise; little dependence on GCPs</td>
+<td>Robust alignment, telemetry quality handling; optional
+corrections.</td>
+<td>Establish a consumer-GPS baseline separately from RTK/PPK-assisted
+performance. Optional references cannot become an unstated mandatory
+input.</td>
+</tr>
+<tr>
+<td>Occluded surfaces</td>
+<td>Unobserved/inferred geometry is distinguished from observed
+evidence.</td>
+<td>Show gaps honestly. Unseen surfaces cannot become measured truth
+merely through AI completion.</td>
+</tr>
+<tr>
+<td>AI contribution</td>
+<td>LightGlue/DISK is connected to targeted refinement; optional learned
+masking/depth and research reconstruction modules also exist.</td>
+<td>Extend existing matcher/refinement experiments to independent
+physical accuracy. The main saved COLMAP/MVS runs use classical
+settings.</td>
+</tr>
+</tbody>
+</table>
+<p>The portal says the organiser dataset will be provided in real time;
+a downloadable challenge dataset was not supplied by this entry. Public
+datasets are development evidence, not proof of performance on the
+future organiser data.</p>
+<h2 id="3-what-the-saved-results-proveand-what-they-do-not">3. What the
+saved results prove—and what they do not</h2>
+<p>These figures come from saved artifacts, not new reconstruction runs
+in this review.</p>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th style="text-align: right;">UseGeo <code>usegeo_1__first</code></th>
+<th style="text-align: right;">AGZ
+<code>agz_dense_pass__dense_mvs</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Registered selected cameras</td>
+<td style="text-align: right;">60/60</td>
+<td style="text-align: right;">80/80</td>
+</tr>
+<tr>
+<td>Final cloud points</td>
+<td style="text-align: right;">2,138,943</td>
+<td style="text-align: right;">251,785</td>
+</tr>
+<tr>
+<td>Median reprojection error</td>
+<td style="text-align: right;">0.271 px</td>
+<td style="text-align: right;">0.326 px</td>
+</tr>
+<tr>
+<td>Camera/GPS alignment RMSE, 3D</td>
+<td style="text-align: right;">0.293 m</td>
+<td style="text-align: right;">6.143 m</td>
+</tr>
+<tr>
+<td>Recorded processing time</td>
+<td style="text-align: right;">1,401.3 s / 23.36 min</td>
+<td style="text-align: right;">1,243.463 s / 20.72 min</td>
+</tr>
+<tr>
+<td>Derived video duration</td>
+<td style="text-align: right;">125.44 s</td>
+<td style="text-align: right;">184.48 s</td>
+</tr>
+<tr>
+<td>Processing/video-duration ratio</td>
+<td style="text-align: right;">11.17</td>
+<td style="text-align: right;">6.74</td>
+</tr>
+<tr>
+<td>Independent absolute checkpoint accuracy</td>
+<td style="text-align: right;">Not established</td>
+<td style="text-align: right;">Not established</td>
+</tr>
+</tbody>
+</table>
+<p>UseGeo is an approximately 0.478 fps, 7952×5278 video assembled from
+60 images. AGZ is an approximately 0.997 fps, 1920×1080 sequence
+assembled from 184 images, of which 80 were selected as keyframes. These
+are not substitutes for a ten-minute native video. Their timing ratios
+are diagnostic, not a valid linear forecast of performance on the
+organiser&#39;s workload. In the current AGZ artifact, densification
+consumes <strong>1,155.367 seconds</strong>, about <strong>93%</strong>
+of reported runtime: optimise that stage before micro-optimising the
+interface.</p>
+<h3 id="usegeo-independent-lidar-comparison">UseGeo independent LiDAR
+comparison</h3>
+<p>The saved <code>lidar_score.json</code> reports 200,000 sampled
+reconstructed points, with 199,956 within a 5 m nearest-reference
+cutoff:</p>
+<ul>
+<li>Raw nearest-surface median <strong>1.360 m</strong>, p90
+<strong>1.640 m</strong>, RMSE <strong>1.283 m</strong>.</li>
+<li>Median signed vertical difference approximately <strong>+1.245
+m</strong>.</li>
+<li>Subtracting a median bias estimated from that same reference
+produces median <strong>0.299 m</strong> and RMSE <strong>0.330
+m</strong>. This diagnoses an offset; it is not an independently
+validated production correction.</li>
+<li>Raw reference-to-reconstruction completeness within the
+reconstruction&#39;s own footprint is <strong>1.463% at 0.25 m</strong> and
+<strong>4.207% at 0.5 m</strong>. These values are affected by the
+offset and are not a whole-visible-scene coverage measure.</li>
+</ul>
+<p>The raw 1.283 m figure exceeds 1 m, but it is a nearest-surface
+statistic, not the organiser&#39;s still-undefined spatial-accuracy
+protocol. The responsible conclusion is <strong>compliance not
+demonstrated</strong>, not a certified pass/fail determination using an
+invented protocol.</p>
+<p>The score&#39;s 4.55% containment under a <code>1.96 × sigma</code> rule
+is a serious discrepancy for that experiment. However, unsigned 3D
+surface distance compared with a scalar uncertainty is not a calibrated
+two-sided measurement-interval experiment. Do not present it as a
+universal coverage rate for every length or height measurement.</p>
+<h3 id="why-the-latest-88-cm-dimensional-claim-needs-revision">Why the
+latest 8.8 cm dimensional claim needs revision</h3>
+<p>The latest documentation describes selecting each reconstructed
+endpoint&#39;s nearest LiDAR neighbour and comparing lengths between those
+selected neighbours. It reports a median error of 0.088 m over 5–60 m
+baselines. This is <strong>surface-consistency evidence with
+output-dependent correspondences</strong>, not independent
+identification of the same physical endpoints.</p>
+<p>A reproducible counterexample is included in
+<code>measurement_validity_probe.json</code>: a true 10 m segment is
+reconstructed as 10.5 m on a densely sampled plane. Its
+nearest-reference endpoint pair is also 10.5 m, so the experiment
+reports essentially zero error despite a real <strong>0.5 m /
+5%</strong> error. This does not establish that UseGeo has that error;
+it establishes that the current method cannot rule it out.</p>
+<p>The claimed flat long-baseline result also uses the
+best-corresponding 6.4% of points. Do not combine that subset result
+with the all-point 0.088 m number as if they describe one population.
+The latest commit records the analysis in documentation; a reproducible
+dimensional scorer with raw named pairs was not located.</p>
+<p><strong>Required correction:</strong> label these numbers
+exploratory, retain the useful experiment, and add independently named
+endpoints, a frozen test manifest, the scorer, random seed, exclusions
+and complete outputs. A ratio of median absolute error to median sigma
+does not prove conservative 95% intervals; the included counterexample
+has a zero median ratio while covering only 60% of errors.</p>
+<h3 id="revisit-the-explanation-of-planarity">Revisit the explanation of
+planarity</h3>
+<p>The new fail-closed measurement guard is safer than allowing
+unsupported claims. Its mathematical explanation needs precision:
+non-collinear planar 3D correspondences can determine a proper
+seven-parameter similarity transform. The diagnostic script demonstrates
+a rank-seven Jacobian and essentially exact recovery while the current
+trajectory heuristic flags planarity.</p>
+<p>Planar/nadir image acquisition can still weaken joint camera
+calibration and reconstructed depth. That is different from saying every
+planar point set makes the similarity transform unidentifiable; an
+isotropic similarity also has no separate vertical scale parameter. Keep
+conservative blocking until validated, then replace blanket conclusions
+with joint-system conditioning and quantity-specific evidence. The 1.245
+m bias could involve datum, time, lever arm, camera calibration or
+reconstruction error; planarity alone has not been isolated as its
+cause.</p>
+<h2 id="4-highest-value-implementation-gaps">4. Highest-value
+implementation gaps</h2>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Finding and code evidence</th>
+<th>Concrete completion criterion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>The best demonstrated COLMAP/MVS configuration is not reproducible
+from the normal wizard. Backend/pipeline support is broader than
+<code>frontend/src/api.ts</code> and <code>views/Wizard.tsx</code>.</td>
+<td>A user creates the benchmark configuration through the UI, and its
+saved manifest exactly records the selected engine, MVS options and
+effective settings.</td>
+</tr>
+<tr>
+<td>P0</td>
+<td>Backend <code>Intrinsics</code> supports distortion, model and
+source dimensions; the frontend exposes/preserves only four pinhole
+values.</td>
+<td>Load, resume, edit and process a calibrated mission without losing
+distortion/model/dimensions; show resize/undistortion provenance.</td>
+</tr>
+<tr>
+<td>P0</td>
+<td>Calibration machinery exists, but production question evaluation
+passes <code>profile=None</code> in <code>backend/app/results.py</code>
+and question routes.</td>
+<td>Resolve a versioned, applicable released profile; reject mismatched
+or absent profiles; preserve estimated-only status otherwise. Release
+only after independent held-out evaluation.</td>
+</tr>
+<tr>
+<td>P0</td>
+<td>Independent dimensional and ten-minute benchmarks are missing.</td>
+<td>Publish reproducible raw endpoints, reference uncertainty, all
+outcomes and complete timing/resource logs.</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>New backend result metadata is not fully represented in the
+frontend&#39;s basic <code>Measurement</code> view; degeneracy is
+insufficiently visible.</td>
+<td>Every result presents units/frame, uncertainty status, blocking
+reasons and artifact/profile versions consistently across question,
+measurement and report screens.</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>Viewer picks come from a cloud capped at 120,000 points.</td>
+<td>Image-anchored or full-resolution ROI selection identifies physical
+endpoints; display any snap displacement and refuse unsupported
+corners.</td>
+</tr>
+<tr>
+<td>P1</td>
+<td><code>jobs.py</code> uses a one-worker in-process executor; restart
+state and concurrent mutation handling are incomplete.</td>
+<td>Persistent recoverable job states, duplicate-run prevention,
+cancel/retry, server-side deletion locks and atomic artifact
+publication.</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>Coverage denominator is derived from reconstruction, not
+independently defined visible surfaces.</td>
+<td>Score visible-reference surfaces by category and distinguish
+unobserved, occluded, dynamic, reconstructed and measurable.</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>Existing exports cover only part of the organiser&#39;s format
+table.</td>
+<td>A documented supported-format matrix plus round-trip
+CRS/unit/attribute checks; implement highest-priority missing formats
+after clarification.</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>Optional AI module presence can be mistaken for an executable
+integrated engine.</td>
+<td>Capability probes execute a tiny real reconstruction; unsupported
+web adapters are labelled experimental, and model/weight versions are
+recorded.</td>
+</tr>
+</tbody>
+</table>
+<p>No open P0 above means the old fifteen-check suite regressed. These
+are additional evaluation and integration findings beyond that
+suite.</p>
+<h2 id="5-comparable-products-and-research">5. Comparable products and
+research</h2>
+<p>This is a source-based capability comparison, <strong>not a
+head-to-head accuracy or price benchmark</strong>. Product availability,
+editions and engines must be pinned when experiments are run. “Not
+established” does not mean a competitor lacks a feature.</p>
+<table>
+<thead>
+<tr>
+<th>Comparator</th>
+<th>Verified overlap / established strength</th>
+<th>Implication for Drishti3D</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://webodm.org/">WebODM</a></td>
+<td>Local/offline photo and video processing, georeferenced outputs,
+textured models, measurement, GPU/distributed processing.</td>
+<td>Most direct open-source product baseline. Video input, offline
+operation and a web viewer are not differentiators by themselves.</td>
+</tr>
+<tr>
+<td><a href="https://www.agisoft.com/features/professional-edition/">Agisoft
+Metashape Professional</a></td>
+<td>Aerial photogrammetry, camera calibration, control/scale bars,
+measurements, CRS/vertical reference support and textured outputs.</td>
+<td>Mature metrology and calibration workflow; match its clarity about
+control, datum and quality.</td>
+</tr>
+<tr>
+<td><a href="https://support.pix4d.com/hc/en-us/articles/360040686852">PIX4Dmatic
+quality reports</a></td>
+<td>Reports camera optimisation, geolocation, overlap and
+control/checkpoint information.</td>
+<td>A quality report is an expected feature. Link uncertainty to the
+actual question and independently measured outcomes.</td>
+</tr>
+<tr>
+<td><a href="https://help.dronedeploy.com/hc/en-us/articles/1500004964062-How-Accurate-is-My-Map">DroneDeploy
+accuracy guidance</a> and <a href="https://help.dronedeploy.com/hc/en-us/articles/33265412026519-Verified-Accuracy">Verified
+Accuracy</a></td>
+<td>Distinguishes relative/absolute accuracy and offers accuracy alerts
+and guidance.</td>
+<td>“Trustworthy mapping” alone is not novel. Demonstrate finer-grained
+evidence and targeted correction value.</td>
+</tr>
+<tr>
+<td><a href="https://www.dji.com/support/product/dji-terra">DJI
+Terra</a></td>
+<td>Established reconstruction ecosystem and an offline edition with
+activation requirements.</td>
+<td>Avoid claiming that commercial tools necessarily need a live cloud
+connection. Benchmark the relevant edition and hardware.</td>
+</tr>
+<tr>
+<td><a href="https://rshelp.capturingreality.com/en-US/tools/videoimport.htm">RealityScan
+video import</a></td>
+<td>Video-to-frame import integrated into photogrammetry workflows.</td>
+<td>Automatic frame extraction from a video is established
+functionality.</td>
+</tr>
+<tr>
+<td><a href="https://colmap.github.io/faq.html">COLMAP</a></td>
+<td>SfM/MVS infrastructure, georegistration and pose-prior
+capabilities.</td>
+<td>A component and baseline, not evidence that Drishti invented
+reconstruction. Measure the value added above it.</td>
+</tr>
+<tr>
+<td><a href="https://openaccess.thecvf.com/content/CVPR2025/html/Murai_MASt3R-SLAM_Real-Time_Dense_SLAM_with_3D_Reconstruction_Priors_CVPR_2025_paper.html">MASt3R-SLAM,
+CVPR 2025</a></td>
+<td>Learned-prior dense monocular SLAM; paper reports real-time
+operation in its setting.</td>
+<td>A relevant speed/geometry research baseline. Its reported frame rate
+is not a Drishti3D UAV benchmark.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/facebookresearch/vggt">VGGT
+repository</a></td>
+<td>Learned prediction of cameras and scene geometry, with COLMAP/BA
+integration examples.</td>
+<td>Useful research ingredient, not automatic metric accuracy or a
+finished integrated backend. Check the exact checkpoint licence.</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2509.20757">MASt3R-Fusion</a></td>
+<td>Learned visual geometry with IMU/GNSS integration and metric/global
+constraints.</td>
+<td>Even learned reconstruction plus GNSS/IMU is established research
+territory; narrow the novelty claim.</td>
+</tr>
+</tbody>
+</table>
+<p>WebODM&#39;s current site says it has decoupled from OpenDroneMap and
+uses ODX. Do not silently compare a legacy ODM installation with claims
+from the current WebODM product without recording versions. Its <a href="https://docs.webodm.org/tutorials/options-selection-guide/">video
+options documentation</a> also covers video-frame controls and
+associated GPS subtitles.</p>
+<p>The VGGT repository distinguishes its original non-commercial
+checkpoint from a later commercial checkpoint and explicitly excludes
+military applications from that commercial permission. The <a href="https://github.com/facebookresearch/vggt/blob/main/LICENSE.txt">licence&#39;s
+acceptable-use conditions</a> therefore need review for the intended
+deployment. Do not assume “open source” means every code/weight
+combination is suitable for an NTRO deployment. A working classical path
+remains useful while optional model licences are resolved.</p>
+<h3 id="a-defensible-uniqueness-claim">A defensible uniqueness
+claim</h3>
+<p><strong>Proposed positioning:</strong> “Drishti3D turns a single
+recorded UAV pass into measurement questions backed by source
+observations, explicit limits and a targeted refinement trail.”</p>
+<p>The potentially distinctive combination is:</p>
+<ol type="1">
+<li>Start with a named distance, height or area question and its
+required tolerance.</li>
+<li>Connect the answer to actual source-frame observations, coordinate
+frame and reconstruction version.</li>
+<li>Distinguish an estimate from a calibrated decision, and refuse
+unsupported conclusions.</li>
+<li>Select additional useful frames from the <strong>same recorded
+pass</strong>, under a time budget.</li>
+<li>Show before/after evidence, cost and independently measured
+improvement.</li>
+</ol>
+<p>The repository contains meaningful parts of this workflow, but
+calibrated acceptance and independent before/after accuracy gains are
+not yet established. This is a promising product/research hypothesis,
+not a proven world-first claim. No patent or exhaustive novelty search
+was performed.</p>
+<h3 id="how-to-prove-the-difference">How to prove the difference</h3>
+<p>Run Drishti3D, a pinned WebODM engine and COLMAP on the same held-out
+captures and hardware. Use two tracks: each product&#39;s normal
+best-practice workflow, and an identical-frame/identical-control
+experiment. Record human effort, settings, failures, preprocessing and
+runtime boundaries. Measure absolute accuracy, named dimensions,
+visible-surface completeness, total time and memory. For Drishti3D,
+compare targeted refinement against no refinement and uniformly selected
+extra frames under the same compute budget. A result is valuable only if
+it improves physical error or the calibrated decision, not merely
+confidence or point count.</p>
+<h2 id="6-measurement-improvement-plan">6. Measurement improvement
+plan</h2>
+<h3 id="step-1--make-the-evaluation-independent">Step 1 — Make the
+evaluation independent</h3>
+<p>Before inspecting new outputs, freeze identifiable landmarks and
+tasks: road widths, roof-edge lengths, wall/roof heights with defined
+ground bases, and planar areas. Obtain surveyed coordinates or
+independently extracted LiDAR features with reference uncertainty. A
+nearby LiDAR point selected after reconstruction is not a ground-truth
+identity.</p>
+<p>Store flight/site IDs, source images, endpoint identities, reference
+coordinates, horizontal/vertical datum, time basis, measurement
+definition and exclusions. Separate calibration, tuning and final
+evaluation by <strong>site/flight</strong>, not adjacent frames or two
+halves of the same flight. An initial six-flight/three-site matrix is a
+practical engineering start, not proof of a calibrated 95%
+guarantee.</p>
+<p>Report signed bias, MAE, RMSE, p50/p90/p95, maximum error and task
+success/refusal rates. Separate length, vertical height, horizontal area
+and any later surface-area implementation. Use flight-clustered
+uncertainty intervals; millions of correlated random point pairs do not
+create millions of independent experiments. Publish results before and
+after any fitted correction, with correction parameters fitted only on
+training data.</p>
+<h3 id="step-2--fix-the-input-and-coordinate-error-budget">Step 2 — Fix
+the input and coordinate error budget</h3>
+<ul>
+<li>Preserve full camera model, distortion coefficients, source
+resolution and resize transforms through the UI, database, pipeline and
+export. Verify undistortion happens exactly once.</li>
+<li>Validate UTC/GPS epochs, leap-second conversion, video timestamps,
+clock offset/drift and dropped frames. The documented 18-second UseGeo
+conversion issue makes this a demonstrated concern.</li>
+<li>Resolve ellipsoidal versus orthometric altitude explicitly before
+attributing vertical bias to geometry. Preserve CRS and geoid-model
+provenance.</li>
+<li>Apply a correctly oriented antenna-to-camera lever arm where
+supplied. Use RTK quality and anisotropic GNSS uncertainty when
+available; do not silently promote ordinary GPS to RTK quality.</li>
+<li>Keep automated offset/gravity corrections gated by evidence.
+Rejected estimates should remain visible rather than being forced to
+make a residual smaller.</li>
+</ul>
+<p><strong>Exit gate:</strong> synthetic and surveyed coordinate checks
+agree, a calibrated mission survives UI round trips, and no constant
+correction is estimated on the final test set.</p>
+<h3 id="step-3--improve-geometry-where-it-changes-the-answer">Step 3 —
+Improve geometry where it changes the answer</h3>
+<p>Expose the proven COLMAP/MVS path through the website. Compare
+post-hoc similarity alignment against joint pose-prior bundle
+adjustment, using the installed COLMAP version&#39;s supported APIs and
+correctly transformed covariances. Constrain camera calibration
+appropriately for weak acquisition geometry; avoid simultaneously
+freeing poorly observed parameters.</p>
+<p>For endpoint precision, combine full-resolution image selection with
+local point/plane/edge fitting. Retain the original clicked observation,
+fitted support, residuals and snap displacement. A fitted roof plane may
+improve height on a clean roof, but fitting across vegetation or two
+intersecting surfaces can make an answer confidently wrong. Require
+support and reject ambiguous geometry.</p>
+<p>Improve height using a defined local ground reference and validated
+gravity direction. Keep XY-projected area distinct from sloping-surface
+area. Add ground-to-roof workflows before adding a large collection of
+superficially impressive measurement tools.</p>
+<h3 id="step-4--model-uncertainty-for-the-quantity-being-measured">Step
+4 — Model uncertainty for the quantity being measured</h3>
+<p>Current sparse point covariance conditions on fixed camera poses;
+dense uncertainty is approximate. Neither alone captures shared pose
+error, scale, datum bias or endpoint ambiguity. Preserve anisotropic
+covariance rather than reducing all evidence prematurely to a
+scalar.</p>
+<p>For a two-endpoint length L with direction u, a useful local
+approximation is:</p>
+<pre class="text"><code>Var(L) ≈ uᵀ(Ca + Cb − Cab − Cba)u + L² × σ²_relative_scale</code></pre>
+<p>Here Cab is endpoint cross-covariance. Common translation cancels
+from a length, but scale does not. If scale is already part of the joint
+state covariance, do not count its contribution twice. Vertical height
+uses the vertical projection of the relative covariance plus orientation
+uncertainty. Area requires its coordinate Jacobian and appropriate scale
+propagation; under isotropic scaling alone, its scale contribution is
+approximately <code>4 × A² × σ²_relative_scale</code>.</p>
+<p>Calibrate the resulting intervals empirically on held-out flights, by
+measurement kind and acquisition regime. Report coverage <strong>and
+interval width</strong>, with uncertainty on the coverage estimate. A
+narrow interval is not better if it misses truth, and an arbitrarily
+huge interval is not useful merely because it covers truth. A scalar
+<code>1.96 × sigma</code> rule for signed one-dimensional errors is not
+automatically a 95% radial 3D bound.</p>
+<h3 id="step-5--make-try-targeted-refinement-earn-its-place">Step 5 —
+Make “Try targeted refinement” earn its place</h3>
+<p>The option revisits a question using additional useful observations
+from the existing recording and local refinement. It cannot create
+missing viewpoints, resolve an unknown datum by itself, or certify a
+result without calibration.</p>
+<p>Why not run it automatically for everything? Extra frames consume
+compute, may repeat the same viewing direction, can introduce bad
+matches or motion, and may offer no remaining information. One
+documented independent segment had all 62 frames already selected, with
+only 19 registering, so there was no extra-frame pool to exploit.
+Existing AGZ targeted-refinement studies improve an internal “blocked
+only by calibration” yield, <strong>not independently verified physical
+accuracy</strong>.</p>
+<p>A better policy is automatic refinement only when a requested
+tolerance is unmet, useful candidates remain and predicted information
+gain justifies the runtime. Rank candidates by novel baseline, target
+visibility, image quality and expected uncertainty reduction per second.
+Preserve a no-change outcome, a clear reason for refusal, and the
+previous artifact. Validate this policy against uniform selection and
+actual reference error. A recommended second flight is a transparent
+fallback, not a successful single-pass result.</p>
+<h2 id="7-ordered-delivery-backlog">7. Ordered delivery backlog</h2>
+<p>Effort estimates are planning ranges, not commitments; data
+availability is the main dependency. Assign by responsibility, not by
+inventing team members.</p>
+<table>
+<thead>
+<tr>
+<th>Order / owner role</th>
+<th>Deliverable</th>
+<th>Suggested effort</th>
+<th>Acceptance evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 / evaluation lead</td>
+<td>Freeze truthful claims and build independent landmark scorer.</td>
+<td>1–2 days once references exist</td>
+<td>Versioned pair manifest, raw outputs, no nearest-match identity
+leakage.</td>
+</tr>
+<tr>
+<td>2 / frontend + reconstruction</td>
+<td>Preserve calibration metadata; expose engine/MVS presets; surface
+measurement status.</td>
+<td>1–2 days</td>
+<td>UI-created run matches benchmark manifest and retains intrinsics on
+resume.</td>
+</tr>
+<tr>
+<td>3 / reconstruction</td>
+<td>Datum/time/lever-arm investigation and geometry ablations.</td>
+<td>2–4 days</td>
+<td>Independently held-out bias/error reductions with corrections
+traceable.</td>
+</tr>
+<tr>
+<td>4 / performance</td>
+<td>Native ten-minute 1080p and 4K runs; stage profiling and bounded
+MVS.</td>
+<td>1–3 days</td>
+<td>End-to-end time, hardware/VRAM/RAM, failures and accuracy/coverage
+tradeoffs.</td>
+</tr>
+<tr>
+<td>5 / evaluation</td>
+<td>Visible-surface completeness and competitor benchmark.</td>
+<td>2–4 days</td>
+<td>Common input matrix, per-surface recall, matched settings and
+reproducible scripts.</td>
+</tr>
+<tr>
+<td>6 / measurement</td>
+<td>Uncertainty/profile integration and targeted-refinement
+validation.</td>
+<td>3–5 days after reference data</td>
+<td>Held-out coverage, widths, false decisions, refusal rate and
+before/after error.</td>
+</tr>
+<tr>
+<td>7 / platform</td>
+<td>Durable jobs, atomic artifacts, format round trips and offline
+rehearsal.</td>
+<td>2–4 days</td>
+<td>Restart/cancel/retry/concurrent-request tests and exported files
+opened independently.</td>
+</tr>
+<tr>
+<td>8 / presentation</td>
+<td>Six-slide evidence-led pitch and repeatable demonstration.</td>
+<td>1 day after results freeze</td>
+<td>Every headline points to a current artifact; limitations survive the
+demo narrative.</td>
+</tr>
+</tbody>
+</table>
+<p>Within a short deadline, do the first four and make the remaining
+gaps explicit. Avoid diverting effort into a chatbot, ornamental
+dashboards, speculative object recognition or photorealistic completion
+unless a controlled experiment shows they improve a scored
+requirement.</p>
+<h2 id="8-questions-a-strict-judge-is-likely-to-ask">8. Questions a
+strict judge is likely to ask</h2>
+<ol type="1">
+<li>“Show the same named physical endpoints in your output and
+independent reference. What is the worst error?”</li>
+<li>“Which ten-minute video finished in under fifteen minutes, on what
+machine, including which stages?”</li>
+<li>“How did you define the entire visible scene before looking at your
+own reconstruction?”</li>
+<li>“What happens to facades, power-line-like thin obstacles,
+vegetation, shadows and moving vehicles?”</li>
+<li>“Why does your camera/GPS residual look good while the LiDAR
+comparison is over a metre away?”</li>
+<li>“What part is your contribution above COLMAP or WebODM, and where is
+the controlled comparison?”</li>
+<li>“Does this button improve real measurement error or only your own
+score?”</li>
+<li>“Can I reproduce your best run from the website and open the
+exported file with the same units and CRS?”</li>
+<li>“What does the system do when no trustworthy measurement is
+possible?”</li>
+<li>“Which optional AI component actually ran, what did it improve, and
+can it be deployed under its licence?”</li>
+</ol>
+<h1 id="drishti3d-current-project-and-technical-report">Drishti3D:
+current project and technical report</h1>
+<p><strong>SIH26158 · NTRO · Software · Robotics and
+Drones</strong><br />
+<strong>Snapshot:</strong> 22 September 2026, revision
+<code>9506a31</code>.<br />
+<strong>Purpose:</strong> technical dossier, SIH presentation
+preparation and implementation handoff.<br />
+<strong>Status:</strong> working research prototype; organiser-target
+compliance and calibrated measurement accuracy remain to be
+demonstrated.</p>
+<h2 id="1-executive-abstract">1. Executive abstract</h2>
+<p>Drishti3D reconstructs a scene from a recorded monocular UAV pass and
+associated telemetry, then lets an analyst inspect the geometry and ask
+measurement questions. Its main design emphasis is traceability:
+distinguish observed geometry from assisted or unsupported geometry,
+carry coordinate and uncertainty information, and explain why a
+measurement should or should not support a decision.</p>
+<p>The current system combines a React/Three.js web interface, a FastAPI
+service, a Python reconstruction package, OpenCV and optional
+COLMAP/dense MVS. It includes mission management, video and telemetry
+processing, georegistration, measurement tools, evidence and provenance,
+targeted refinement, quality reports and standard point-cloud/mesh
+exports. Optional learned components and research engines exist, but
+their integration maturity differs; they are not all available as
+complete website workflows.</p>
+<p>Fresh checks passed 444 main tests, all 15 previous-review checks,
+and the frontend production build. Saved artifacts include a
+2.14-million-point UseGeo cloud and a 251,785-point AGZ cloud. These
+demonstrate functioning reconstruction; they do not establish centimetre
+accuracy or the organiser&#39;s speed and completeness targets. The
+companion critical review specifies the remaining experiments and
+improvements.</p>
+<h2 id="2-problem-users-and-objectives">2. Problem, users and
+objectives</h2>
+<p>The <a href="https://www.sih.gov.in/sih2026PS">official SIH
+statement</a> asks for single-pass UAV video reconstruction suitable for
+metric and geospatial analysis. Its <a href="https://drive.google.com/file/d/119hjXkLhMW_AhQ4cyYz-XJgcVz4BA-hD/view">linked
+attachment</a> supplies the output targets and scoring rubric,
+reproduced in the companion review. The product should minimise
+dependence on extensive ground control while tolerating imperfect video
+and telemetry.</p>
+<p>Intended users are analysts who need to inspect terrain, structures,
+infrastructure and obstacles from a captured pass. Civilian applications
+could include infrastructure inspection, disaster assessment, site
+documentation and environmental observation; these are proposed
+applications, not completed deployments or partnerships.</p>
+<p>The principal objectives are:</p>
+<ol type="1">
+<li>Produce inspectable, georeferenced geometry from one recorded
+trajectory.</li>
+<li>Support clear distance, height and area questions with explicit
+units and evidence.</li>
+<li>Identify incomplete or unreliable regions rather than hide
+them.</li>
+<li>Improve an eligible question using unused observations from the same
+recording.</li>
+<li>Export geometry and evidence for independent inspection.</li>
+<li>Validate accuracy, completeness and runtime on representative
+held-out data.</li>
+</ol>
+<h2 id="3-end-user-workflow">3. End-user workflow</h2>
+<p><strong>Overview → mission library → upload/setup → processing
+monitor → analysis workspace → question/refinement →
+report/export.</strong></p>
+<p>The overview introduces the project through a spatial visualisation
+and routes into missions. The library supports finding and resuming
+missions. Setup accepts video, telemetry and basic camera parameters.
+The processing screen presents staged progress. The workspace displays
+point geometry, camera context and measurement/question controls, while
+the report collects quality indicators and downloadable artifacts.</p>
+<p>The redesign includes responsive navigation, clearer states,
+resumable draft setup and a WebGL-unavailable fallback. Its illustrative
+overview scene must remain recognisable as a research/demo asset rather
+than a fresh user reconstruction. The intended next UX improvement is
+consistent evidence status at every result: coordinate frame,
+measurement definition, estimated/calibrated state, blocking reason and
+reconstruction version.</p>
+<h2 id="4-architecture-and-data-flow">4. Architecture and data flow</h2>
+<pre class="text"><code>Native video + GPS/flight metadata + optional camera/sensor data
+                            |
+             React / TypeScript web client
+        mission setup, progress, Three.js viewer, questions
+                            |
+                    FastAPI HTTP / SSE
+            validation, routes, SQLite mission records
+                            |
+          in-process serial reconstruction job executor
+                            |
+     decode/timestamps -&gt; quality filtering -&gt; keyframes
+                            |
+        OpenCV SfM or optional COLMAP reconstruction
+            optional learned matching/masking/depth
+                            |
+       camera refinement -&gt; optional dense MVS/fusion
+                            |
+          telemetry alignment / ENU georegistration
+                            |
+         cloud + mesh + observations + manifest + report
+                            |
+        measurements / evidence / targeted refinement
+                            |
+             viewer payloads and export artifacts</code></pre>
+<p>This is a logical flow, not a claim that every engine uses identical
+internal stage ordering. Full-resolution artifacts remain on the
+backend; browser geometry is sampled for interactive display. Mission
+state is stored in SQLite, but live jobs use in-process state and do not
+yet form a durable distributed queue.</p>
+<h3 id="main-code-locations">Main code locations</h3>
+<p>Paths below are relative to <code>drishti3d/</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Code</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Web application</td>
+<td><code>frontend/src/</code>, especially <code>views/</code> and
+<code>api.ts</code></td>
+<td>Overview, mission setup, monitor, workspace, reports and API
+contracts.</td>
+</tr>
+<tr>
+<td>API and persistence</td>
+<td><code>backend/app/</code></td>
+<td>Project/request validation, route handling, database access and
+results.</td>
+</tr>
+<tr>
+<td>Job execution</td>
+<td><code>backend/app/jobs.py</code></td>
+<td>Serial heavyweight work and live progress state.</td>
+</tr>
+<tr>
+<td>Pipeline configuration</td>
+<td><code>reconstruction/drishti_recon/pipeline.py</code></td>
+<td>Orchestration, engine options, reconstruction, artifacts and
+timings.</td>
+</tr>
+<tr>
+<td>Geometry and alignment</td>
+<td><code>sfm.py</code>, <code>geo.py</code>,
+<code>sensors.py</code></td>
+<td>Camera/point reconstruction, coordinate transforms, telemetry and
+corrections.</td>
+</tr>
+<tr>
+<td>Evidence and decisions</td>
+<td><code>evidence.py</code>, <code>questions.py</code>,
+<code>uncertainty.py</code>, <code>refinement.py</code></td>
+<td>Observation support, measurement policy, uncertainty estimates and
+additional-frame refinement.</td>
+</tr>
+<tr>
+<td>Mesh and exports</td>
+<td><code>mesh.py</code>, <code>exports.py</code></td>
+<td>Mesh creation, PLY/LAS/GLB, trajectory/GeoJSON and reports.</td>
+</tr>
+<tr>
+<td>Research AI adapters</td>
+<td><code>ai_adapter.py</code>, <code>dense3d.py</code>,
+<code>vggt_engine.py</code></td>
+<td>Experimental learned reconstruction interfaces and implementations
+with different readiness levels.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-technology-stack-actual-versus-optional">5. Technology stack:
+actual versus optional</h2>
+<p>Version ranges below reflect project declarations unless a resolved
+build version is explicitly stated. They are not a fully pinned
+deployment inventory.</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Current technology</th>
+<th>Role and qualification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UI</td>
+<td>React 18.3.1 range, TypeScript 5.6.2 range, React Router 6.26.2
+range</td>
+<td>Component UI, typed client and navigation.</td>
+</tr>
+<tr>
+<td>Frontend tooling</td>
+<td>Vite 5.4.x; verified build used 5.4.21</td>
+<td>Local development and production bundles.</td>
+</tr>
+<tr>
+<td>Graphics</td>
+<td>Three.js 0.169 range, native canvas/SVG</td>
+<td>Point-cloud interaction and overview visualisation. Cesium and
+MapLibre are not the current stack.</td>
+</tr>
+<tr>
+<td>API</td>
+<td>FastAPI ≥0.110, Uvicorn ≥0.27, Pydantic ≥2.5</td>
+<td>Request validation, uploads, APIs and event streaming.</td>
+</tr>
+<tr>
+<td>Persistence</td>
+<td>SQLAlchemy ≥2, SQLite, filesystem artifacts</td>
+<td>Mission/configuration records and reconstruction outputs.</td>
+</tr>
+<tr>
+<td>Language/runtime</td>
+<td>Python ≥3.10 declared; review environment uses Python 3.12</td>
+<td>Reconstruction and backend computation.</td>
+</tr>
+<tr>
+<td>Numeric/vision core</td>
+<td>NumPy ≥1.24, SciPy ≥1.10, OpenCV ≥4.8</td>
+<td>Linear algebra, optimisation, features, matching and geometry.</td>
+</tr>
+<tr>
+<td>Geodesy</td>
+<td>pyproj ≥3.5</td>
+<td>CRS transformations and georeferencing.</td>
+</tr>
+<tr>
+<td>Video</td>
+<td>imageio ≥2.31, imageio-ffmpeg ≥0.4, FFmpeg-related
+probing/decoding</td>
+<td>Frames and real video timestamps.</td>
+</tr>
+<tr>
+<td>Optional reconstruction</td>
+<td>COLMAP/PyCOLMAP; CUDA COLMAP MVS</td>
+<td>Alternative SfM and multi-view densification; deployment must pin
+compatible versions.</td>
+</tr>
+<tr>
+<td>Optional exports/mesh</td>
+<td>Open3D ≥0.17, laspy ≥2.5</td>
+<td>Mesh processing/GLB and LAS export. GLB uses Open3D, not a separate
+texture pipeline.</td>
+</tr>
+<tr>
+<td>Optional AI</td>
+<td>PyTorch/Torchvision, DISK/ALIKED + LightGlue, Depth Anything V2;
+MASt3R/VGGT research paths</td>
+<td>Learned matching, masking or depth/reconstruction. The matcher
+defaults to DISK; SuperPoint is restricted by default. Model
+availability is not proof of accuracy.</td>
+</tr>
+<tr>
+<td>Packaging</td>
+<td>Python package <code>drishti-recon</code> 0.1.0, npm frontend,
+Docker configuration</td>
+<td>Local deployment and service packaging; the GPU-worker container
+entry is currently a placeholder.</td>
+</tr>
+<tr>
+<td>Verification</td>
+<td>pytest, TypeScript build, earlier Playwright UI checks</td>
+<td>Unit/regression checks and frontend verification.</td>
+</tr>
+</tbody>
+</table>
+<p>Celery, Redis, Kubernetes, a production cloud scheduler, full
+authentication/RBAC and a durable multi-worker GPU service are
+<strong>not current implemented infrastructure</strong>. They must not
+appear as completed stack components in the SIH deck just because an
+older planning document suggested them.</p>
+<h2 id="6-reconstruction-and-measurement-methodology">6. Reconstruction
+and measurement methodology</h2>
+<h3 id="ingestion-frame-selection-and-telemetry">Ingestion, frame
+selection and telemetry</h3>
+<p>The pipeline ingests video, validates metadata, extracts frames with
+timestamp awareness, evaluates image quality and selects keyframes.
+Telemetry is associated with camera time, then used to establish
+metric/geographic scale and placement. Optional sensor handling includes
+guarded time-offset estimates, lens correction and lever-arm processing.
+Rolling-shutter assessment is not a complete rolling-shutter correction
+model, and the current system is not a full IMU/GNSS factor-graph fusion
+implementation.</p>
+<h3 id="geometry">Geometry</h3>
+<p>The default path uses OpenCV feature-based SfM, camera
+registration/triangulation and optimisation. Optional learned features
+can change correspondence generation. The COLMAP path provides an
+alternative reconstruction engine; dense MVS can add image-supported
+points through stereo depth and fusion. Meshing uses available surface
+reconstruction components and vertex colours.</p>
+<p>More points do not automatically mean better dimensions. Weak
+triangulation, poor camera calibration, motion, incorrect scale and
+surface sampling can all survive densification. Density, image
+reprojection residual, camera registration fraction, geometric accuracy
+and coverage must be reported separately.</p>
+<h3 id="georeferencing">Georeferencing</h3>
+<p>Camera trajectories and telemetry support a similarity alignment into
+a local east-north-up coordinate system. Export routines provide
+projected coordinates and a georeference sidecar where applicable. The
+LAS export records a projected CRS and ellipsoidal height; that is not
+automatically a local orthometric/MSL height.</p>
+<p>Camera/GPS fit residual measures agreement with the alignment inputs.
+It is not independent accuracy. The current production guard blocks
+decision-grade use when trajectory conditioning is flagged; the critical
+review explains why the underlying planarity interpretation still needs
+refinement.</p>
+<h3 id="provenance-evidence-and-uncertainty">Provenance, evidence and
+uncertainty</h3>
+<p>The data model distinguishes observed confidence levels, assisted
+geometry, excluded dynamics and unobserved regions. Evidence can connect
+a measurement question to supporting observations and artifact versions.
+Sparse point covariance estimates derive from image geometry while
+holding poses fixed; dense uncertainty is approximate. Current values
+are estimates, not calibrated error guarantees.</p>
+<p>Calibration-profile lifecycle code exists, but the operational
+evaluation path currently supplies no released profile. Therefore the
+presentation must distinguish implemented calibration infrastructure
+from validated, operationally selected calibration.</p>
+<h3 id="measurements-and-refinement">Measurements and refinement</h3>
+<p>The current tools cover lengths/polylines, vertical differences and
+XY-projected polygon areas. XY area is not sloped-surface area; a
+vertical difference between selected points is not automatically
+building height above the correct local ground. Source-image anchors and
+better endpoint selection are priority extensions.</p>
+<p><strong>AI is already integrated in this refinement path:</strong>
+<code>RefinementEngine._transfer_backend</code> loads LightGlue/DISK
+when available, with a classical fallback. The September 20
+targeted-refinement benchmark documents using the learned matcher to
+transfer endpoint locations through image correspondences. This is more
+mature than the separate MASt3R-SLAM/VGGT web adapter stubs. The wizard
+also exposes optional learned depth-prior densification and semantic
+masking, subject to usable dependencies and weights; neither is enabled
+in the two principal COLMAP/MVS run manifests reviewed above.</p>
+<p>Targeted refinement can seek more useful observations from the
+existing recorded pass for a specific question. It is conditional and
+budgeted work, not an “accuracy boost” that always succeeds. If no
+useful frames remain or the limiting factor is missing calibration,
+wrong datum or genuinely unobserved geometry, the correct outcome may be
+no improvement or refusal.</p>
+<h2 id="7-implemented-capability-and-maturity-register">7. Implemented
+capability and maturity register</h2>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Maturity at this revision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mission creation, uploads, saved results and resumed drafts</td>
+<td>Implemented web workflow.</td>
+</tr>
+<tr>
+<td>OpenCV reconstruction and telemetry alignment</td>
+<td>Implemented baseline.</td>
+</tr>
+<tr>
+<td>COLMAP and dense MVS</td>
+<td>Implemented pipeline and saved runs; incomplete normal-wizard
+exposure.</td>
+</tr>
+<tr>
+<td>Basic distance/height/area interactions</td>
+<td>Implemented; endpoint and uncertainty limitations apply.</td>
+</tr>
+<tr>
+<td>Measurement questions, evidence and refinement</td>
+<td>Implemented research workflow; independent accuracy gain and
+calibration remain open.</td>
+</tr>
+<tr>
+<td>Coverage/provenance displays</td>
+<td>Implemented internal indicators; external completeness validation
+missing.</td>
+</tr>
+<tr>
+<td>PLY/LAS/GLB and report exports</td>
+<td>Implemented paths; optional dependencies apply.</td>
+</tr>
+<tr>
+<td>Photo-textured UV mesh, GeoTIFF, FBX</td>
+<td>Not established implemented outputs.</td>
+</tr>
+<tr>
+<td>Learned reconstruction options</td>
+<td>Mixed experimental readiness; some web adapter methods remain
+unimplemented.</td>
+</tr>
+<tr>
+<td>Air-gapped operation</td>
+<td>Plausible after dependencies/weights are provisioned; clean offline
+deployment rehearsal not completed in this audit.</td>
+</tr>
+<tr>
+<td>Persistent queue, restart recovery, multi-user controls</td>
+<td>Incomplete productionisation.</td>
+</tr>
+<tr>
+<td>Organiser metric/runtime compliance</td>
+<td>Not yet demonstrated.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8-validation-and-current-evidence">8. Validation and current
+evidence</h2>
+<p>The review&#39;s fresh verification results are <strong>444 main tests
+passed, 15/15 follow-up checks passed, and a successful TypeScript/Vite
+production build</strong>. These are engineering checks, not independent
+field validation. No new full GPU reconstruction or LiDAR scoring run
+was performed for this document.</p>
+<p>The UseGeo artifact contains 60/60 registered selected cameras and
+2,138,943 points. Its raw LiDAR nearest-surface comparison reports
+median 1.360 m and RMSE 1.283 m, with a substantial vertical bias. The
+current AGZ dense artifact contains 80/80 registered selected cameras
+and 251,785 points. Its camera/GPS alignment RMSE is 6.143 m; that is
+not surveyed positional error. Both current dense runs take over 20
+minutes on short derived videos.</p>
+<p>The controlled AGZ engine comparison recorded OpenCV at 310.7 seconds
+and COLMAP at 86.4 seconds for that experiment—approximately 3.60×
+faster. That experiment used CPU reconstruction; its laptop&#39;s RTX 5060 8
+GB GPU was not used by those compared engines. Do not combine those
+sparse-stage numbers with dense end-to-end performance or present them
+as a universal speedup.</p>
+<p>The targeted-refinement benchmark contains 20 questions for the full
+AGZ capture and each of two same-flight halves. On the full capture,
+“blocked only by calibration” yield rose from 8 to 15 under targeted
+refinement versus 10 with uniform selection. Targeted runtime was 88.6
+seconds versus 135.4 seconds for uniform selection. Those are internal
+readiness outcomes, not accepted measurements, and the three partitions
+are not independent flights. A further independent segment could not
+supply extra unused frames. These limitations should stay attached to
+any chart of that benchmark.</p>
+<p>An older six-trial synthetic matcher ablation
+(<code>docs/benchmarks/2026-09-04_matcher_ablation/BENCHMARK.md</code>)
+compared the classical baseline with DISK/LightGlue. Reported median
+completeness increased from 62.4% to 64.3%, while median dimensional
+error increased from 2.22% to 3.11% and median runtime from 97.9 to
+118.0 seconds. Its recorded tree was dirty, so it cannot be reproduced
+from the listed commit alone; these are historical, protocol-dependent
+results, not a current real-flight verdict. They nevertheless show why
+AI components should be evaluated individually rather than assumed to
+improve every metric.</p>
+<h3 id="evidence-inventory">Evidence inventory</h3>
+<p>Repository-relative sources:</p>
+<ul>
+<li><code>data/runs/usegeo_1__first/artifacts/quality_report.json</code></li>
+<li><code>data/runs/usegeo_1__first/lidar_score.json</code></li>
+<li><code>data/runs/agz_dense_pass__dense_mvs/artifacts/quality_report.json</code></li>
+<li><code>docs/benchmarks/2026-09-19_agz_single_pass_engines/RESULTS.md</code></li>
+<li><code>docs/benchmarks/2026-09-20_f4_second_capture/RESULTS.md</code></li>
+<li><code>docs/benchmarks/2026-09-21_dense_mvs/RESULTS.md</code></li>
+<li>Root <code>DECISIONS.md</code> and
+<code>TESTS_AND_RESULTS.md</code>, which include newer dimensional notes
+requiring the qualification in the critical review.</li>
+</ul>
+<p>Some historical benchmark documents describe earlier cloud counts or
+uncertainty calculations. Current JSON artifacts take precedence for the
+snapshot values above. The project should next capture artifact hashes,
+complete commands, dependency locks and hardware/resource logs in each
+benchmark manifest.</p>
+<h2 id="9-feasibility-resources-and-deployment">9. Feasibility,
+resources and deployment</h2>
+<p>The classical path can run without downloading learned weights, which
+provides a practical development and fallback route. Dense
+reconstruction and optional learned models add GPU, memory and
+dependency demands. A recorded laptop experiment is not a universal
+minimum hardware specification; benchmark actual target hardware before
+promising deployment capacity.</p>
+<p>Required resources are a representative video/telemetry collection,
+independently referenced test locations, calibrated camera information
+where available, local SSD capacity for frames/intermediates, and
+suitable CPU/GPU resources for the chosen configuration.
+Network-independent deployment requires packaging dependencies and
+permitted weights in advance and checking for runtime download
+attempts.</p>
+<p>A useful operational cost model is:</p>
+<pre class="text"><code>cost per processed mission = compute + storage + operator time
+                           + reference-data acquisition + support</code></pre>
+<p>No verified rupee estimate, operating-cost reduction, customer count
+or market-size claim is available from the repository. Measure operator
+minutes, runtime, peak memory, stored bytes and repeat-failure cost
+before attaching a financial benefit to the proposal. Infrastructure
+ownership and the organisation&#39;s deployment constraints should determine
+local workstation versus managed server packaging.</p>
+<h2 id="10-risks-and-mitigations">10. Risks and mitigations</h2>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Practical mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small reprojection error masks wrong real-world geometry.</td>
+<td>Independent named checkpoints and dimensions; holdout splits;
+publish failure tails.</td>
+</tr>
+<tr>
+<td>GPS/datum/time error shifts an otherwise coherent model.</td>
+<td>Coordinate/time provenance, robust sensor checks and appropriate
+pose priors.</td>
+</tr>
+<tr>
+<td>Missing overlap, blur, vegetation or moving objects limit
+reconstruction.</td>
+<td>Quality assessment, dynamic masks, category-specific tests and
+explicit refusal/gap maps.</td>
+</tr>
+<tr>
+<td>Dense MVS exceeds the processing budget.</td>
+<td>Profile stage cost, adaptive image scale, bounded neighbours, ROI
+refinement and complete-run timing.</td>
+</tr>
+<tr>
+<td>Confidence becomes a misleading accuracy claim.</td>
+<td>Separate estimates from calibrated intervals and validate
+coverage/width on unseen flights.</td>
+</tr>
+<tr>
+<td>A model licence is incompatible with intended deployment.</td>
+<td>Pin code and checkpoint licences, review actual terms, retain an
+approved alternative engine.</td>
+</tr>
+<tr>
+<td>UI configuration silently differs from the successful research
+run.</td>
+<td>Shared typed configuration schema and persisted effective
+settings.</td>
+</tr>
+<tr>
+<td>Restart or concurrent actions damage mission state.</td>
+<td>Durable queue/state, cancellation, locking and atomic artifact
+versions.</td>
+</tr>
+<tr>
+<td>Inferred surfaces look measured.</td>
+<td>Persistent provenance styling and exclusion from supported
+measurement unless independently validated.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="11-impact-and-benefits-hypotheses-with-measurable-outcomes">11.
+Impact and benefits: hypotheses with measurable outcomes</h2>
+<p>The potential benefit is quicker conversion of captured video into
+usable spatial evidence with less manual interpretation. Traceable
+measurements could reduce unnecessary confidence in incomplete
+reconstructions and help operators decide whether the existing recording
+is sufficient.</p>
+<p>Measure impact through time to the first useful answer, median
+operator effort, fraction of requested tasks answered within tolerance,
+false acceptance rate, refusal rate, exported-artifact usability and
+number of repeat captures avoided. Repeat-capture savings are a
+hypothesis until measured. Societal/environmental benefits should be
+linked to actual inspection or response workflows rather than generic
+claims about saving lives or reducing emissions.</p>
+<p>The immediate product objective is an analyst workstation prototype
+with reproducible evaluation. A broader multi-user geospatial platform
+is a later stage. This scope is credible and leaves room for a
+distinctive measurement workflow without pretending to replace every
+feature of mature photogrammetry products.</p>
+<h2 id="12-development-roadmap-and-presentation-message">12. Development
+roadmap and presentation message</h2>
+<p>The next release should freeze evaluation claims, preserve
+calibration settings, expose the strongest reconstruction path, and
+publish native-video runtime and independent landmark results. Then
+integrate released calibration profiles, improve source-based endpoint
+selection and validate targeted refinement against actual physical
+error. Durable job execution and export completeness follow as
+deployment requirements.</p>
+<p>Recommended headline: <strong>“From one UAV pass to traceable spatial
+measurements.”</strong></p>
+<p>Recommended technical message: <strong>“We combine reconstruction
+with measurement-specific evidence, explicit uncertainty limits and
+targeted reuse of the original video.”</strong></p>
+<p>Avoid claiming survey-grade accuracy, guaranteed centimetre
+precision, full autonomy, real-time operation, first-ever video
+reconstruction or proven superiority to commercial products. Those
+claims are not established by current artifacts. A clear account of what
+works, what fails and how it will be measured is more persuasive than an
+inflated feature list.</p>
+<p>The <a href="SIH_SLIDE_HANDOFF.md">six-slide handoff</a> translates
+this report into the current official SIH template. Detailed competitor
+sources and the measurement roadmap are in <a href="CRITICAL_REVIEW.md">the critical review</a>.</p>
+<h1 id="sih-2026-presentation-handoff">SIH 2026 presentation
+handoff</h1>
+<p>Use the <a href="https://www.sih.gov.in/letters/2026/SIH2026-IDEA-Presentation-Format.pptx">official
+2026 PowerPoint template</a>. Its instructions allow <strong>six slides
+including the title</strong>, require the supplied structure and PDF
+submission, and say to remove the instruction slide. This document is
+content and speaking guidance, not a submission-ready deck; team
+identifiers and final experimental results still need to be
+supplied.</p>
+<h2 id="slide-1--title-and-problem-identity">Slide 1 — Title and problem
+identity</h2>
+<p><strong>Drishti3D — From one UAV pass to traceable spatial
+measurements</strong></p>
+<ul>
+<li>Problem statement: <strong>SIH26158</strong>.</li>
+<li>Title: Single-Pass Drone Video to Accurate 3D Model Generation
+System.</li>
+<li>Organisation: NTRO. Theme: Robotics and Drones. Category:
+Software.</li>
+<li>Team name: <strong>[enter registered team name]</strong>. Team ID:
+<strong>[enter issued team ID]</strong>.</li>
+</ul>
+<p><strong>Visual:</strong> one genuine reconstruction crop with a
+source-video inset. Label the dataset and indicate that it is a saved
+research result. Avoid a stock rendered city that could be mistaken for
+an output.</p>
+<p><strong>Speaker note:</strong> “Our focus is turning one recorded
+pass into spatial answers whose supporting evidence and limits an
+analyst can inspect.”</p>
+<h2 id="slide-2--proposed-solution-and-distinctive-contribution">Slide 2
+— Proposed solution and distinctive contribution</h2>
+<p><strong>A measurement has to explain why it can be
+trusted.</strong></p>
+<ul>
+<li>Reconstruct georeferenced geometry from video and telemetry.</li>
+<li>Ask distance, height and area questions with a required
+tolerance.</li>
+<li>Show source observations, geometry provenance and decision
+limits.</li>
+<li>Reuse informative frames from the same recording to refine an
+eligible question.</li>
+</ul>
+<p><strong>Visual:</strong> four-step strip: recording → reconstruction
+→ question → evidence/refinement. Show one actual question card and a
+visible estimated-only/refusal state.</p>
+<p><strong>Speaker note:</strong> “Video reconstruction and measurement
+already exist in other tools. Our proposed distinction is the combined
+question, evidence, refusal and targeted-refinement workflow. Calibrated
+acceptance is still an evaluation milestone.”</p>
+<p>Do not claim that competitors have no confidence tools or that
+Drishti3D invented monocular reconstruction.</p>
+<h2 id="slide-3--technical-approach">Slide 3 — Technical approach</h2>
+<ul>
+<li>React + TypeScript + Three.js workspace; FastAPI/Python
+backend.</li>
+<li>Quality/keyframe selection → OpenCV or COLMAP SfM → optional dense
+MVS.</li>
+<li>GPS/metadata alignment → ENU/georeferenced artifacts → measurement
+evidence.</li>
+<li>Optional learned components are identified by the exact tested
+configuration.</li>
+</ul>
+<p><strong>Visual:</strong> a compact architecture diagram and one real
+result panel. Use no more than three headline numbers: <strong>60/60
+selected cameras registered</strong>, <strong>2.14 M cloud
+points</strong>, <strong>444 engineering tests passed</strong>. Label
+the first two UseGeo; make clear that these are not accuracy
+metrics.</p>
+<p><strong>Speaker note:</strong> “Our measured uncertainty is currently
+a geometric estimate. We retain a classical baseline and evaluate
+learned additions through ablations.”</p>
+<p>Include hardware only for the experiment being shown, not a generic
+GPU logo or an unsupported real-time claim.</p>
+<h2 id="slide-4--feasibility-risks-and-validation">Slide 4 —
+Feasibility, risks and validation</h2>
+<p><strong>Working prototype; the next milestone is independent
+compliance evidence.</strong></p>
+<ul>
+<li>Official targets: ≤1 m spatial accuracy; &lt;15 min for a 10-minute
+video.</li>
+<li>Working: reconstruction, georeferencing, viewer, evidence,
+refinement and exports.</li>
+<li>Current gap: raw UseGeo LiDAR surface RMSE 1.283 m; dense runs
+exceed 20 minutes on shorter derived sequences.</li>
+<li>Plan: independent landmarks, datum/time checks, native-video timing
+and visible-scene completeness.</li>
+</ul>
+<p><strong>Visual:</strong> three rows—accuracy, completeness,
+speed—with “measured”, “gap”, “next test”. Link the organiser attachment
+in a small reference footer.</p>
+<p><strong>Speaker note:</strong> “These are separate tests: camera fit
+is not ground-truth accuracy, point count is not completeness, and a
+sparse-stage speedup is not an end-to-end timing result.”</p>
+<p>Replace provisional figures only after the new scorer and raw
+artifacts are saved. Do not replace them with nearest-neighbour-derived
+dimensional accuracy without the qualification in the review.</p>
+<h2 id="slide-5--impact-and-benefits">Slide 5 — Impact and benefits</h2>
+<ul>
+<li>Help analysts turn a recording into inspectable spatial
+evidence.</li>
+<li>Reduce manual effort through guided questions and reusable source
+observations.</li>
+<li>Make missing coverage and unsupported answers visible before
+decisions.</li>
+<li>Validate practical benefit through task accuracy, time to answer and
+operator effort.</li>
+</ul>
+<p><strong>Visual:</strong> a single before/after analyst workflow with
+measurable milestones. Use proposed applications such as infrastructure
+inspection and disaster assessment, clearly labelled as intended
+uses.</p>
+<p><strong>Speaker note:</strong> “We will measure usefulness as correct
+tasks completed per mission and per unit of effort. We are not claiming
+deployments, financial savings or environmental benefits that have not
+been measured.”</p>
+<h2 id="slide-6--research-and-references">Slide 6 — Research and
+references</h2>
+<p>Use compact links/QRs with legible source titles:</p>
+<ul>
+<li><a href="https://www.sih.gov.in/sih2026PS">SIH26158 official
+listing</a> and <a href="https://drive.google.com/file/d/119hjXkLhMW_AhQ4cyYz-XJgcVz4BA-hD/view">organiser
+attachment</a>.</li>
+<li><a href="https://colmap.github.io/faq.html">COLMAP
+documentation</a>: reconstruction baseline.</li>
+<li><a href="https://webodm.org/">WebODM</a>: closest product
+benchmark.</li>
+<li><a href="https://openaccess.thecvf.com/content/CVPR2025/html/Murai_MASt3R-SLAM_Real-Time_Dense_SLAM_with_3D_Reconstruction_Priors_CVPR_2025_paper.html">MASt3R-SLAM,
+CVPR 2025</a>: learned video-reconstruction research.</li>
+<li>Project benchmark manifest, code revision and reproducible report
+pack: <strong>[add team-accessible repository/report
+link]</strong>.</li>
+</ul>
+<p><strong>Visual:</strong> a small comparison showing shared
+reconstruction functionality and the workflow Drishti3D is testing. Do
+not use unchecked crosses to claim a competitor lacks a feature.</p>
+<h2 id="demonstration-sequence-and-handoff-checklist">Demonstration
+sequence and handoff checklist</h2>
+<p>Suggested live sequence, independent of any formal organiser
+demo-time rule:</p>
+<ol type="1">
+<li>Open an existing completed mission; state dataset, engine and
+saved-run date.</li>
+<li>Show source frames alongside the reconstructed region.</li>
+<li>Ask a named measurement question; inspect the result status and
+supporting evidence.</li>
+<li>Show a precomputed before/after refinement with its runtime and
+remaining blockers. Do not imply cached output was just reconstructed
+live.</li>
+<li>Open the exported artifact/report and show CRS, units and version
+provenance.</li>
+</ol>
+<p>Before submission: fill team identifiers, retain the official
+six-slide structure, verify every number against frozen artifacts,
+include the official source link, export to PDF and visually inspect all
+slides. The long project report supports the deck; it should not be
+submitted as the six-slide presentation.</p>
+<h1 id="drishti3d--review-and-sih-report-pack">Drishti3D — review and
+SIH report pack</h1>
+<p><strong>Prepared:</strong> 22 September 2026. <strong>Reviewed
+revision:</strong>
+<code>9506a31e41f2550652e38fce33914788602ee5ee</code>.</p>
+<p>Start with <a href="CRITICAL_REVIEW.md">the critical review</a> for
+what to fix, <a href="PROJECT_REPORT.md">the project report</a> for the
+current architecture and presentation material, and <a href="SIH_SLIDE_HANDOFF.md">the six-slide handoff</a> for the official
+submission structure. <a href="DRISHTI3D_REVIEW_AND_PROJECT_REPORT.pdf">The combined PDF</a> and
+<a href="DRISHTI3D_REVIEW_AND_PROJECT_REPORT.html">HTML edition</a>
+collect all three.</p>
+<p>This is a dated assessment, not a certification or an
+organiser-issued verdict. Existing saved mission artifacts were
+inspected; new full reconstruction jobs were not run. Production code
+and mission data were not changed for this review.</p>
+<h2 id="verification-performed">Verification performed</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Fresh result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cd drishti3d &amp;&amp; .venv/bin/python -m pytest tests -q</code></td>
+<td>444 passed; 49 warnings; 111.10 seconds</td>
+</tr>
+<tr>
+<td><code>.venv/bin/python -m pytest docs/review_checks/test_followup_2026_09_21.py -q</code>
+from <code>drishti3d</code></td>
+<td>15 passed; 6 warnings; 1.91 seconds</td>
+</tr>
+<tr>
+<td><code>npm run build</code> from <code>drishti3d/frontend</code></td>
+<td>TypeScript and production build passed; Vite 5.4.21</td>
+</tr>
+<tr>
+<td>Measurement-method counterexamples</td>
+<td>All three assertions passed; <a href="measurement_validity_probe.json">JSON output</a></td>
+</tr>
+</tbody>
+</table>
+<p>The second check supersedes the old report&#39;s nine failing follow-up
+checks. Passing unit and regression tests demonstrates implementation
+consistency; it does not establish metric accuracy on unseen flights.
+Previous frontend browser checks belong to the earlier UI work, not a
+fresh browser walkthrough in this audit.</p>
+<p>The <a href="artifact_snapshot.json">artifact snapshot</a> preserves
+the inspected saved-result values and SHA-256 hashes. The original
+mission artifacts were read without modification.</p>
+<p>Reproduce the measurement counterexamples from the repository
+root:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">drishti3d/.venv/bin/python</span> drishti3d/docs/review_checks/measurement_validity_probe_2026_09_22.py</span></code></pre></div>
+<h2 id="official-source-trail">Official source trail</h2>
+<ol type="1">
+<li>Open the <a href="https://www.sih.gov.in/sih2026PS">official SIH
+2026 problem-statement listing</a>.</li>
+<li>Find <strong>SIH26158</strong>, <strong>Single-Pass Drone Video to
+Accurate 3D Model Generation System</strong>, NTRO, Software, Robotics
+and Drones.</li>
+<li>Follow that entry&#39;s <strong>Additional Information</strong> link to
+the <a href="https://drive.google.com/file/d/119hjXkLhMW_AhQ4cyYz-XJgcVz4BA-hD/view?usp=drive_link">Google
+Drive attachment</a>.</li>
+<li>Its three scanned pages are numbered 37–39 in the source document.
+<strong>Attachment page 2 / printed page 38 contains the output and
+scoring tables.</strong> The attachment labels this internally as
+Problem Statement 17; the portal identifies it as SIH26158.</li>
+</ol>
+<p>A byte-for-byte <a href="sources/SIH26158_official_attachment.pdf">local copy of the
+attachment</a> is included for convenient checking. It is an organiser
+document, not a Drishti3D-generated PDF. The scan has no useful
+extractable text, so all three pages were inspected as images. Download
+URL: <a href="https://drive.google.com/uc?export=download&amp;id=119hjXkLhMW_AhQ4cyYz-XJgcVz4BA-hD">Drive
+download</a>.</p>
+<p><strong>SHA-256:</strong>
+<code>02e2a9fa37f129059546e6d302fe567f56226226c14f9038d1ad0fbd1279edd6</code>.</p>
+<p>The listing was successfully retrieved during research. A subsequent
+web-tool fetch returned HTTP 403; that intermittent restriction does not
+change the already retrieved entry and linked attachment. No numerical
+requirement here was inferred from a search snippet.</p>
+<h2 id="presentation-sources-and-a-date-discrepancy">Presentation
+sources and a date discrepancy</h2>
+<p>The <a href="https://www.sih.gov.in/letters/2026/SIH2026-IDEA-Presentation-Format.pptx">official
+2026 presentation template</a> contains six content slides and a seventh
+instruction slide to remove. Its instructions specify at most six slides
+including the title, use of the supplied template, and PDF submission.
+The slide handoff follows that structure; the long report is supporting
+material, not the submission deck.</p>
+<p>Template SHA-256:
+<code>ce3e5deebec2741f3383cb2dd21269cad8d9930f7c747c9903d7d4b27db14de6</code>.</p>
+<p>The <a href="https://www.sih.gov.in/letters/2026/SIH2026-Guidelines-College-SPOC-updated.pdf">2026
+College SPOC guidelines</a> describe general evaluation considerations
+including novelty, feasibility, clarity, impact and user experience. The
+PDF still mentions 15 September, whereas the live problem-statement page
+displayed <strong>30 September 2026</strong> when inspected. Confirm the
+applicable submission window in the actual team/SPOC portal; do not rely
+on the stale PDF date or an unofficial mirror.</p>
+<p>Guidelines SHA-256:
+<code>16c46ab530716847b1a8191d8975c2a52fc3f62c1532cedfaaf97c67531dfab4</code>.</p>
+<p>Do not import the adjacent SIH26157 statement&#39;s specialised
+presentation or deployment instructions into SIH26158. Requirements in
+this pack are traced to this project&#39;s own entry and attachment.</p>
+</body>
+</html>

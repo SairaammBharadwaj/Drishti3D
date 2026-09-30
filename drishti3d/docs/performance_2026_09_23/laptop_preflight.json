@@ -1,0 +1,58 @@
+{
+  "utc": "2026-09-23T08:45:05.147534+00:00",
+  "platform": "Linux-7.2.6-arch2-1-x86_64-with-glibc2.44",
+  "python": "3.12.14",
+  "logical_cpus": 24,
+  "allowed_cpus": 24,
+  "cwd": "/home/naveen/Drishti3D",
+  "colmap_executable": "/usr/bin/colmap",
+  "thread_environment": {
+    "OMP_NUM_THREADS": null,
+    "OPENBLAS_NUM_THREADS": null,
+    "MKL_NUM_THREADS": null
+  },
+  "packages": {
+    "pycolmap": "4.2.0",
+    "pycolmap-cuda12": null,
+    "numpy": "2.5.2",
+    "scipy": "1.18.1",
+    "torch": "2.11.0+cu128"
+  },
+  "pycolmap_has_cuda": false,
+  "gpu": {
+    "returncode": 0,
+    "output": "name, driver_version, memory.total [MiB], memory.used [MiB]\nNVIDIA GeForce RTX 5060 Laptop GPU, 615.71.09, 8151 MiB, 5258 MiB"
+  },
+  "gpu_processes": {
+    "returncode": 0,
+    "output": "pid, process_name, used_gpu_memory [MiB]\n1052, /usr/bin/kwin_wayland, 7 MiB\n1610, /usr/bin/plasmashell, 308 MiB\n1259355, /home/naveen/Drishti3D/drishti3d/.venv/bin/python3, 4896 MiB"
+  },
+  "cpu": {
+    "returncode": 0,
+    "output": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  24\nOn-line CPU(s) list:                     0-23\nVendor ID:                               GenuineIntel\nModel name:                              13th Gen Intel(R) Core(TM) i7-13700HX\nCPU family:                              6\nModel:                                   183\nThread(s) per core:                      2\nCore(s) per socket:                      16\nSocket(s):                               1\nStepping:                                1\nMicrocode version:                       0x137\nCPU(s) scaling MHz:                      46%\nCPU max MHz:                             5000.0000\nCPU min MHz:                             800.0000\nBogoMIPS:                                4608.00\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf tsc_known_freq pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb intel_pt sha_ni xsaveopt xsavec xgetbv1 xsaves split_lock_detect user_shstk avx_vnni dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp hwp_pkg_req hfi vnmi umip pku ospke waitpkg gfni vaes vpclmulqdq rdpid movdiri movdir64b fsrm md_clear serialize arch_lbr ibt flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               640 KiB (16 instances)\nL1i cache:                               768 KiB (16 instances)\nL2 cache:                                14 MiB (10 instances)\nL3 cache:                                30 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-23\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Mitigation; Clear Register File\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS SW sequence; BHI BHI_DIS_S\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace"
+  },
+  "memory": {
+    "returncode": 0,
+    "output": "total        used        free      shared  buff/cache   available\nMem:     16449314816 12263473152   726556672   975298560  5095665664  4185841664\nSwap:    21474828288  4030849024 17443979264"
+  },
+  "disk": {
+    "returncode": 0,
+    "output": "Filesystem        1B-blocks         Used   Available Use% Mounted on\n/dev/nvme0n1p7 580897210368 530813321216 20500897792  97% /"
+  },
+  "patch_match_help": {
+    "returncode": 0,
+    "output": "I20260923 14:15:05.398704 140391829434368 option_manager.cc:1214] COLMAP 4.1.0 (Commit fa8e3b3ff on 2026-06-26 with CUDA)\nI20260923 14:15:05.398828 140391829434368 option_manager.cc:1216] Options can either be specified via command-line or by defining them in a .ini project file passed to `--project_path`.\n  -h [ --help ] \n  --project_path arg\n  --default_random_seed arg (=0)\n  --log_target arg (=stderr_and_file)   {stderr, stdout, file, stderr_and_file}\n  --log_path arg\n  --log_level arg (=0)\n  --log_severity arg (=0)               0:INFO, 1:WARNING, 2:ERROR, 3:FATAL\n  --log_color arg (=1)\n  --workspace_path arg                  Path to the folder containing the \n                                        undistorted images\n  --workspace_format arg (=COLMAP)      {COLMAP, PMVS}\n  --pmvs_option_name arg (=option-all)\n  --config_path arg\n  --PatchMatchStereo.max_image_size arg (=-1)\n  --PatchMatchStereo.gpu_index arg (=-1)\n  --PatchMatchStereo.depth_min arg (=-1)\n  --PatchMatchStereo.depth_max arg (=-1)\n  --PatchMatchStereo.window_radius arg (=5)\n  --PatchMatchStereo.window_step arg (=1)\n  --PatchMatchStereo.sigma_spatial arg (=-1)\n  --PatchMatchStereo.sigma_color arg (=0.2)\n  --PatchMatchStereo.num_samples arg (=15)\n  --PatchMatchStereo.ncc_sigma arg (=0.6)\n  --PatchMatchStereo.min_triangulation_angle arg (=1)\n  --PatchMatchStereo.incident_angle_sigma arg (=0.9)\n  --PatchMatchStereo.num_iterations arg (=5)\n  --PatchMatchStereo.geom_consistency arg (=1)\n  --PatchMatchStereo.geom_consistency_regularizer arg (=0.3)\n  --PatchMatchStereo.geom_consistency_max_cost arg (=3)\n  --PatchMatchStereo.filter arg (=1)\n  --PatchMatchStereo.filter_min_ncc arg (=0.1)\n  --PatchMatchStereo.filter_min_triangulation_angle arg (=3)\n  --PatchMatchStereo.filter_min_num_consistent arg (=2)\n  --PatchMatchStereo.filter_geom_consistency_max_cost arg (=1)\n  --PatchMatchStereo.cache_size arg (=32)\n  --PatchMatchStereo.allow_missing_files arg (=0)\n  --PatchMatchStereo.write_consistency_graph arg (=0)\n  --PatchMatchStereo.num_threads arg (=-1)"
+  },
+  "fusion_help": {
+    "returncode": 0,
+    "output": "I20260923 14:15:05.446908 139878996611072 option_manager.cc:1214] COLMAP 4.1.0 (Commit fa8e3b3ff on 2026-06-26 with CUDA)\nI20260923 14:15:05.447016 139878996611072 option_manager.cc:1216] Options can either be specified via command-line or by defining them in a .ini project file passed to `--project_path`.\n  -h [ --help ] \n  --project_path arg\n  --default_random_seed arg (=0)\n  --log_target arg (=stderr_and_file)   {stderr, stdout, file, stderr_and_file}\n  --log_path arg\n  --log_level arg (=0)\n  --log_severity arg (=0)               0:INFO, 1:WARNING, 2:ERROR, 3:FATAL\n  --log_color arg (=1)\n  --workspace_path arg\n  --workspace_format arg (=COLMAP)      {COLMAP, PMVS}\n  --pmvs_option_name arg (=option-all)\n  --input_type arg (=geometric)         {photometric, geometric}\n  --output_type arg (=PLY)              {BIN, TXT, PLY}\n  --output_path arg\n  --StereoFusion.mask_path arg\n  --StereoFusion.num_threads arg (=-1)\n  --StereoFusion.max_image_size arg (=-1)\n  --StereoFusion.min_num_pixels arg (=5)\n  --StereoFusion.max_num_pixels arg (=10000)\n  --StereoFusion.max_traversal_depth arg (=100)\n  --StereoFusion.max_reproj_error arg (=2)\n  --StereoFusion.max_depth_error arg (=0.01)\n  --StereoFusion.max_normal_error arg (=10)\n  --StereoFusion.check_num_images arg (=50)\n  --StereoFusion.cache_size arg (=32)\n  --StereoFusion.use_cache arg (=0)"
+  },
+  "git_head": {
+    "returncode": 0,
+    "output": "ed65bd163b8780dd02142f806020a1b21c720f6a"
+  },
+  "git_status": {
+    "returncode": 0,
+    "output": "M drishti3d/backend/app/routers/artifacts.py\n M drishti3d/frontend/src/PointCloudViewer.tsx\n M drishti3d/frontend/src/api.ts\n M drishti3d/frontend/src/views/Workspace.tsx\n M drishti3d/reconstruction/drishti_recon/pipeline.py\n M drishti3d/reconstruction/drishti_recon/provenance.py\n?? drishti3d/docs/performance_2026_09_23/\n?? drishti3d/docs/review_2026_09_22/\n?? drishti3d/docs/review_checks/measurement_validity_probe_2026_09_22.py\n?? drishti3d/reconstruction/drishti_recon/holefill.py\n?? drishti3d/scripts/fill_holes.py\n?? drishti3d/tests/test_holefill.py"
+  }
+}

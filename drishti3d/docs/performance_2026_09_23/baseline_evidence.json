@@ -1,0 +1,413 @@
+{
+  "reviewed_head": "ed65bd163b8780dd02142f806020a1b21c720f6a",
+  "note": "Saved prior runs, not fresh end-to-end measurements. Working tree has user changes.",
+  "runs": {
+    "dji_1003__t10": {
+      "source_report": "drishti3d/data/runs/dji_1003__t10/artifacts/quality_report.json",
+      "report_sha256": "a5606f2d347e865b5a43c9ddf78d749b7eb511f5337ace1b2ce88ecf8499746c",
+      "input": {
+        "path": "/home/naveen/Drishti3D/datasets/public/field_clips/dji_1003/raw/video.mp4",
+        "width": 1920,
+        "height": 1080,
+        "fps": 59.94005994005994,
+        "frame_count": 40633,
+        "duration": 677.8938833333333,
+        "codec": "h264",
+        "sha256": "c3b1f710cc39d695542105f87af27bac790e09fa24df425151e9bd5821140207"
+      },
+      "frames": {
+        "total_analyzed": 2391,
+        "accepted": 2391,
+        "rejected": 0,
+        "accepted_fraction": 1.0,
+        "keyframes": 80
+      },
+      "reconstruction": {
+        "engine": "colmap",
+        "n_keyframes": 80,
+        "n_registered": 80,
+        "registered_fraction": 1.0,
+        "n_points": 84617,
+        "median_reproj_err": 0.30326297213168874,
+        "p90_reproj_err": 0.7604797036767391,
+        "mean_track_length": 4.831145041776475,
+        "mean_tri_angle": null,
+        "n_observations": 408797,
+        "uncertainty": {
+          "sigma_px_estimated": 0.23578235634040978,
+          "n_with_covariance": 84617,
+          "n_observable": 84617,
+          "error": null,
+          "median_sigma_recon_frame": 0.0012048500196034592
+        },
+        "workspace": "/home/naveen/Drishti3D/drishti3d/data/runs/dji_1003__t10/colmap_workspace"
+      },
+      "cloud_points": 2694027,
+      "median_point_spacing_m": 0.37894277177845337,
+      "alignment": {
+        "scale": 139.252894140121,
+        "n_inliers": 30,
+        "n_total": 80,
+        "alignment_rmse_3d_m": 2.8329407061994107,
+        "alignment_rmse_horizontal_m": 1.933149338863787,
+        "alignment_rmse_vertical_m": 2.0708661662435164,
+        "scale_source": "gps",
+        "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS.",
+        "normalized_rmse": 1.8624850901494916,
+        "scale_sigma": 0.15724451817584595,
+        "degenerate": true,
+        "degeneracy": "planar trajectory (out-of-plane geometry is weakly constrained)",
+        "conditioning": {
+          "principal_extent_m": [
+            371.00435865640594,
+            281.77467489484246,
+            0.11285810588341105
+          ],
+          "vertical_extent_m": 0.6159319273673205,
+          "extent_ratios": [
+            0.7594915486041479,
+            0.000304196172498154
+          ],
+          "sigma_source": "weights_as_inverse_sigma",
+          "median_sigma_h_m": 1.0,
+          "median_sigma_v_m": 1.6,
+          "scored_in": "mahalanobis",
+          "sigma_recon_m": 0.8525493939277715,
+          "median_sigma_total_h_m": 1.3140930214739788,
+          "error_budget": "gnss_dominated"
+        },
+        "scale_sigma_relative": 0.0011292010779870843
+      },
+      "timings_s": {
+        "ingestion": 1.021,
+        "telemetry": 0.373,
+        "frames": 60.683,
+        "quality": 23.566,
+        "sync": 0.22,
+        "keyframes": 4.721,
+        "masking": 0.369,
+        "sfm": 253.551,
+        "densify": 1585.287,
+        "georegistration": 0.531,
+        "fusion": 15.86,
+        "mesh": 4.203,
+        "report": 1.455
+      },
+      "performance": {
+        "processing_time_s": 1950.385,
+        "video_duration_s": 677.8938833333333,
+        "processing_to_video_ratio": 2.8771243522800143
+      },
+      "manifest_params": {
+        "preset": "balanced",
+        "mask_backend": "none",
+        "do_mesh": true,
+        "proc_max_width": 1600,
+        "max_analyze_frames": 2400,
+        "intrinsics": null,
+        "voxel": 0.15,
+        "engine": "colmap",
+        "e_ransac_px": 2.0,
+        "matcher": "sift",
+        "matcher_options": null,
+        "bundle_adjust": true,
+        "ba_every": 8,
+        "refine_focal": false,
+        "refine_distortion": false,
+        "gravity_align": true,
+        "lever_arm_body": null,
+        "estimate_time_offset": true,
+        "time_offset_search_s": 2.0,
+        "rolling_shutter_readout_s": 0.016666666666666666,
+        "verify_inferred": true,
+        "required_sigma_m": null,
+        "build_coverage": true,
+        "coverage_voxel": 1.0,
+        "densify": "mvs",
+        "mvs_max_image_size": 1600,
+        "mvs_geometric": true,
+        "mvs_min_views": 5,
+        "depth_stride": 8
+      },
+      "dense_fraction_of_reported_time": 0.8128072149857593,
+      "known_nondense_s": 365.09799999999996,
+      "dense_speedup_needed_for_900s_ignoring_missing_time": 2.963696153687965,
+      "external_run_records": []
+    },
+    "dji_1001__t10": {
+      "source_report": "drishti3d/data/runs/dji_1001__t10/artifacts/quality_report.json",
+      "report_sha256": "16cede9893a34945291a164fbbc6958cb0fea8c0946e40ac448de56fa66fa522",
+      "input": {
+        "path": "/home/naveen/Drishti3D/datasets/public/field_clips/dji_1001/raw/video.mp4",
+        "width": 1920,
+        "height": 1080,
+        "fps": 59.94005994005994,
+        "frame_count": 41078,
+        "duration": 685.3179666666667,
+        "codec": "h264",
+        "sha256": "7467194ff222b29ec43775b2cb87fcb9cb8db42fd9bc699e0bc75377670611e8"
+      },
+      "frames": {
+        "total_analyzed": 2283,
+        "accepted": 2283,
+        "rejected": 0,
+        "accepted_fraction": 1.0,
+        "keyframes": 80
+      },
+      "reconstruction": {
+        "engine": "colmap",
+        "n_keyframes": 80,
+        "n_registered": 80,
+        "registered_fraction": 1.0,
+        "n_points": 93706,
+        "median_reproj_err": 0.3387295817663064,
+        "p90_reproj_err": 0.8423529144608195,
+        "mean_track_length": 4.825091242823299,
+        "mean_tri_angle": null,
+        "n_observations": 452140,
+        "uncertainty": {
+          "sigma_px_estimated": 0.2638712764740498,
+          "n_with_covariance": 93706,
+          "n_observable": 93706,
+          "error": null,
+          "median_sigma_recon_frame": 0.0012284730331077898
+        },
+        "workspace": "/home/naveen/Drishti3D/drishti3d/data/runs/dji_1001__t10/colmap_workspace"
+      },
+      "cloud_points": 3265796,
+      "median_point_spacing_m": 0.36747795146054607,
+      "alignment": {
+        "scale": 133.43823211231788,
+        "n_inliers": 45,
+        "n_total": 80,
+        "alignment_rmse_3d_m": 2.8042548650144656,
+        "alignment_rmse_horizontal_m": 1.3756432444251667,
+        "alignment_rmse_vertical_m": 2.4436552563781784,
+        "scale_source": "gps",
+        "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS.",
+        "normalized_rmse": 1.7932512597225387,
+        "scale_sigma": 0.11928542923500986,
+        "degenerate": true,
+        "degeneracy": "planar trajectory (out-of-plane geometry is weakly constrained)",
+        "conditioning": {
+          "principal_extent_m": [
+            375.99863752745557,
+            286.8385112535664,
+            0.09743836139613274
+          ],
+          "vertical_extent_m": 0.5008765918050555,
+          "extent_ratios": [
+            0.7628711453312683,
+            0.0002591455172201728
+          ],
+          "sigma_source": "weights_as_inverse_sigma",
+          "median_sigma_h_m": 1.0,
+          "median_sigma_v_m": 1.6,
+          "scored_in": "mahalanobis",
+          "sigma_recon_m": 0.7058161293041395,
+          "median_sigma_total_h_m": 1.224000166824285,
+          "error_budget": "gnss_dominated"
+        },
+        "scale_sigma_relative": 0.0008939374221820078
+      },
+      "timings_s": {
+        "ingestion": 0.836,
+        "telemetry": 0.382,
+        "frames": 54.636,
+        "quality": 16.064,
+        "sync": 0.149,
+        "keyframes": 2.741,
+        "masking": 0.018,
+        "sfm": 251.084,
+        "densify": 1593.719,
+        "georegistration": 0.41,
+        "fusion": 16.206,
+        "mesh": 3.696,
+        "report": 1.676
+      },
+      "performance": {
+        "processing_time_s": 1939.941,
+        "video_duration_s": 685.3179666666667,
+        "processing_to_video_ratio": 2.830716680952817
+      },
+      "manifest_params": {
+        "preset": "balanced",
+        "mask_backend": "none",
+        "do_mesh": true,
+        "proc_max_width": 1600,
+        "max_analyze_frames": 2400,
+        "intrinsics": null,
+        "voxel": 0.15,
+        "engine": "colmap",
+        "e_ransac_px": 2.0,
+        "matcher": "sift",
+        "matcher_options": null,
+        "bundle_adjust": true,
+        "ba_every": 8,
+        "refine_focal": false,
+        "refine_distortion": false,
+        "gravity_align": true,
+        "lever_arm_body": null,
+        "estimate_time_offset": true,
+        "time_offset_search_s": 2.0,
+        "rolling_shutter_readout_s": 0.016666666666666666,
+        "verify_inferred": true,
+        "required_sigma_m": null,
+        "build_coverage": true,
+        "coverage_voxel": 1.0,
+        "densify": "mvs",
+        "mvs_max_image_size": 1600,
+        "mvs_geometric": true,
+        "mvs_min_views": 5,
+        "depth_stride": 8
+      },
+      "dense_fraction_of_reported_time": 0.8215296238390756,
+      "known_nondense_s": 346.222,
+      "dense_speedup_needed_for_900s_ignoring_missing_time": 2.8779023363152745,
+      "external_run_records": []
+    },
+    "usegeo_1__fixedcal": {
+      "source_report": "drishti3d/data/runs/usegeo_1__fixedcal/artifacts/quality_report.json",
+      "report_sha256": "d78fe3bde421986c16c95708463deff1cf3118b23421dc5e060c53caa98eebab",
+      "input": {
+        "path": "/home/naveen/Drishti3D/datasets/public/usegeo/usegeo_1/raw/video.mp4",
+        "width": 7952,
+        "height": 5278,
+        "fps": 0.47831632653061223,
+        "frame_count": 60,
+        "duration": 125.44,
+        "codec": "h264",
+        "sha256": "bef5a48838455e050a3e6ad3733fcdbfa35b26b52450d989c79d3e75aab021d0"
+      },
+      "frames": {
+        "total_analyzed": 60,
+        "accepted": 60,
+        "rejected": 0,
+        "accepted_fraction": 1.0,
+        "keyframes": 60
+      },
+      "reconstruction": {
+        "engine": "colmap",
+        "n_keyframes": 60,
+        "n_registered": 60,
+        "registered_fraction": 1.0,
+        "n_points": 47575,
+        "median_reproj_err": 0.26296805050977656,
+        "p90_reproj_err": 0.6776383175370964,
+        "mean_track_length": 4.641240147136101,
+        "mean_tri_angle": null,
+        "n_observations": 220807,
+        "uncertainty": {
+          "sigma_px_estimated": 0.19210262644936218,
+          "n_with_covariance": 47575,
+          "n_observable": 47575,
+          "error": null,
+          "median_sigma_recon_frame": 0.0010009550242341496
+        },
+        "workspace": "/home/naveen/Drishti3D/drishti3d/data/runs/usegeo_1__fixedcal/colmap_workspace"
+      },
+      "cloud_points": 2098913,
+      "median_point_spacing_m": 0.1298880121066922,
+      "alignment": {
+        "scale": 32.24698731996954,
+        "n_inliers": 60,
+        "n_total": 60,
+        "alignment_rmse_3d_m": 0.347934318017904,
+        "alignment_rmse_horizontal_m": 0.3437962606059143,
+        "alignment_rmse_vertical_m": 0.05350159668621345,
+        "scale_source": "gps",
+        "note": "Alignment residual is NOT independent accuracy; it measures consistency between reconstructed camera centres and GPS.",
+        "normalized_rmse": 0.345039140268881,
+        "scale_sigma": 0.013086850597179615,
+        "degenerate": true,
+        "degeneracy": "planar trajectory (out-of-plane geometry is weakly constrained)",
+        "conditioning": {
+          "principal_extent_m": [
+            110.34981136858664,
+            16.69631377411576,
+            1.5560131110881688
+          ],
+          "vertical_extent_m": 5.475462815283578,
+          "extent_ratios": [
+            0.1513035098750401,
+            0.014100731952235308
+          ],
+          "sigma_source": "weights_as_inverse_sigma",
+          "median_sigma_h_m": 1.0,
+          "median_sigma_v_m": 1.6,
+          "scored_in": "mahalanobis",
+          "sigma_recon_m": 0.04704595404152007,
+          "median_sigma_total_h_m": 1.001106049223396,
+          "error_budget": "gnss_dominated"
+        },
+        "scale_sigma_relative": 0.00040583172832010084
+      },
+      "timings_s": {
+        "ingestion": 4.171,
+        "telemetry": 0.001,
+        "frames": 12.443,
+        "quality": 0.342,
+        "sync": 0.001,
+        "keyframes": 0.0,
+        "masking": 0.008,
+        "sfm": 79.184,
+        "densify": 1265.102,
+        "georegistration": 0.098,
+        "fusion": 9.393,
+        "mesh": 2.226,
+        "report": 0.928
+      },
+      "performance": {
+        "processing_time_s": 1372.969,
+        "video_duration_s": 125.44,
+        "processing_to_video_ratio": 10.94522480867347
+      },
+      "manifest_params": {
+        "preset": "balanced",
+        "mask_backend": "none",
+        "do_mesh": true,
+        "proc_max_width": 1600,
+        "max_analyze_frames": 60,
+        "intrinsics": {
+          "fx": 4636.912,
+          "fy": 4636.912,
+          "cx": 3970.288,
+          "cy": 2601.56
+        },
+        "voxel": 0.15,
+        "engine": "colmap",
+        "e_ransac_px": 2.0,
+        "matcher": "sift",
+        "matcher_options": null,
+        "bundle_adjust": true,
+        "ba_every": 8,
+        "refine_focal": false,
+        "refine_distortion": false,
+        "gravity_align": true,
+        "lever_arm_body": null,
+        "estimate_time_offset": true,
+        "time_offset_search_s": 2.0,
+        "rolling_shutter_readout_s": 0.016666666666666666,
+        "verify_inferred": true,
+        "required_sigma_m": null,
+        "build_coverage": true,
+        "coverage_voxel": 1.0,
+        "densify": "mvs",
+        "mvs_max_image_size": 1600,
+        "mvs_geometric": true,
+        "mvs_min_views": 5,
+        "depth_stride": 8
+      },
+      "dense_fraction_of_reported_time": 0.9214352254129554,
+      "known_nondense_s": 107.86699999999996,
+      "dense_speedup_needed_for_900s_ignoring_missing_time": 1.5970828131134545,
+      "external_run_records": []
+    }
+  },
+  "reviewed_source_sha256": {
+    "drishti3d/reconstruction/drishti_recon/pipeline.py": "b574af8fa0aff3213dd33f2e2987f6bbb1b1e2f2518f6c914991cf9f5d6be083",
+    "drishti3d/reconstruction/drishti_recon/mvs.py": "7ba45e97523998d17fc8b4b13afbff681f47a0585c6717165221892181f5cc2e",
+    "drishti3d/reconstruction/drishti_recon/colmap_adapter.py": "e86003c90c12134b6ecba9134298e7af141af0ee7d71332b26be035b1c388b79",
+    "drishti3d/reconstruction/drishti_recon/quality.py": "b2874702ef11210f1adadd19022dc9d8549a8aa0e48dfe84eb4cc52c56260f08"
+  }
+}
