@@ -57,17 +57,21 @@ drishti3d/
   frontend/         React + TypeScript + Vite + Three.js operational UI
   sample_data/      synthetic dataset generator (video + telemetry + ground truth)
   tests/            pytest unit + integration tests (no weight downloads)
-  docs/             telemetry schema, calibration, demo script, troubleshooting
+  eval/, scripts/   benchmark harness and scorers; mission and operator tools
+  deploy/           read-only public showcase: image build and laptop-server kit
+  docs/             accuracy write-ups, benchmarks, guides, reviews (docs/README.md)
   docker-compose.yml
 ```
 
-For the current evidence audit, prioritized technical roadmap, decision rationale,
-and distinctive research ideas, see:
+Every document is indexed in [`docs/README.md`](docs/README.md). The current
+engineering record is at the repository root: [`DECISIONS.md`](../DECISIONS.md)
+(each decision and its evidence), [`TESTS_AND_RESULTS.md`](../TESTS_AND_RESULTS.md)
+and [`WORKLOG.md`](../WORKLOG.md). Also:
 
 - [`docs/REPOSITORY_AUDIT_AND_IMPROVEMENT_ROADMAP.md`](docs/REPOSITORY_AUDIT_AND_IMPROVEMENT_ROADMAP.md)
-  — the audit and prioritized roadmap being executed (with corrections in §1a)
-- [`docs/WORK_LOG.md`](docs/WORK_LOG.md) — what has been changed, why, and its
-  measured effect
+  — the first audit and roadmap, to 6 September (with corrections in §1a)
+- [`docs/WORK_LOG.md`](docs/WORK_LOG.md) — the early work log, to 6 September;
+  the root `WORKLOG.md` continues it
 - [`docs/BENCHMARK.md`](docs/BENCHMARK.md) — the truth harness and the rule that
   no accuracy claim may be published unless it generated it
 - [`docs/VIDEO_ACCURACY_MARS_LVIG.md`](docs/VIDEO_ACCURACY_MARS_LVIG.md) — native
