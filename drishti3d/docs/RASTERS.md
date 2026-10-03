@@ -72,17 +72,44 @@ other missions.
 | HKisland03 | 0.14 | 0.95 | 0.25 | 0% |
 | HKisland02 | 0.25 | 0.93 | 0.39 | 0% |
 
-What goes wrong:
+Those are the first version's scores. Since then, in order (TESTS_AND_RESULTS
+2026-10-03, later):
 
-- **Large roofs pass as ground.** The ground filter (Zhang et al. 2003) needs a
-  window wider than the widest roof; downtown Austin's exceed its 40 m.
-- **Steep rock reads as building.** On the Hong Kong coast, the filter rejects
-  cliffs as non-ground, and rock is neither green nor rough enough to be called
-  vegetation. The low precision there is cliffs.
-- A 120 m window was tried. It helped DJI_1003 (F1 0.16 to 0.24) and DJI_1001
-  slightly (0.19 to 0.21), but multiplied false buildings on the cliffs
-  (HKisland02 precision 0.25 to 0.06). **Rejected; the default stays 40 m.**
-- The Austin scores are also confounded by placement, below.
+- **Cells are judged by their top surface.** A cell is ground if its highest
+  point is within 0.5 m of the terrain, so ground showing through at a canopy
+  edge no longer makes the cell "ground". This is the usual top-down
+  definition.
+- **A building needs walls.** At least 10% of a building patch's edge must
+  drop more than 2 m to measured ground within 3 cells (walls themselves are
+  rarely reconstructed). Hillsides join the terrain smoothly.
+- **The cloth simulation filter (Zhang et al. 2016) is opt-in, not default**
+  (`build_rasters.py --ground csf`). With the wall rule it raised building F1
+  on every mission (Austin 0.26 / 0.25, UseGeo 0.89, Hong Kong 0.63 / 0.67,
+  held-out AGZ 0.47). But on the steep Hong Kong coast and the street-level
+  AGZ capture it lost the terrain itself: the DTM kept only the shoreline, and
+  grass on the slopes became "tall vegetation". The morphological filter keeps
+  hills; the cloth filter suits flat cities with wide roofs.
+
+The wall threshold is fragile. On the Hong Kong flights each mission has one
+real building, and the result flips at 8% or 12% as single large patches cross
+the line. UseGeo is stable from 8% to 15%.
+
+Current default, scored against OSM:
+
+| Mission | Precision | Recall | F1 |
+|---|---:|---:|---:|
+| UseGeo 1 | 0.77 | 0.85 | **0.81** |
+| AGZ dense (held out) | 0.64 | 0.35 | 0.46 |
+| HKisland02 | 0.27 | 0.92 | 0.41 |
+| HKisland03 | 0.14 | 0.94 | 0.25 |
+| DJI_1001 | 0.38 | 0.12 | 0.19 |
+| DJI_1003 | 0.31 | 0.11 | 0.17 |
+
+What still goes wrong: wide Austin roofs pass as ground (the filter's 40 m
+window; 120 m was tried and multiplied false buildings on the cliffs), and
+steep rock reads as building. The ground and vegetation classes have no
+reference at all. A street-level capture made of building fronts (AGZ) gives a
+top-down map that means little: its walls are rough and count as vegetation.
 
 ## Austin placement is unverified
 

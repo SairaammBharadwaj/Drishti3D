@@ -41,8 +41,11 @@ sys.path.insert(0, str(APP / "reconstruction"))
 from drishti_recon import exports, rasters as R         # noqa: E402
 from drishti_recon.geo import ENUFrame                  # noqa: E402
 
-DEFAULTS = {"max_window_m": 40.0, "slope": 0.15, "dh0": 0.3, "dh_max": 2.5,
-            "min_height": 2.0, "exg_thresh": 0.05, "rough_thresh": 0.75}
+#: ground: 0 morphological filter (Zhang 2003), 1 cloth simulation (Zhang 2016).
+DEFAULTS = {"ground": 0, "max_window_m": 40.0, "slope": 0.15, "dh0": 0.3, "dh_max": 2.5,
+            "csf_res": 2.0, "csf_rigidness": 2, "csf_threshold": 0.5, "csf_slope_smooth": 1,
+            "min_height": 2.0, "ground_tol": 0.5, "exg_thresh": 0.05, "rough_thresh": 0.75,
+            "wall_min": 0.0}
 
 
 def osm_mask(osm: dict, grid: R.Grid, epsg: int) -> np.ndarray:
@@ -82,13 +85,23 @@ def classify_mission(art: Path, params: dict):
     res = float(json.loads((art / "rasters.json").read_text())["cell_size_m"])
     sig = d["sigma_major"] if "sigma_major" in d.files else None
     r = R.rasterize(utm, d["colors"], sig, d["provenance"], res)
-    ground = R.ground_filter(r["zmin"], res, max_window_m=params["max_window_m"],
-                             slope=params["slope"], dh0=params["dh0"], dh_max=params["dh_max"])
+    if params["ground"] == 1:
+        ground = R.ground_filter_csf(r["zmin"], r["grid"],
+                                     cloth_resolution=params["csf_res"],
+                                     rigidness=int(params["csf_rigidness"]),
+                                     class_threshold=params["csf_threshold"],
+                                     slope_smooth=bool(params["csf_slope_smooth"]))
+    else:
+        ground = R.ground_filter(r["zmin"], res, max_window_m=params["max_window_m"],
+                                 slope=params["slope"], dh0=params["dh0"],
+                                 dh_max=params["dh_max"])
     dtm = np.where(ground, r["zmin"], np.nan)
-    cls, _, _ = R.classify(r["dsm"], ground, r["rgb"], dtm=dtm,
+    cls, _, _ = R.classify(r["dsm"], dtm, r["rgb"],
                            min_height=params["min_height"],
+                           ground_tol=params["ground_tol"],
                            exg_thresh=params["exg_thresh"],
-                           rough_thresh=params["rough_thresh"])
+                           rough_thresh=params["rough_thresh"],
+                           wall_min=params["wall_min"])
     return cls, r["grid"], epsg
 
 

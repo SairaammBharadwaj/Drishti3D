@@ -46,7 +46,7 @@ def products(res=0.5):
     r = R.rasterize(P, C, S, prov, res)
     ground = R.ground_filter(r["zmin"], res)
     dtm = np.where(ground, r["zmin"], np.nan)
-    cls, hag, terrain = R.classify(r["dsm"], ground, r["rgb"], dtm=dtm)
+    cls, hag, terrain = R.classify(r["dsm"], dtm, r["rgb"])
     X, Y = r["grid"].centres()
     return r, ground, dtm, cls, hag, terrain, X, Y
 
@@ -143,3 +143,27 @@ def test_geotiffs_carry_crs_nodata_mask_and_palette(tmp_path):
     assert len(out["point_classes"]) == len(P)
     assert (out["point_classes"][prov == AI] == R.UNCLASSIFIED).all()
     assert out["summary"]["cell_size_m"] == 1.0
+
+
+def test_cloth_filter_finds_the_same_ground():
+    pytest.importorskip("CSF")
+    P, C, S, prov, _ = site(n=150_000)
+    r = R.rasterize(P, C, S, prov, 0.5)
+    ground = R.ground_filter_csf(r["zmin"], r["grid"])
+    dtm = np.where(ground, r["zmin"], np.nan)
+    cls, hag, _ = R.classify(r["dsm"], dtm, r["rgb"])
+    X, Y = r["grid"].centres()
+    bld = (X > 21) & (X < 39) & (Y > 21) & (Y < 29)
+    open_ground = (X > 50) & (X < 60) & (Y > 45) & (Y < 60)
+    assert (cls[bld] == R.BUILDING).mean() > 0.95
+    assert (cls[open_ground] == R.GROUND).mean() > 0.95
+    assert np.isnan(dtm[bld]).mean() > 0.95
+
+
+def test_canopy_over_visible_ground_is_not_ground():
+    # One cell: its lowest point is ground, its top is a tree 6 m up.
+    dsm = np.full((5, 5), 100.0); dsm[2, 2] = 106.0
+    dtm = np.full((5, 5), 100.0)                     # the ground filter kept it
+    rgb = np.full((5, 5, 3), 120, np.uint8); rgb[2, 2] = [40, 150, 40]
+    cls, _, _ = R.classify(dsm, dtm, rgb)
+    assert cls[2, 2] == R.HIGH_VEGETATION and cls[0, 0] == R.GROUND

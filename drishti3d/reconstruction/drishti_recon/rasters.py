@@ -15,8 +15,9 @@ The cloud's honesty rules carry over into raster form:
 * Heights are WGS84 ellipsoidal, as in the LAS export. They are not heights
   above sea level.
 * Land cover is rule-based: a ground filter, height above that ground,
-  greenness and roughness. None of the reference LiDAR available to the
-  project is classified, so it has not been validated against labelled truth.
+  greenness, roughness, and walls round buildings. None of the reference LiDAR
+  available to the project is classified, so it has not been validated against
+  labelled truth; the building class is scored against OpenStreetMap.
 
 :func:`build_products` writes, beside the other artifacts:
 
@@ -212,6 +213,43 @@ def ground_filter(zmin: np.ndarray, res: float, *, max_window_m: float = 40.0,
     return have & ~nonground
 
 
+def ground_filter_csf(zmin: np.ndarray, grid: Grid, *, cloth_resolution: float = 2.0,
+                      rigidness: int = 2, class_threshold: float = 0.5,
+                      slope_smooth: bool = True, iterations: int = 500):
+    """Cloth simulation filter (Zhang et al. 2016) on the lowest point per cell.
+
+    The surface is turned upside down and a cloth of the given ``rigidness``
+    (1 steep, 2 relief, 3 flat) is dropped on it; cells whose lowest point
+    ends within ``class_threshold`` of the cloth are ground. A stiff cloth
+    bridges wide roofs, which a morphological filter needs a window wider
+    than the roof to remove; ``slope_smooth`` lets it follow steep ground.
+    One point per cell is filtered, not every point, which keeps it fast and
+    makes it see the same surface as the morphological filter. Needs the
+    ``cloth-simulation-filter`` package (Apache-2.0).
+    """
+    import CSF
+    have = np.isfinite(zmin)
+    if not have.any():
+        return have
+    X, Y = grid.centres()
+    pts = np.column_stack([X[have], Y[have], zmin[have]]).astype(np.float64)
+    origin = pts.mean(axis=0)
+    csf = CSF.CSF()
+    csf.params.bSloopSmooth = bool(slope_smooth)
+    csf.params.cloth_resolution = float(cloth_resolution)
+    csf.params.rigidness = int(rigidness)
+    csf.params.class_threshold = float(class_threshold)
+    csf.params.interations = int(iterations)
+    csf.setPointCloud(pts - origin)          # local coordinates: CSF works in float
+    ground_idx, other = CSF.VecInt(), CSF.VecInt()
+    csf.do_filtering(ground_idx, other, False)   # positional: SWIG binding
+    flat = np.zeros(int(have.sum()), bool)
+    flat[np.asarray(ground_idx, dtype=np.int64)] = True
+    mask = np.zeros(zmin.shape, bool)
+    mask[have] = flat
+    return mask
+
+
 def _fill_nearest(grid: np.ndarray) -> np.ndarray:
     """Nearest-cell fill. Internal: never written into a product."""
     bad = ~np.isfinite(grid)
@@ -232,27 +270,57 @@ def _local_std(v: np.ndarray, size: int = 3) -> np.ndarray:
     return np.sqrt(np.clip(var, 0, None))
 
 
-def classify(dsm, ground, rgb, *, dtm=None, min_height: float = 2.0,
-             exg_thresh: float = 0.05, rough_thresh: float = 0.75):
+def wall_share(building: np.ndarray, dsm: np.ndarray, *, jump: float = 2.0,
+               reach: int = 3):
+    """Per connected building patch, the share of its edge that is a wall.
+
+    An edge cell counts as wall when the lowest measured cell within ``reach``
+    cells outside the patch is more than ``jump`` metres below it. Walls are
+    rarely reconstructed, so a roof edge usually borders empty cells; looking a
+    few cells out bridges that gap. Buildings stand on walls; a hillside joins
+    the terrain smoothly. Returns ``(labels, share)`` where ``share[i - 1]``
+    belongs to patch ``i``.
+    """
+    labels, n = ndimage.label(building)
+    if n == 0:
+        return labels, np.zeros(0)
+    outside = np.where(np.isfinite(dsm) & ~building, dsm, np.inf)
+    lowest = ndimage.minimum_filter(outside, size=2 * reach + 1)
+    edge = building & ~ndimage.binary_erosion(building)
+    walls = edge & np.isfinite(lowest) & (dsm - lowest > jump)
+    idx = np.arange(1, n + 1)
+    share = (ndimage.sum(walls, labels, idx)
+             / np.maximum(ndimage.sum(edge, labels, idx), 1))
+    return labels, share
+
+
+def classify(dsm, dtm, rgb, *, min_height: float = 2.0, ground_tol: float = 0.5,
+             exg_thresh: float = 0.05, rough_thresh: float = 0.75,
+             wall_min: float = 0.1):
     """Rule-based land cover per cell, in ASPRS codes.
 
-    * ground (2): cells the ground filter keeps;
-    * building (6) / high vegetation (5): other cells standing more than
-      ``min_height`` above the terrain, split by colour and texture --
-      vegetation if the top point is green (excess-green index over
-      ``exg_thresh``) or the surface is rough (3x3 height std over
-      ``rough_thresh``), building otherwise;
-    * unclassified (1): anything else with data (low objects, cars, walls);
+    Each cell is judged by how high its top surface (DSM) stands above the
+    terrain -- the DTM, filled from the nearest ground cell where it is empty,
+    an inference used only for this decision:
+
+    * ground (2): top surface within ``ground_tol`` of the terrain;
+    * building (6) / high vegetation (5): more than ``min_height`` above it,
+      split by colour and texture -- vegetation if the top point is green
+      (excess-green index over ``exg_thresh``) or the surface is rough (3x3
+      height std over ``rough_thresh``), building otherwise;
+    * unclassified (1): anything between (low objects, cars, walls), and any
+      would-be building patch with less than ``wall_min`` of its edge a wall
+      (:func:`wall_share`) -- steep natural ground that the ground filter
+      rejected, which reads as building on rock coasts;
     * 0: no data.
 
-    The terrain under elevated cells is the ground filled in from the nearest
-    ground cell -- an inference used only for this decision. Roads are not
-    separated from other ground; that needs image semantics.
-    Returns ``(classes, height_above_ground, terrain)``; ``terrain`` is the
-    filled ground and must stay internal.
+    Judging the top surface, not whether the lowest point is ground, keeps a
+    cell whose ground shows through at the edge of a canopy from being called
+    ground. Roads are not separated from other ground; that needs image
+    semantics. Returns ``(classes, height_above_ground, terrain)``;
+    ``terrain`` is filled and must stay internal.
     """
-    dtm = np.where(ground, dsm if dtm is None else dtm, np.nan)
-    terrain = _fill_nearest(dtm)
+    terrain = _fill_nearest(np.asarray(dtm, float))
     hag = dsm - terrain
     have = np.isfinite(dsm)
     f = rgb.astype(float) / 255.0
@@ -260,11 +328,17 @@ def classify(dsm, ground, rgb, *, dtm=None, min_height: float = 2.0,
     rough = _local_std(dsm, 3)
     cls = np.zeros(dsm.shape, np.uint8)
     cls[have] = UNCLASSIFIED
-    cls[have & ground] = GROUND
-    elevated = have & ~ground & (hag > min_height)
+    cls[have & (hag <= ground_tol)] = GROUND
+    elevated = have & (hag > min_height)
     veg = elevated & ((exg > exg_thresh) | (rough > rough_thresh))
     cls[veg] = HIGH_VEGETATION
-    cls[elevated & ~veg] = BUILDING
+    building = elevated & ~veg
+    if wall_min > 0 and building.any():
+        labels, share = wall_share(building, dsm)
+        no_walls = np.r_[False, share < wall_min][labels]
+        building &= ~no_walls
+        cls[no_walls] = UNCLASSIFIED
+    cls[building] = BUILDING
     return cls, hag.astype(np.float32), terrain.astype(np.float32)
 
 
@@ -365,11 +439,14 @@ def _relief_rgba(z, res):
 
 
 def build_products(utm_xyz, colors, sigma, provenance, epsg: int, out_dir,
-                   *, res: float | None = None, max_window_m: float = 40.0) -> dict:
+                   *, res: float | None = None, max_window_m: float = 40.0,
+                   ground: str = "pmf") -> dict:
     """Compute and write every raster product; return paths and point classes.
 
     ``utm_xyz`` are the cloud's points in the UTM zone ``epsg``, heights
-    ellipsoidal (``exports.enu_to_utm``). Returns ``{"artifacts": {...},
+    ellipsoidal (``exports.enu_to_utm``). ``ground`` is ``"pmf"`` (the
+    morphological filter, default) or ``"csf"`` (cloth simulation, for flat
+    cities with wide roofs; it can lose steep terrain). Returns ``{"artifacts": {...},
     "point_classes": uint8 array, "summary": dict}``; GeoTIFFs are skipped,
     with a note in the summary, if rasterio is not installed.
     """
@@ -382,9 +459,24 @@ def build_products(utm_xyz, colors, sigma, provenance, epsg: int, out_dir,
         res, coverage = choose_resolution(xyz[observed, :2])
     r = rasterize(xyz, colors, sigma, prov, res)
     grid = r["grid"]
-    ground = ground_filter(r["zmin"], res, max_window_m=max_window_m)
-    dtm = np.where(ground, r["zmin"], np.nan).astype(np.float32)
-    cls, hag, terrain = classify(r["dsm"], ground, r["rgb"], dtm=dtm)
+    # The morphological filter by default: it follows hills. The cloth filter
+    # finds more of a city's wide roofs, but on steep coast and street-level
+    # scenes it lost the terrain itself (DEC-046), so it is opt-in.
+    ground_method = (f"progressive morphological filter (Zhang et al. 2003), windows up "
+                     f"to {max_window_m:g} m")
+    if ground == "csf":
+        try:
+            g_mask = ground_filter_csf(r["zmin"], grid)
+            ground_method = "cloth simulation filter (Zhang et al. 2016), 2 m cloth, rigidness 2"
+        except ImportError:
+            g_mask = None
+            ground_method += "; cloth filter requested but cloth-simulation-filter is not installed"
+    else:
+        g_mask = None
+    ground_mask = g_mask if g_mask is not None else ground_filter(r["zmin"], res,
+                                                                   max_window_m=max_window_m)
+    dtm = np.where(ground_mask, r["zmin"], np.nan).astype(np.float32)
+    cls, hag, terrain = classify(r["dsm"], dtm, r["rgb"])
     point_classes = classify_points(xyz, grid, cls, terrain)
     point_classes[~observed] = UNCLASSIFIED
 
@@ -405,11 +497,11 @@ def build_products(utm_xyz, colors, sigma, provenance, epsg: int, out_dir,
                         "5": "high vegetation", "6": "building"},
         "method": {
             "points": "observed only (provenance 0-1); empty cells are NoData",
-            "dtm": f"progressive morphological filter (Zhang et al. 2003) on the "
-                   f"lowest point per cell, windows up to {max_window_m:g} m",
-            "landcover": "rule-based: ground filter, height above ground > 2 m, "
-                         "excess-green index, 3x3 roughness. Not validated "
-                         "against labelled truth.",
+            "dtm": f"{ground_method}, on the lowest point per cell",
+            "landcover": "rule-based: top surface vs terrain (ground within 0.5 m, "
+                         "elevated above 2 m), excess-green index and roughness for "
+                         "vegetation, buildings need walls on >= 10% of their edge. "
+                         "Experimental: scored against OpenStreetMap footprints only.",
             "ortho": "colour of the highest point per cell; not camera-projected",
         },
     }

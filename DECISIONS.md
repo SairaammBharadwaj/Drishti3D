@@ -3571,3 +3571,39 @@ against OSM is 0.81 on UseGeo 1 and 0.16–0.39 elsewhere.
   0 to ~45 m. Next check: StratMap 2021, for horizontal placement on unchanged
   buildings only (not as vertical or accuracy truth).
 - UseGeo 1 carries a +0.36 m vertical bias on flat ground, newly measured.
+
+## DEC-046 — Land cover: judge the top surface, require walls; cloth filter opt-in
+
+**Date:** 2026-10-03
+
+**Status:** Accepted
+
+### Context
+
+DEC-045's land cover called cells ground when their lowest point was ground,
+called Hong Kong cliffs buildings, and left wide Austin roofs as ground.
+
+### Decision
+
+1. A cell's class follows its top surface's height above the terrain: ground
+   within 0.5 m, elevated above 2 m.
+2. An elevated, non-vegetated patch is a building only if at least 10% of its
+   edge drops more than 2 m to measured ground within 3 cells.
+3. **The morphological filter stays the default; the cloth simulation filter
+   is opt-in** (`--ground csf`). The cloth filter scored better against OSM on
+   every mission, but on steep coast and street-level captures it lost the
+   terrain: the DTM shrank to the shoreline and grass slopes became tall
+   vegetation. A building score must not buy a broken terrain model.
+
+### Evidence
+
+TESTS_AND_RESULTS 2026-10-03 (later). Default F1 against OSM: UseGeo 0.81,
+AGZ 0.46 (held out), HKisland02 0.41, HKisland03 0.25, Austin 0.17–0.19.
+
+### Consequences / limits
+
+- The 10% wall threshold sits in a narrow window on the Hong Kong flights
+  (each has one real building): 8% and 12% each break one of them. It must not
+  be reported as a robust parameter.
+- Ground and vegetation are unscored: no reference exists for them.
+- Austin's wide roofs remain the main failure of the default.

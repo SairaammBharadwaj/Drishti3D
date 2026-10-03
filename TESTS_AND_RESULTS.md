@@ -1971,3 +1971,31 @@ it). End-to-end pipeline test asserts rasters on a georeferenced run.
 - Land cover classes other than building.
 - AGZ against OSM (Overpass timed out twice).
 - Austin absolute placement (planned: StratMap 2021, horizontal only).
+
+## 2026-10-03 (later) — Land cover: cloth filter, top-surface rule, walls (DEC-046)
+
+All against OSM footprints (`score_landcover_osm.py`, tolerance 1.5 m). F1 per
+mission, DJI_1003 / DJI_1001 / UseGeo / HKisland03 / HKisland02:
+
+| configuration | F1 |
+|---|---|
+| morphological, 40 m (first version) | 0.159 / 0.190 / 0.812 / 0.245 / 0.390 |
+| + top-surface rule | 0.168 / 0.191 / 0.814 / 0.245 / 0.390 |
+| cloth 2 m, rigidness 2 | 0.274 / 0.263 / 0.887 / 0.054 / 0.057 |
+| cloth 2 m, rigidness 1 / 3; cloth 1 m, rigidness 1 | cliffs no better (HK precision 0.03–0.06) |
+| morphological + walls 10% (**default**) | 0.166 / 0.187 / 0.810 / 0.250 / 0.412 |
+| cloth + walls 10% | 0.259 / 0.247 / 0.885 / 0.628 / 0.665 |
+| cloth + walls 5% / 8% / 12% / 15% / 20% | HK03 0.063 / 0.106 / 0.690 / 0.000 / 0.000; HK02 0.623 / 0.665 / 0.007 / 0.007 / 0.007 |
+
+AGZ (held out, footprints fetched after tuning): default 0.455, cloth + walls
+0.470, first version 0.446.
+
+Features measured before the wall rule: roof vs cliff plane-fit residual and
+slope do not separate (HK rock residual median 0.07–0.10 m, Austin roofs
+0.38–0.44 m; slopes 21–22 vs 13–21 deg). Edge-wall share does (HK cliff patches
+median 0.01–0.02; real buildings 0.31 UseGeo, 0.54–0.60 Austin, 0.11–0.14 the
+two HK buildings).
+
+Visual check that reversed the cloth default: on HKisland03 the cloth DTM kept
+only the shoreline, ground fell from 83% to 34% of cells and the grass slopes
+became high vegetation; AGZ's ground fell to 0.2%.

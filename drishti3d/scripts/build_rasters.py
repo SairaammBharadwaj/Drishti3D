@@ -46,7 +46,8 @@ class _Cloud:
         self.sigma_major = d["sigma_major"] if "sigma_major" in d.files else None
 
 
-def build(art: Path, *, las: bool, res: float | None, max_window_m: float) -> dict:
+def build(art: Path, *, las: bool, res: float | None, max_window_m: float,
+          ground: str = "pmf") -> dict:
     geo = json.loads((art / "georeference.json").read_text())
     if not geo.get("georeferenced"):
         return {"skipped": "not georeferenced (relative scale)"}
@@ -56,7 +57,7 @@ def build(art: Path, *, las: bool, res: float | None, max_window_m: float) -> di
     t0 = time.time()
     utm, epsg = exports.enu_to_utm(frame, cloud.points)
     out = rasters.build_products(utm, cloud.colors, sigma, cloud.provenance, epsg, art,
-                                 res=res, max_window_m=max_window_m)
+                                 res=res, max_window_m=max_window_m, ground=ground)
     if las:
         exports.export_las(art / "point_cloud.las", cloud, frame,
                            classification=out["point_classes"])
@@ -78,6 +79,9 @@ def main() -> int:
                     help="cell size in metres (default: chosen from the data)")
     ap.add_argument("--max-window", type=float, default=40.0,
                     help="largest ground-filter window, metres (default 40)")
+    ap.add_argument("--ground", choices=("pmf", "csf"), default="pmf",
+                    help="ground filter: pmf (default, follows hills) or csf "
+                         "(flat cities with wide roofs)")
     args = ap.parse_args()
 
     projects = args.data / "projects"
@@ -89,7 +93,8 @@ def main() -> int:
     for pid in ids:
         art = projects / pid / "artifacts"
         try:
-            result = build(art, las=args.las, res=args.res, max_window_m=args.max_window)
+            result = build(art, las=args.las, res=args.res, max_window_m=args.max_window,
+                           ground=args.ground)
         except Exception as exc:                 # report and carry on with the rest
             result = {"error": f"{type(exc).__name__}: {exc}"}
         print(pid[:8], json.dumps(result))
