@@ -9,7 +9,7 @@ from pathlib import Path
 import json
 import numpy as np
 
-from .geo import ENUFrame
+from .geo import ENUFrame, VERTICAL_DATUMS
 from .provenance import Provenance
 
 
@@ -73,9 +73,10 @@ def utm_epsg(lat: float, lon: float) -> int:
 def enu_to_utm(frame: ENUFrame, points) -> tuple[np.ndarray, int]:
     """Project local ENU metres into the WGS84 UTM zone of the frame origin.
 
-    Returns ``(points_utm, epsg)``. The third column is **ellipsoidal height**
-    (WGS84), because that is what the ENU up axis is measured against; it is
-    not an orthometric elevation and must not be read as one.
+    Returns ``(points_utm, epsg)``. The third column is height on whatever
+    datum the telemetry altitude used (``geo.VERTICAL_DATUMS``): WGS84
+    ellipsoidal only if the source said so. It is passed through, never
+    converted.
     """
     import pyproj
     pts = np.asarray(points, float).reshape(-1, 3)
@@ -152,23 +153,31 @@ def export_las(path, cloud, frame: ENUFrame | None = None, *,
 
 
 def export_georeference_sidecar(path, cloud, frame: ENUFrame | None,
-                                *, extra: dict | None = None) -> str:
+                                *, vertical_datum: str = "unknown",
+                                vertical_datum_basis: str | None = None,
+                                extra: dict | None = None) -> str:
     """JSON describing how to place a local-coordinate export on the earth.
 
     Written beside every cloud export so a local file is still usable: it
     carries the ENU origin, the projected CRS the georeferenced exports use,
     the vertical reference, and the field meanings that LAS extra dimensions
     and PLY scalars abbreviate.
+
+    ``vertical_datum`` is the telemetry's (``telemetry.vertical_datum``). Every
+    sidecar used to say "WGS84 ellipsoidal" whatever the source; DEC-047 found
+    sea-level and take-off-relative heights under that label.
     """
     path = Path(path)
     doc = {
         "coordinate_frame": "local ENU metres" if frame is None else "local ENU metres, with a georeferenced twin",
         "units": "metres",
         "local_origin_wgs84": None if frame is None else {
-            "lat": frame.lat0, "lon": frame.lon0, "alt_ellipsoidal_m": frame.alt0},
+            "lat": frame.lat0, "lon": frame.lon0, "alt_m": frame.alt0},
         "projected_crs": None if frame is None else f"EPSG:{utm_epsg(frame.lat0, frame.lon0)}",
-        "vertical_reference": (
-            "WGS84 ellipsoidal height; NOT an orthometric/MSL elevation"),
+        "vertical_datum": vertical_datum,
+        "vertical_reference": VERTICAL_DATUMS.get(vertical_datum,
+                                                  VERTICAL_DATUMS["unknown"]),
+        "vertical_datum_basis": vertical_datum_basis,
         "fields": {
             "provenance": "Provenance enum: "
                           + ", ".join(f"{int(p)}={p.name}" for p in Provenance),

@@ -45,6 +45,7 @@ from pathlib import Path
 import numpy as np
 from scipy import ndimage
 
+from .geo import VERTICAL_DATUMS
 from .provenance import Provenance
 
 OBSERVED = (int(Provenance.OBSERVED_HIGH_CONFIDENCE),
@@ -55,7 +56,6 @@ NODATA = -9999.0
 RES_LADDER = (0.1, 0.15, 0.25, 0.35, 0.5, 0.75, 1.0, 1.5, 2.0)
 #: ASPRS LAS classification codes used here.
 UNCLASSIFIED, GROUND, HIGH_VEGETATION, BUILDING = 1, 2, 5, 6
-VERTICAL_REFERENCE = "WGS84 ellipsoidal height, metres; not above sea level"
 
 
 # --------------------------------------------------------------------- grid
@@ -370,8 +370,13 @@ _CLASS_COLOURS = {0: (0, 0, 0, 0), UNCLASSIFIED: (160, 160, 160, 255),
 
 
 def write_geotiff(path, arr, grid: Grid, epsg: int, *, description: str,
+                  vertical_reference: str = VERTICAL_DATUMS["unknown"],
                   mask=None, colormap=None, nodata=NODATA) -> str:
-    """One GeoTIFF: float grids with NoData, uint8 bands with a mask or palette."""
+    """One GeoTIFF: float grids with NoData, uint8 bands with a mask or palette.
+
+    The CRS is horizontal only. What the heights are measured from goes in the
+    ``VERTICAL_REFERENCE`` tag, in words (``geo.VERTICAL_DATUMS``).
+    """
     import rasterio
     from rasterio.transform import from_origin
     a = np.asarray(arr)
@@ -392,7 +397,7 @@ def write_geotiff(path, arr, grid: Grid, epsg: int, *, description: str,
         profile["photometric"] = "RGB"
     with rasterio.open(path, "w", **profile) as dst:
         dst.write(bands)
-        dst.update_tags(DESCRIPTION=description, VERTICAL_REFERENCE=VERTICAL_REFERENCE,
+        dst.update_tags(DESCRIPTION=description, VERTICAL_REFERENCE=vertical_reference,
                         SOURCE="Drishti3D observed points only; empty cells are not interpolated")
         if mask is not None:
             dst.write_mask(np.where(mask, 255, 0).astype("uint8"))
@@ -440,11 +445,12 @@ def _relief_rgba(z, res):
 
 def build_products(utm_xyz, colors, sigma, provenance, epsg: int, out_dir,
                    *, res: float | None = None, max_window_m: float = 40.0,
-                   ground: str = "pmf") -> dict:
+                   ground: str = "pmf", vertical_datum: str = "unknown") -> dict:
     """Compute and write every raster product; return paths and point classes.
 
-    ``utm_xyz`` are the cloud's points in the UTM zone ``epsg``, heights
-    ellipsoidal (``exports.enu_to_utm``). ``ground`` is ``"pmf"`` (the
+    ``utm_xyz`` are the cloud's points in the UTM zone ``epsg``
+    (``exports.enu_to_utm``), heights on ``vertical_datum``: the telemetry's,
+    a key of ``geo.VERTICAL_DATUMS``. ``ground`` is ``"pmf"`` (the
     morphological filter, default) or ``"csf"`` (cloth simulation, for flat
     cities with wide roofs; it can lose steep terrain). Returns ``{"artifacts": {...},
     "point_classes": uint8 array, "summary": dict}``; GeoTIFFs are skipped,
@@ -485,13 +491,15 @@ def build_products(utm_xyz, colors, sigma, provenance, epsg: int, out_dir,
               for name, code in [("ground", GROUND), ("building", BUILDING),
                                  ("high_vegetation", HIGH_VEGETATION),
                                  ("unclassified", UNCLASSIFIED)]}
+    vref = VERTICAL_DATUMS.get(vertical_datum, VERTICAL_DATUMS["unknown"])
     summary = {
         "cell_size_m": res,
         "footprint_coverage": coverage,
         "cells_with_data": int(have.sum()),
         "crs": f"EPSG:{epsg}",
         "grid": grid.to_dict(),
-        "vertical_reference": VERTICAL_REFERENCE,
+        "vertical_datum": vertical_datum,
+        "vertical_reference": vref,
         "class_shares": shares,
         "class_codes": {"0": "no data", "1": "unclassified", "2": "ground",
                         "5": "high vegetation", "6": "building"},
@@ -514,21 +522,19 @@ def build_products(utm_xyz, colors, sigma, provenance, epsg: int, out_dir,
     arts["rasters_npz"] = str(out_dir / "rasters.npz")
     try:
         import rasterio  # noqa: F401
-        arts["dsm_tif"] = write_geotiff(out_dir / "dsm.tif", r["dsm"], grid, epsg,
-                                        description="DSM: highest observed point per cell")
-        arts["dtm_tif"] = write_geotiff(out_dir / "dtm.tif", dtm, grid, epsg,
-                                        description="DTM: lowest observed point in ground "
-                                                    "cells; NoData under buildings and trees")
-        arts["ortho_tif"] = write_geotiff(out_dir / "ortho.tif", r["rgb"], grid, epsg,
-                                          description="Point-cloud orthophoto: colour of the "
-                                                      "highest point per cell",
-                                          mask=r["count"] > 0)
-        arts["sigma_tif"] = write_geotiff(out_dir / "sigma.tif", r["sigma"], grid, epsg,
-                                          description="Mean worst-axis 1-sigma of the cell's "
-                                                      "points, metres; uncalibrated")
-        arts["landcover_tif"] = write_geotiff(out_dir / "landcover.tif", cls, grid, epsg,
-                                              description="Rule-based land cover, ASPRS codes",
-                                              colormap=_CLASS_COLOURS)
+        def tif(name, arr, description, **kw):
+            return write_geotiff(out_dir / name, arr, grid, epsg, description=description,
+                                 vertical_reference=vref, **kw)
+        arts["dsm_tif"] = tif("dsm.tif", r["dsm"], "DSM: highest observed point per cell")
+        arts["dtm_tif"] = tif("dtm.tif", dtm, "DTM: lowest observed point in ground "
+                                              "cells; NoData under buildings and trees")
+        arts["ortho_tif"] = tif("ortho.tif", r["rgb"], "Point-cloud orthophoto: colour of "
+                                                       "the highest point per cell",
+                                mask=r["count"] > 0)
+        arts["sigma_tif"] = tif("sigma.tif", r["sigma"], "Mean worst-axis 1-sigma of the "
+                                                         "cell's points, metres; uncalibrated")
+        arts["landcover_tif"] = tif("landcover.tif", cls, "Rule-based land cover, ASPRS codes",
+                                    colormap=_CLASS_COLOURS)
     except ImportError:
         summary["geotiff"] = "skipped: rasterio not installed (pip install rasterio)"
 

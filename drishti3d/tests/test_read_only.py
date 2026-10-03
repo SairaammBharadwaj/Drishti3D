@@ -258,3 +258,31 @@ def test_raster_summary_and_previews_are_served(client, project, tmp_path):
     # only the fixed preview names, never a path from the URL
     assert client.get(f"/api/projects/{project}/rasters/secret.png").status_code == 404
     assert client.get(f"/api/projects/{project}/rasters/..%2Fcloud.png").status_code == 404
+
+
+def test_point_info_gives_coordinates_and_says_what_placed_them(client, project):
+    import json as _json
+    art = storage.artifacts_dir(project)
+    (art / "georeference.json").write_text(_json.dumps(
+        {"georeferenced": True, "scale_source": "gps"}))
+    r = client.get(f"/api/projects/{project}/point_info", params={"e": 0, "n": 0, "u": 0})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["georeferenced"] and abs(d["lat"] - 47.0) < 1e-6        # the fixture's frame
+    assert d["utm"]["epsg"] == 32632
+    assert d["placement_source"] == "gps" and "unverified" in d["placement_note"]
+    # A sidecar from before the datum was recorded: no height, and why (DEC-047).
+    assert d["vertical_datum"] == "unknown"
+    assert d["h_msl_m"] is None and d["h_ellipsoidal_m"] is None and d["height_note"]
+    (art / "georeference.json").write_text(_json.dumps(
+        {"georeferenced": True, "scale_source": "rtk", "vertical_datum": "ellipsoidal",
+         "vertical_datum_basis": "altitude_reference ELLIPSOIDAL"}))
+    d = client.get(f"/api/projects/{project}/point_info", params={"e": 0, "n": 0, "u": 0}).json()
+    assert d["vertical_datum"] == "ellipsoidal" and d["h_ellipsoidal_m"] is not None
+    assert d["vertical_datum_basis"] == "altitude_reference ELLIPSOIDAL"
+    assert (d["h_msl_m"] is None) == ("height_note" in d)             # a height or a reason
+    (art / "georeference.json").write_text(_json.dumps(
+        {"georeferenced": False, "scale_source": "relative"}))
+    d = client.get(f"/api/projects/{project}/point_info", params={"e": 0, "n": 0, "u": 0}).json()
+    assert d == {"georeferenced": False,
+                 "note": "relative scale: this reconstruction has no position on the earth"}

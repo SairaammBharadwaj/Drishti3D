@@ -1,7 +1,8 @@
 """Coordinate transforms and robust metric alignment.
 
 Frames used:
-  * WGS84 geodetic  (lat[deg], lon[deg], alt[m ellipsoidal])
+  * WGS84 geodetic  (lat[deg], lon[deg], alt[m]; treated as ellipsoidal,
+                     see VERTICAL_DATUMS for what it really is)
   * ECEF            (earth-centred earth-fixed, metres)
   * Local ENU       (east, north, up metres) about a fixed WGS84 origin
 
@@ -25,6 +26,21 @@ except Exception:  # pragma: no cover - fallback below
 _A = 6378137.0
 _F = 1.0 / 298.257223563
 _E2 = _F * (2 - _F)
+
+#: What a georeferenced cloud's heights are measured from: the telemetry's
+#: altitude reference, carried through unchanged (``telemetry.vertical_datum``).
+#: Transforms here treat the number as ellipsoidal whatever it is; over a
+#: scene that moves horizontal positions by parts per million, but the height
+#: itself is only on the datum named here. Until DEC-047 every export said
+#: "WGS84 ellipsoidal" regardless, which was wrong for three of four sources.
+VERTICAL_DATUMS = {
+    "ellipsoidal": "WGS84 ellipsoidal height, metres; not above sea level",
+    "msl": "height above mean sea level as the source recorded it, metres; "
+           "the source's geoid model is not stated",
+    "relative": "height relative to the take-off point, metres; no absolute datum",
+    "unknown": "the telemetry does not state what its altitude is measured "
+               "from; heights have no known absolute datum, only relative ones",
+}
 
 
 def geodetic_to_ecef(lat, lon, alt):

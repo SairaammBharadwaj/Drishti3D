@@ -219,6 +219,43 @@ def get_model_pack(project_id: str, fill: bool = True):
                     headers={"Content-Length": str(len(data))})
 
 
+#: What a mission's placement on the earth rests on, by georeference.json's
+#: scale_source. The coordinates are only as good as this.
+_PLACEMENT_NOTES = {
+    "rtk": "Placed by RTK GNSS. Where checked against same-flight LiDAR, "
+           "placement was within 0.08-0.28 m horizontally (DEC-044).",
+    "gps": "Placed by GPS without RTK. The absolute position can be off by "
+           "metres or more; the Austin missions' placement is unverified "
+           "(DEC-045). Distances and heights within the scene are unaffected.",
+}
+
+
+@router.get("/{project_id}/point_info")
+def point_info(project_id: str, e: float, n: float, u: float):
+    """Every coordinate form of one picked point (``drishti_recon.position``).
+
+    Latitude/longitude, UTM, MGRS, and the heights the mission's vertical
+    datum supports: ellipsoidal and above sea level (EGM2008) when the
+    telemetry said which it was, none when it did not. A sidecar written
+    before the datum was recorded counts as unknown. A mission that is not
+    georeferenced has no position to give.
+    """
+    from drishti_recon import position
+    from drishti_recon.geo import ENUFrame
+    geo = _load_json(project_id, "georeference.json")
+    frame = ENUFrame(**_load_json(project_id, "trajectory.json")["frame"])
+    out = position.describe(frame, [e, n, u],
+                            georeferenced=bool(geo.get("georeferenced")),
+                            vertical_datum=geo.get("vertical_datum") or "unknown")
+    if out.get("georeferenced"):
+        src = geo.get("scale_source")
+        out["placement_source"] = src
+        out["placement_note"] = _PLACEMENT_NOTES.get(
+            src, f"Placement source '{src}' has no recorded accuracy.")
+        out["vertical_datum_basis"] = geo.get("vertical_datum_basis")
+    return out
+
+
 @router.get("/{project_id}/rasters")
 def get_rasters(project_id: str):
     """The raster products' summary and which preview images exist.

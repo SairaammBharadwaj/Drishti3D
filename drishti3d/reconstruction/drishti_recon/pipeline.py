@@ -1461,6 +1461,10 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
     georeferenced = bool(alignment) and scale_source not in (
         None, "", "none", "relative", "arbitrary")
     export_frame = enu_frame if georeferenced else None
+    # What the heights are measured from: the telemetry's altitude reference,
+    # passed through to every export that carries heights (DEC-047).
+    tel_in = (report.get("input") or {}).get("telemetry") or {}
+    vdatum = tel_in.get("vertical_datum", "unknown")
 
     # DSM, DTM, orthophoto, sigma and land cover (rasters.py). Only for a
     # georeferenced cloud: a relative-scale one has no place on the earth to
@@ -1473,7 +1477,7 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
             utm, epsg = exports.enu_to_utm(export_frame, cloud.points)
             sig = cloud.sigma_major if cloud.sigma_major is not None else cloud.sigma
             products = rasters.build_products(utm, cloud.colors, sig, cloud.provenance,
-                                              epsg, art_dir)
+                                              epsg, art_dir, vertical_datum=vdatum)
             artifacts.update(products["artifacts"])
             point_classes = products["point_classes"]
             report["rasters"] = products["summary"]
@@ -1490,6 +1494,8 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
     # or states plainly that it is not.
     artifacts["georeference"] = exports.export_georeference_sidecar(
         art_dir / "georeference.json", cloud, export_frame,
+        vertical_datum=vdatum,
+        vertical_datum_basis=tel_in.get("vertical_datum_basis"),
         extra={"scale_source": scale_source,
                "georeferenced": georeferenced,
                "units": "metres" if georeferenced else "reconstruction units"})
@@ -1573,10 +1579,11 @@ def _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings,
             "recon_to_enu": align.transform.to_dict() if align is not None else None,
             "gravity_leveling": leveling,
         },
-        # GNSS altitude is ellipsoidal here (EPSG:4979); it is NOT orthometric
-        # height above a geoid.  Recorded explicitly so a consumer never assumes
-        # the wrong vertical datum.
-        "vertical_datum": "WGS84 ellipsoidal (EPSG:4979); not orthometric/geoid",
+        # What the telemetry altitude, and so every height, is measured from.
+        # This said "WGS84 ellipsoidal" for every run until DEC-047 found
+        # sea-level and take-off-relative altitudes under that label.
+        "vertical_datum": treport.vertical_datum,
+        "vertical_datum_basis": treport.vertical_datum_basis,
         # Where the metric scale came from and how well determined it is. A
         # measurement's interval is dominated by this on anything longer than a
         # few metres, so it belongs in the artifact manifest rather than only

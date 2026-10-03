@@ -61,6 +61,10 @@ class TelemetryReport:
     #: Counts by fix quality, so "unknown" stays distinguishable from "poor".
     fix_quality_counts: dict = field(default_factory=dict)
     intrinsics: dict | None = None  # fx,fy,cx,cy if present in telemetry
+    #: What the altitudes are measured from (``geo.VERTICAL_DATUMS``), and
+    #: what that rests on. "unknown" unless the source says.
+    vertical_datum: str = "unknown"
+    vertical_datum_basis: str = "no telemetry"
 
     @property
     def ok(self) -> bool:
@@ -238,11 +242,13 @@ def parse_json(path: Path, warnings: list[str]):
         if not _valid_row(lat, lon, alt):
             warnings.append(f"row {i}: invalid/missing lat/lon/alt, skipped")
             continue
+        ref = row.get("altitude_reference")
         samples.append(TelemetrySample(ts, lat, lon, alt,
                        roll=_to_float(data.get("roll")), pitch=_to_float(data.get("pitch")),
                        yaw=_to_float(data.get("yaw")), velocity=_to_float(data.get("velocity")),
                        gps_accuracy=_to_float(data.get("gps_accuracy")),
-                       rtk_status=data.get("rtk_status")))
+                       rtk_status=data.get("rtk_status"),
+                       extra={"altitude_reference": ref} if ref not in (None, "") else {}))
     return samples, None
 
 
@@ -393,6 +399,75 @@ def extract_embedded_srt(video: str | Path, dest: str | Path | None = None):
     return dest
 
 
+#: ``altitude_reference`` values, by the datum they name. Anything else --
+#: UNSPECIFIED, UNKNOWN, AGL (above which ground?) -- is "unknown".
+_DATUM_LABELS = {
+    "ellipsoidal": {"ELLIPSOIDAL", "WGS84", "WGS_84", "HAE"},
+    "msl": {"MSL", "AMSL", "ORTHOMETRIC", "EGM96", "EGM2008"},
+    "relative": {"RELATIVE_TO_TAKEOFF", "RELATIVE", "ATO"},
+}
+#: The same, read from the name of the altitude column itself: ``alt_msl``,
+#: ``ellipsoidal_altitude``. Unit stripping maps those names to ``altitude``,
+#: so the datum they declare would otherwise be lost.
+_DATUM_WORDS = {"ellipsoidal": {"ellipsoidal", "hae", "wgs84"},
+                "msl": {"msl", "amsl", "orthometric"},
+                "relative": {"rel", "relative"}}
+#: parse_srt's altitude_kind, by datum.
+_SRT_KINDS = {"msl": "msl", "relative_to_takeoff": "relative"}
+
+
+def _datum_of_label(label) -> str:
+    key = re.sub(r"[^A-Z0-9]+", "_", str(label).strip().upper()).strip("_")
+    return next((d for d, names in _DATUM_LABELS.items() if key in names), "unknown")
+
+
+def _datum_of_column(name: str | None) -> str | None:
+    if not name:
+        return None
+    words = set(re.sub(r"[^a-z0-9]+", "_", name.lower()).split("_"))
+    found = [d for d, w in _DATUM_WORDS.items() if words & w]
+    return found[0] if len(found) == 1 else None
+
+
+def vertical_datum(samples, altitude_column: str | None = None) -> tuple[str, str]:
+    """What the samples' altitudes are measured from, and what says so.
+
+    In order: an ``altitude_reference`` value on the samples, the DJI subtitle
+    prefix (``abs_alt``/``rel_alt``), then the altitude column's own name. A
+    source that says nothing is "unknown", not ellipsoidal: DEC-047 found
+    sea-level and take-off-relative altitudes in the same column, under the
+    same label, as ellipsoidal ones. Samples that disagree are "unknown" too.
+    """
+    if not samples:
+        return "unknown", "no telemetry"
+    per = set()
+    for s in samples:
+        if "altitude_reference" in s.extra:
+            raw = s.extra["altitude_reference"]
+            per.add((_datum_of_label(raw), f"altitude_reference {str(raw).strip()}"))
+        elif "altitude_kind" in s.extra:
+            kind = s.extra["altitude_kind"]
+            per.add((_SRT_KINDS.get(kind, "unknown"), f"DJI subtitle altitude ({kind})"))
+        else:
+            from_name = _datum_of_column(altitude_column)
+            per.add((from_name, f"altitude column '{altitude_column}'") if from_name
+                    else ("unknown", "the telemetry does not state its altitude reference"))
+    datums = {d for d, _ in per}
+    if len(datums) > 1:
+        return "unknown", "samples disagree: " + "; ".join(sorted(b for _, b in per))
+    if len(per) > 1:          # one datum, several labels for it (e.g. MSL, AMSL)
+        return datums.pop(), "; ".join(sorted(b for _, b in per))
+    return per.pop()
+
+
+def _csv_altitude_column(path: Path) -> str | None:
+    """The CSV column parse_csv reads altitude from."""
+    with open(path, newline="") as f:
+        header = next(csv.reader(f), None)
+    cols = _resolve_columns(header or [], [])
+    return next((c for c, canon in cols.items() if canon == "altitude"), None)
+
+
 def load(path: str | Path) -> TelemetryReport:
     """Auto-detect format by extension and parse.
 
@@ -439,9 +514,17 @@ def load(path: str | Path) -> TelemetryReport:
         warnings.append(
             f"only {frac:.0%} of telemetry samples carry a fixed RTK solution; "
             f"scale is treated as ordinary GNSS, not RTK")
+    datum, basis = vertical_datum(
+        samples, _csv_altitude_column(path) if ext == ".csv" else None)
+    if samples and datum == "unknown":
+        warnings.append(
+            f"altitude reference unknown ({basis}): heights will have no absolute "
+            "datum. Add an altitude_reference column (ELLIPSOIDAL, MSL or "
+            "RELATIVE_TO_TAKEOFF) if it is known")
     return TelemetryReport(samples, n_in, len(samples), warnings,
                            rtk_fixed_fraction=frac, fix_quality_counts=counts,
-                           intrinsics=intr)
+                           intrinsics=intr, vertical_datum=datum,
+                           vertical_datum_basis=basis)
 
 
 def kalman_smooth(times, positions, *, sigma_m=5.0, accel_m_s2=1.0):

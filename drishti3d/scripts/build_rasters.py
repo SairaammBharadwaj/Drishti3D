@@ -6,7 +6,7 @@ New runs get DSM, DTM, orthophoto, sigma and land cover from the pipeline
 mission's saved artifacts, so existing missions gain them without a
 reconstruction rerun. It reads ``cloud.npz``, ``trajectory.json`` (the ENU
 frame) and ``georeference.json`` (whether the pipeline judged the cloud
-georeferenced), and writes only new files. The artifacts that stored answers
+georeferenced, and its vertical datum), and writes only new files. The artifacts that stored answers
 are checked against (``storage.artifact_revision``) are never touched.
 
 A mission that is not georeferenced is skipped: its "metres" are
@@ -57,7 +57,8 @@ def build(art: Path, *, las: bool, res: float | None, max_window_m: float,
     t0 = time.time()
     utm, epsg = exports.enu_to_utm(frame, cloud.points)
     out = rasters.build_products(utm, cloud.colors, sigma, cloud.provenance, epsg, art,
-                                 res=res, max_window_m=max_window_m, ground=ground)
+                                 res=res, max_window_m=max_window_m, ground=ground,
+                                 vertical_datum=geo.get("vertical_datum") or "unknown")
     if las:
         exports.export_las(art / "point_cloud.las", cloud, frame,
                            classification=out["point_classes"])

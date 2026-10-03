@@ -4,9 +4,10 @@ import {
   api, PROVENANCE, enuToLatLon, processingTime,
   type ModelPayload, type QualityReport, type Trajectory,
   type Measurement, type MeasurementKind, type FrameMetric, type Keyframe, type Vec3,
-  type RasterInfo,
+  type RasterInfo, type PointInfo,
 } from '../api'
 import MapsPanel from '../MapsPanel'
+import PositionCard from '../PositionCard'
 import ReconstructionNotice from '../ReconstructionNotice'
 import ToleranceLens from '../ToleranceLens'
 import PointCloudViewer from '../PointCloudViewer'
@@ -47,6 +48,17 @@ export default function Workspace() {
   const [hover, setHover] = useState<Vec3 | null>(null)
   const [allowInferred, setAllowInferred] = useState(false)
   const [lastResult, setLastResult] = useState<Measurement | null>(null)
+  const [position, setPosition] = useState<PointInfo | null>(null)
+
+  // A measured point gets every coordinate form; other results do not.
+  useEffect(() => {
+    setPosition(null)
+    const p = lastResult?.kind === 'point' ? lastResult.points_enu[0] : null
+    if (!p) return
+    let live = true
+    api.pointInfo(id, p).then((info) => { if (live) setPosition(info) }).catch(() => {})
+    return () => { live = false }
+  }, [lastResult, id])
 
   // This is the count that is actually drawable right now. It deliberately
   // follows the layer switches, rather than reporting the size of the loaded
@@ -173,6 +185,7 @@ export default function Workspace() {
             {lastResult.warnings.map((w, i) => <div key={i} className="warn" style={{ fontSize: 12 }}>⚠ {w}</div>)}
           </div>
         )}
+        {position && <PositionCard info={position} />}
 
         <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
           <ToleranceLens

@@ -197,6 +197,28 @@ export interface RasterSummary {
 }
 export interface RasterInfo { summary: RasterSummary; previews: string[] }
 
+/** point_info (drishti_recon.position): one point in every coordinate form. */
+export interface PointInfo {
+  georeferenced: boolean
+  note?: string
+  lat?: number
+  lon?: number
+  /** What the heights are measured from: the telemetry's altitude reference. */
+  vertical_datum?: 'ellipsoidal' | 'msl' | 'relative' | 'unknown'
+  vertical_datum_basis?: string | null
+  h_ellipsoidal_m?: number | null
+  h_ellipsoidal_model?: string
+  h_msl_m?: number | null
+  h_msl_model?: string
+  h_relative_m?: number
+  /** Why a height is missing: no stated datum, or no geoid grid. */
+  height_note?: string
+  utm?: { epsg: number; zone: string; easting_m: number; northing_m: number }
+  mgrs?: string | null
+  placement_source?: string
+  placement_note?: string
+}
+
 /** The id this browser's measurements and questions are kept under on a
  *  read-only showcase, where each visitor writes to a private copy of the
  *  database (backend/app/sandbox.py). Other servers ignore it. */
@@ -348,6 +370,8 @@ export const api = {
   exportUrl: (id: string, key: string) => `${BASE}/api/projects/${id}/exports/${key}`,
   rasters: (id: string) => send(`${BASE}/api/projects/${id}/rasters`).then(j<RasterInfo>),
   rasterPreviewUrl: (id: string, name: string) => `${BASE}/api/projects/${id}/rasters/${name}.png`,
+  pointInfo: (id: string, p: Vec3) => send(
+    `${BASE}/api/projects/${id}/point_info?e=${p[0]}&n=${p[1]}&u=${p[2]}`).then(j<PointInfo>),
 
   createMeasurement: (id: string, body: {
     kind: MeasurementKind; points: Vec3[]; allow_inferred: boolean

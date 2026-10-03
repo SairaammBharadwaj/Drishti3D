@@ -184,3 +184,8 @@ input[type=checkbox], input[type=range] { min-height:0; accent-color:var(--accen
 .maps-legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12px; margin:4px 0; }
 .maps-legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
 .maps-meta { font-size:11px; margin:2px 0 0; }
+.position-card { margin-top:10px; font-size:12px; }
+.position-card dl { display:grid; grid-template-columns:auto 1fr; gap:3px 10px; margin:6px 0; }
+.position-card dt { color:var(--muted); }
+.position-card dd { margin:0; overflow-wrap:anywhere; }
+.position-card p { margin:4px 0 0; line-height:1.45; }
