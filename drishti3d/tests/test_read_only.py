@@ -242,3 +242,19 @@ def test_page_visits_on_the_stable_address_go_to_the_fast_one(client, monkeypatc
     assert client.get("/missions", headers=other, follow_redirects=False).status_code != 307
     fast["host"] = None
     assert client.get("/missions", headers=page, follow_redirects=False).status_code != 307
+
+
+def test_raster_summary_and_previews_are_served(client, project, tmp_path):
+    import json as _json
+    art = storage.artifacts_dir(project)
+    # Minimal products, as rasters.build_products leaves them.
+    (art / "rasters.json").write_text(_json.dumps({"cell_size_m": 0.5}))
+    (art / "ortho_preview.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    r = client.get(f"/api/projects/{project}/rasters")
+    assert r.status_code == 200
+    assert r.json() == {"summary": {"cell_size_m": 0.5}, "previews": ["ortho"]}
+    img = client.get(f"/api/projects/{project}/rasters/ortho.png")
+    assert img.status_code == 200 and img.headers["content-type"] == "image/png"
+    # only the fixed preview names, never a path from the URL
+    assert client.get(f"/api/projects/{project}/rasters/secret.png").status_code == 404
+    assert client.get(f"/api/projects/{project}/rasters/..%2Fcloud.png").status_code == 404

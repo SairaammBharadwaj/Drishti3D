@@ -3524,3 +3524,50 @@ same shape on two independent flights (TESTS_AND_RESULTS 2026-09-26).
 - The chessboard calibration published with MARS-LVIG is slightly wrong for
   this lens; a supplied calibration is now treated as a starting point for
   distortion but still as fixed for focal length.
+
+## DEC-045 — Raster products from observed points only; land cover ships as experimental
+
+**Date:** 2026-10-03
+
+**Status:** Accepted
+
+### Context
+
+A survey of public SIH26158 projects found DSM, DTM, orthophoto and land-cover
+GeoTIFFs on most competitors' output lists and none on ours. The audit
+supplied a draft module. Integrating it as written would have made rasters
+that were slow (a Python callback per cell), nondeterministic (the "top point"
+picked by fancy-index assignment order), mostly empty on the DJI missions (a
+fixed 0.25 m grid on ~0.7 m point spacing), and that called cliffs buildings.
+
+### Decision
+
+1. `drishti_recon/rasters.py` rasterises **observed points only**. Empty cells
+   stay NoData in every product; the terrain filled under buildings is
+   internal to classification and never written.
+2. Cell size is the smallest on a 0.1–2 m ladder at which 75% of the surveyed
+   footprint holds a point, and is recorded with its coverage.
+3. The ground filter is Zhang et al. (2003)'s progressive morphological filter
+   with a 40 m maximum window. 120 m was tried, tuned on DJI_1003, and rejected
+   on the held-out missions: it multiplied false buildings on the Hong Kong
+   cliffs (precision 0.25 -> 0.06) for a small Austin gain.
+4. **DSM, orthophoto and sigma ship as products. DTM and land cover ship
+   labelled experimental**, in the API, the UI and `docs/RASTERS.md`, with
+   their OSM scores. No labelled truth exists for them.
+5. Heights stay WGS84 ellipsoidal, as in LAS, and every file says so.
+
+### Evidence
+
+TESTS_AND_RESULTS 2026-10-03: the DSM is within 3 cm of the cloud's own
+LiDAR-scored accuracy on HKisland03, HKisland02 and UseGeo 1. Building F1
+against OSM is 0.81 on UseGeo 1 and 0.16–0.39 elsewhere.
+
+### Consequences / limits
+
+- Land cover must not be presented as validated. The fix needs a ground filter
+  that copes with both wide roofs and steep terrain (cloth simulation is the
+  candidate), judged on the same OSM harness.
+- Austin's absolute placement is unverified: OSM offsets vary by quadrant from
+  0 to ~45 m. Next check: StratMap 2021, for horizontal placement on unchanged
+  buildings only (not as vertical or accuracy truth).
+- UseGeo 1 carries a +0.36 m vertical bias on flat ground, newly measured.

@@ -13,7 +13,7 @@ uv venv --python 3.12 .venv                 # 3.14 has no OpenCV wheel yet
 VIRTUAL_ENV=.venv uv pip install \
     numpy scipy "opencv-python-headless>=4.8" pyproj imageio imageio-ffmpeg \
     fastapi "uvicorn[standard]" sqlalchemy pydantic python-multipart aiofiles \
-    httpx laspy open3d pytest
+    httpx laspy open3d pytest rasterio      # rasterio: GeoTIFF map layers (optional)
 VIRTUAL_ENV=.venv uv pip install -e reconstruction
 .venv/bin/python -m pytest tests -q
 ```

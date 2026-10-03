@@ -1462,9 +1462,28 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
         None, "", "none", "relative", "arbitrary")
     export_frame = enu_frame if georeferenced else None
 
+    # DSM, DTM, orthophoto, sigma and land cover (rasters.py). Only for a
+    # georeferenced cloud: a relative-scale one has no place on the earth to
+    # rasterise into. Their land-cover classes also go into the LAS. A failure
+    # here costs the rasters, never the run.
+    point_classes = None
+    if export_frame is not None:
+        try:
+            from . import rasters
+            utm, epsg = exports.enu_to_utm(export_frame, cloud.points)
+            sig = cloud.sigma_major if cloud.sigma_major is not None else cloud.sigma
+            products = rasters.build_products(utm, cloud.colors, sig, cloud.provenance,
+                                              epsg, art_dir)
+            artifacts.update(products["artifacts"])
+            point_classes = products["point_classes"]
+            report["rasters"] = products["summary"]
+        except Exception as e:
+            report.setdefault("warnings", []).append(f"raster products skipped: {e}")
+
     try:
         artifacts["las"] = exports.export_las(art_dir / "point_cloud.las",
-                                              cloud, export_frame)
+                                              cloud, export_frame,
+                                              classification=point_classes)
     except Exception as e:
         report.setdefault("warnings", []).append(f"LAS export skipped: {e}")
     # Every cloud export is local ENU; the sidecar is what makes it placeable,

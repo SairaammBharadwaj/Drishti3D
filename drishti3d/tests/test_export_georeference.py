@@ -127,3 +127,13 @@ def test_sidecar_is_honest_without_a_frame(tmp_path):
 ])
 def test_utm_zone_selection(lat, lon, epsg):
     assert exports.utm_epsg(lat, lon) == epsg
+
+
+def test_las_carries_land_cover_classes_when_given(tmp_path):
+    cloud = _cloud(6)
+    classes = np.array([1, 2, 2, 5, 6, 6], np.uint8)
+    p = exports.export_las(tmp_path / "c.las", cloud, FRAME, classification=classes)
+    assert np.asarray(laspy.read(p).classification).tolist() == classes.tolist()
+    # without classes nothing is guessed: every point stays 0, never classified
+    q = exports.export_las(tmp_path / "d.las", cloud, FRAME)
+    assert not np.asarray(laspy.read(q).classification).any()

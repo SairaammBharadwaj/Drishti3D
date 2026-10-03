@@ -176,3 +176,11 @@ input[type=checkbox], input[type=range] { min-height:0; accent-color:var(--accen
 .showcase-banner details[open] { flex-basis:100%; margin-left:0; }
 .showcase-banner ul { margin:6px 0; padding-left:18px; }
 @media(max-width:760px) { .showcase-banner { padding:9px 20px; } .showcase-banner details { margin-left:0; } }
+.maps img { display:block; width:100%; height:auto; margin-top:8px; border:1px solid var(--border); border-radius:var(--radius); background:#d9d4ca; image-rendering:pixelated; }
+.maps-tabs { gap:6px; flex-wrap:wrap; }
+.maps-tabs button { padding:4px 10px; min-height:30px; font-size:12px; }
+.maps-caption { font-size:12px; line-height:1.5; margin:8px 0 4px; }
+.maps-flag { display:inline-block; font-size:10px; letter-spacing:.06em; text-transform:uppercase; padding:1px 6px; border:1px solid var(--amber); color:var(--amber); border-radius:3px; margin-right:4px; }
+.maps-legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12px; margin:4px 0; }
+.maps-legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+.maps-meta { font-size:11px; margin:2px 0 0; }

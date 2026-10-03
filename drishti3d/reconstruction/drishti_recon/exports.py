@@ -86,7 +86,8 @@ def enu_to_utm(frame: ENUFrame, points) -> tuple[np.ndarray, int]:
     return np.column_stack([x, y, geo[:, 2]]), epsg
 
 
-def export_las(path, cloud, frame: ENUFrame | None = None) -> str:
+def export_las(path, cloud, frame: ENUFrame | None = None, *,
+               classification=None) -> str:
     """LAS point cloud (requires laspy), georeferenced when a frame is given.
 
     ``frame`` used to be accepted and ignored: the file held local ENU metres
@@ -103,6 +104,11 @@ def export_las(path, cloud, frame: ENUFrame | None = None) -> str:
     Per-point ``provenance``, ``confidence`` and ``sigma`` (worst-axis, metres)
     are written as LAS extra dimensions under those names, so the trust
     information survives the trip into another tool.
+
+    ``classification``, when given, is one ASPRS code per point
+    (``rasters.classify_points``: 1 unclassified, 2 ground, 5 high
+    vegetation, 6 building). Without it every point stays 0, "never
+    classified", which is what the file says rather than a guess.
     """
     import laspy
     path = Path(path)
@@ -139,6 +145,8 @@ def export_las(path, cloud, frame: ENUFrame | None = None) -> str:
         sig = getattr(cloud, "sigma", None)
     las.sigma = (np.full(len(pts), np.nan, np.float32) if sig is None
                  else np.asarray(sig, np.float32))
+    if classification is not None:
+        las.classification = np.asarray(classification, np.uint8)
     las.write(str(path))
     return str(path)
 

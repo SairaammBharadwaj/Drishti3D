@@ -19,6 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 mesh = ["open3d>=0.17"]
 las = ["laspy>=2.5"]
+gis = ["rasterio>=1.4"]          # DSM / DTM / orthophoto / land-cover GeoTIFFs
 ai = ["torch", "torchvision"]
 
 [tool.setuptools]

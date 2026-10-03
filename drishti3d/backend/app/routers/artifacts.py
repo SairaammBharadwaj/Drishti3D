@@ -32,7 +32,17 @@ _EXPORT_FILES = {
     "georeference": "georeference.json",
     # Per-hole record of the inferred fill: what each surface rests on.
     "fill": "fill.json",
+    # Raster products (drishti_recon.rasters), UTM GeoTIFFs.
+    "dsm_tif": "dsm.tif",
+    "dtm_tif": "dtm.tif",
+    "ortho_tif": "ortho.tif",
+    "sigma_tif": "sigma.tif",
+    "landcover_tif": "landcover.tif",
 }
+
+#: Preview images rasters.py writes, by the name the API serves them under.
+_RASTER_PREVIEWS = {"ortho": "ortho_preview.png", "dsm": "dsm_preview.png",
+                    "dtm": "dtm_preview.png", "landcover": "landcover_preview.png"}
 
 #: Provenance code of fill points (``Provenance.INFERRED_FILL``). Written here
 #: rather than imported so the API does not load the reconstruction package.
@@ -207,6 +217,27 @@ def get_model_pack(project_id: str, fill: bool = True):
     data = pack_for(project_id, fill)
     return Response(content=data, media_type="application/octet-stream",
                     headers={"Content-Length": str(len(data))})
+
+
+@router.get("/{project_id}/rasters")
+def get_rasters(project_id: str):
+    """The raster products' summary and which preview images exist.
+
+    404 when the mission has none: it is not georeferenced, or predates them
+    and ``scripts/build_rasters.py`` has not been run for it.
+    """
+    summary = _load_json(project_id, "rasters.json")
+    d = storage.artifacts_dir(project_id)
+    previews = [k for k, f in _RASTER_PREVIEWS.items() if (d / f).exists()]
+    return {"summary": summary, "previews": previews}
+
+
+@router.get("/{project_id}/rasters/{name}.png")
+def get_raster_preview(project_id: str, name: str):
+    if name not in _RASTER_PREVIEWS:
+        raise HTTPException(404, "unknown raster preview")
+    return FileResponse(_artifact(project_id, _RASTER_PREVIEWS[name]),
+                        media_type="image/png")
 
 
 @router.get("/{project_id}/keyframes")

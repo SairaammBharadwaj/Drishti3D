@@ -15,6 +15,8 @@ From one pass of drone video and its GPS or RTK telemetry, Drishti3D:
 - recovers the camera path and a dense point cloud, using structure-from-motion
   and dense stereo (COLMAP, or a built-in OpenCV engine);
 - places it in real-world coordinates at metric scale;
+- makes map layers as GeoTIFFs: a surface model (DSM) checked against LiDAR,
+  an orthophoto, and experimental terrain (DTM) and land-cover layers;
 - labels every point: observed with high confidence, observed with low
   confidence, AI-assisted, a moving object that was excluded, or never
   observed. Only observed geometry is measurable by default;

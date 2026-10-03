@@ -18,6 +18,9 @@ holds everything else.
 - [BENCHMARK.md](BENCHMARK.md), with raw runs in [benchmarks/](benchmarks/):
   the truth harness, and the rule that no accuracy claim is published unless
   it generated it.
+- [RASTERS.md](RASTERS.md): DSM, DTM, orthophoto and land-cover layers. The DSM
+  is checked against LiDAR; the land cover is scored against OpenStreetMap and
+  is experimental.
 - [EVALUATION.md](EVALUATION.md): how ground-truth evaluation is run.
 - [performance_2026_09_23/](performance_2026_09_23/): the optimisation plan
   and baselines behind the 12.2-minute DJI run (DEC-041).

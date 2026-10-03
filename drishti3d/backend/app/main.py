@@ -80,7 +80,7 @@ async def _read_only(request: Request, call_next):
 #: bundle replaces them under the same URLs. Measurements and questions are per
 #: visitor and are never marked cacheable.
 _ARTIFACT_GET = re.compile(
-    rf"/api/projects/{_HEX}/(model|model\.bin|model\.pack|quality|trajectory|frame_metrics|keyframes|exports(/[a-z_]+)?)")
+    rf"/api/projects/{_HEX}/(model|model\.bin|model\.pack|quality|trajectory|frame_metrics|keyframes|exports(/[a-z_]+)?|rasters(/[a-z]+\.png)?)")
 
 
 def _cache_policy(path: str) -> str | None:

@@ -4,7 +4,9 @@ import {
   api, PROVENANCE, enuToLatLon, processingTime,
   type ModelPayload, type QualityReport, type Trajectory,
   type Measurement, type MeasurementKind, type FrameMetric, type Keyframe, type Vec3,
+  type RasterInfo,
 } from '../api'
+import MapsPanel from '../MapsPanel'
 import ReconstructionNotice from '../ReconstructionNotice'
 import ToleranceLens from '../ToleranceLens'
 import PointCloudViewer from '../PointCloudViewer'
@@ -33,6 +35,7 @@ export default function Workspace() {
   const [keyframes, setKeyframes] = useState<Keyframe[]>([])
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [exps, setExps] = useState<Record<string, string>>({})
+  const [maps, setMaps] = useState<RasterInfo | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
   const [colorMode, setColorMode] = useState<'true' | 'provenance'>('provenance')
@@ -64,13 +67,14 @@ export default function Workspace() {
   useEffect(() => {
     // The same view is reused across missions; a cloud from the previous one
     // must not stay on screen while the next loads.
-    setModel(null); setQuality(null); setFull(null); setFullState('idle'); setFullProgress(0)
+    setModel(null); setQuality(null); setFull(null); setFullState('idle'); setFullProgress(0); setMaps(null)
     api.model(id).then(setModel).catch((e) => setErr(String(e)))
     api.quality(id).then(setQuality).catch(() => {})
     api.trajectory(id).then(setTraj).catch(() => {})
     api.frameMetrics(id).then(setMetrics).catch(() => {})
     api.keyframes(id).then(setKeyframes).catch(() => {})
     api.exports(id).then((e) => setExps(e.available)).catch(() => {})
+    api.rasters(id).then(setMaps).catch(() => setMaps(null))
     api.listMeasurements(id).then(setMeasurements).catch(() => {})
   }, [id])
 
@@ -288,6 +292,10 @@ export default function Workspace() {
 
         <h3 style={{ marginTop: 18 }}>Trajectory</h3>
         {traj ? <TrajectoryMap traj={traj} /> : <div className="muted">not available</div>}
+
+        <h3 style={{ marginTop: 18 }}>Maps</h3>
+        {maps ? <MapsPanel id={id} maps={maps} />
+          : <div className="muted">Not available: the mission is not georeferenced, or its maps have not been built.</div>}
 
         <h3 style={{ marginTop: 18 }}>Keyframe timeline</h3>
         <div className="timeline">

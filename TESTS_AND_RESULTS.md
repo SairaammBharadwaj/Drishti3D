@@ -1918,3 +1918,56 @@ flight). Synthetic test recovers a known k1/k2 with focal fixed. 497 tests pass.
 - Residual-distortion refinement on a camera without a supplied calibration
   (it only runs when one is supplied), and on DJI/UseGeo.
 - Per-point horizontal error.
+
+## 2026-10-03 — Raster products: DSM validated, land cover experimental (DEC-045)
+
+`drishti_recon/rasters.py` writes DSM, DTM, orthophoto, sigma and land-cover
+GeoTIFFs for georeferenced runs; `scripts/build_rasters.py` made them for the
+existing missions (0.4–18 s each). Details in `drishti3d/docs/RASTERS.md`.
+
+### DSM against same-flight LiDAR (`scripts/score_raster_dsm.py`)
+Flat-cell vertical metric of DEC-042, DEC-044 antenna offsets (other flight's),
+each DSM cell scored as a point at its centre:
+
+| mission | cloud RMSE / bias | DSM RMSE / bias | mean-Z RMSE / bias | cell |
+|---|---|---|---|---|
+| HKisland03 (corr +0.324) | 0.377 / +0.032 | **0.407 / +0.055** | 0.402 / +0.006 | 0.5 m |
+| HKisland02 (corr +0.356) | 0.418 / -0.032 | **0.416 / -0.026** | 0.420 / -0.051 | 0.35 m |
+| UseGeo 1 (no corr) | 0.432 / +0.363 | **0.444 / +0.370** | 0.424 / +0.357 | 0.25 m |
+
+The cloud rows reproduce DEC-044 to the millimetre. Injection on each DSM:
++0.30 / +1.00 / -0.10 m recovered within 0.3 mm. **New:** UseGeo 1 sits +0.36 m
+high on flat cells (not measured with this metric before).
+
+### Building class against OSM footprints (`scripts/score_landcover_osm.py`)
+Footprints from Overpass, OSM data of 2026-10-03, kept in
+`datasets/truth/osm_buildings/` with provenance. Tolerance 1.5 m.
+
+| mission | precision | recall | F1 | roofs as ground |
+|---|---:|---:|---:|---:|
+| UseGeo 1 | 0.766 | 0.863 | 0.812 | 0.020 |
+| DJI_1003 | 0.303 | 0.108 | 0.159 | 0.521 |
+| DJI_1001 | 0.379 | 0.127 | 0.190 | 0.406 |
+| HKisland03 | 0.140 | 0.953 | 0.245 | 0.000 |
+| HKisland02 | 0.247 | 0.931 | 0.390 | 0.000 |
+
+Ground-filter window 120 m (tuned on DJI_1003): DJI_1003 F1 0.241, DJI_1001
+0.213, UseGeo 0.797, HKisland03 0.155 (precision 0.084), HKisland02 0.105
+(precision 0.056; building cells 9,919 -> 46,196). Rejected: cliffs.
+
+### Austin placement against OSM
+Elevated-cell (DSM > 5 m above a 120 m local minimum) cross-correlation with
+footprints, +-40 m: UseGeo 0.0 m (peak 5.5x median). DJI_1001 quadrants
+(E, N): (-4, -19), (-22, -14), (+10, -12), (+20, -40) m. DJI_1003: (0, 0),
+(0, 0), (+4.5, +10.5), (-33, +39) m. Inconsistent; not a constant offset.
+
+### Checks
+10 new tests (8 in `tests/test_rasters.py`, LAS classes, rasters API), with one
+proven by a deliberate bug (highest-point selection swapped for lowest fails
+it). End-to-end pipeline test asserts rasters on a georeferenced run.
+
+### NOT TESTED
+- The DTM against any ground truth (none available).
+- Land cover classes other than building.
+- AGZ against OSM (Overpass timed out twice).
+- Austin absolute placement (planned: StratMap 2021, horizontal only).

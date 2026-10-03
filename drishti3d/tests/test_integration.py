@@ -33,6 +33,11 @@ def test_pipeline_end_to_end(dataset):
     # artifacts written
     for key in ("ply", "viewer", "report_json", "trajectory"):
         assert key in res.artifacts
+    # a georeferenced run also gets its raster products, recorded in the report
+    assert "rasters_npz" in res.artifacts, rep.get("warnings")
+    assert rep["rasters"]["crs"].startswith("EPSG:326")
+    if "dsm_tif" not in res.artifacts:          # rasterio is an optional extra
+        assert "rasterio" in rep["rasters"]["geotiff"]
 
     # metric scale is finite/positive and the cloud has real extent (a genuine
     # reconstruction).  Tight dimensional accuracy is demonstrated on the full-

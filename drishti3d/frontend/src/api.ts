@@ -185,6 +185,18 @@ export interface Measurement {
 
 export interface ExportList { available: Record<string, string> }
 
+/** rasters.json (drishti_recon.rasters): what the raster products are. */
+export interface RasterSummary {
+  cell_size_m: number
+  footprint_coverage: number | null
+  cells_with_data: number
+  crs: string
+  vertical_reference: string
+  class_shares: Record<string, number>
+  method: Record<string, string>
+}
+export interface RasterInfo { summary: RasterSummary; previews: string[] }
+
 /** The id this browser's measurements and questions are kept under on a
  *  read-only showcase, where each visitor writes to a private copy of the
  *  database (backend/app/sandbox.py). Other servers ignore it. */
@@ -334,6 +346,8 @@ export const api = {
   frameMetrics: (id: string) => send(`${BASE}/api/projects/${id}/frame_metrics`).then(j<FrameMetric[]>),
   exports: (id: string) => send(`${BASE}/api/projects/${id}/exports`).then(j<ExportList>),
   exportUrl: (id: string, key: string) => `${BASE}/api/projects/${id}/exports/${key}`,
+  rasters: (id: string) => send(`${BASE}/api/projects/${id}/rasters`).then(j<RasterInfo>),
+  rasterPreviewUrl: (id: string, name: string) => `${BASE}/api/projects/${id}/rasters/${name}.png`,
 
   createMeasurement: (id: string, body: {
     kind: MeasurementKind; points: Vec3[]; allow_inferred: boolean
