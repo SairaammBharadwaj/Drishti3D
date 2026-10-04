@@ -21,7 +21,7 @@ from . import config, sandbox, showcase, tunnel
 from .config import CORS_ORIGINS, FRONTEND_DIST
 from .db import init_db
 from .schemas import CapabilitiesOut
-from .routers import (projects, processing, artifacts, measurements,
+from .routers import (projects, processing, artifacts, measurements, analysis,
                       questions)
 
 from drishti_recon import ai_adapter, colmap_adapter
@@ -50,6 +50,8 @@ _SANDBOXED_WRITES = [
     ("POST", re.compile(rf"/api/projects/{_HEX}/questions")),
     ("PATCH", re.compile(rf"/api/projects/{_HEX}/questions/{_HEX}")),
     ("DELETE", re.compile(rf"/api/projects/{_HEX}/questions/{_HEX}")),
+    # Terrain analytics compute and return; they write nothing.
+    ("POST", re.compile(rf"/api/projects/{_HEX}/terrain/(volume|profile|slope|los)")),
 ]
 
 
@@ -210,6 +212,8 @@ app.include_router(processing.router)
 app.include_router(artifacts.router)
 app.include_router(measurements.router)
 app.include_router(questions.router)
+app.include_router(analysis.router)
+app.include_router(analysis.system)
 
 # Serve the built SPA if present (single-command demo). During development the
 # frontend runs on the Vite dev server and talks to this API via CORS.

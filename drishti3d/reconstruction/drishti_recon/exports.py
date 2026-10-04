@@ -212,6 +212,98 @@ def export_glb(path, verts, faces, colors) -> str:
     return str(path)
 
 
+#: Written into every mesh file and its status: a Poisson surface is display
+#: geometry. It interpolates across gaps the cameras never saw, so measurements
+#: are made on the observed points, never on the mesh.
+MESH_CAVEAT = ("display geometry: a Poisson surface interpolated over the observed "
+               "points; not for measurement")
+
+
+def export_obj(path, verts, faces, colors=None, *, comment: str | None = None) -> str:
+    """Wavefront OBJ, written directly (no Open3D needed).
+
+    Vertex colours use the common ``v x y z r g b`` extension (0-1 floats),
+    which Blender, MeshLab and CloudCompare read. Coordinates are local ENU
+    metres; ``comment`` lines (the frame, the caveat) go in the header.
+    """
+    path = Path(path)
+    V = np.asarray(verts, float).reshape(-1, 3)
+    F = np.asarray(faces, np.int64).reshape(-1, 3)
+    if len(F) and (F.min() < 0 or F.max() >= len(V)):
+        raise ValueError("face index out of range")
+    with open(path, "w") as f:
+        f.write("# Drishti3D mesh, local ENU metres (x east, y north, z up)\n")
+        f.write(f"# {MESH_CAVEAT}\n")
+        for line in (comment or "").splitlines():
+            f.write(f"# {line}\n")
+        if colors is not None:
+            C = np.asarray(colors, float).reshape(-1, 3) / 255.0
+            np.savetxt(f, np.c_[V, C], fmt="v %.4f %.4f %.4f %.4f %.4f %.4f")
+        else:
+            np.savetxt(f, V, fmt="v %.4f %.4f %.4f")
+        np.savetxt(f, F + 1, fmt="f %d %d %d")
+    return str(path)
+
+
+def assimp_available() -> str | None:
+    """Path of the ``assimp`` command-line tool, or None."""
+    import shutil
+    return shutil.which("assimp")
+
+
+def convert_with_assimp(src, dst, *, timeout_s: float = 600) -> dict:
+    """Convert a mesh with ``assimp export`` (FBX from OBJ, for example).
+
+    Returns ``{"available": bool, "ok": bool, "path"|"detail": ...}``; never
+    raises. FBX is offered only through assimp: there is no clean-licence FBX
+    writer in Python, and an FBX that silently failed would be worse than none.
+    """
+    import subprocess
+    exe = assimp_available()
+    if exe is None:
+        return {"available": False, "ok": False,
+                "detail": "assimp unavailable: install the assimp command-line tool "
+                          "(apt install assimp-utils, brew install assimp) for FBX"}
+    dst = Path(dst)
+    try:
+        r = subprocess.run([exe, "export", str(src), str(dst)], capture_output=True,
+                           text=True, timeout=timeout_s)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"available": True, "ok": False, "detail": f"assimp failed: {exc}"}
+    if r.returncode != 0 or not dst.exists() or dst.stat().st_size == 0:
+        tail = (r.stderr or r.stdout or "").strip().splitlines()[-3:]
+        return {"available": True, "ok": False,
+                "detail": "assimp failed: " + (" | ".join(tail) or f"exit {r.returncode}")}
+    return {"available": True, "ok": True, "path": str(dst)}
+
+
+def export_mesh_formats(out_dir, verts, faces, colors=None, *, frame=None,
+                        fbx: bool = True) -> dict:
+    """mesh.obj always, mesh.fbx when assimp can make it; with a status record.
+
+    Returns ``{"artifacts": {...}, "status": {...}}``. The status names the
+    frame, the caveat that the mesh is display geometry, and why FBX is absent
+    when it is.
+    """
+    out_dir = Path(out_dir)
+    comment = None
+    if frame is not None:
+        comment = (f"ENU origin WGS84 lat {frame.lat0:.8f} lon {frame.lon0:.8f} "
+                   f"alt {frame.alt0:.3f}; see georeference.json")
+    arts = {"mesh_obj": export_obj(out_dir / "mesh.obj", verts, faces, colors,
+                                   comment=comment)}
+    status = {"obj": {"ok": True, "vertices": int(len(verts)), "faces": int(len(faces))},
+              "frame": "local ENU metres", "caveat": MESH_CAVEAT}
+    if fbx:
+        fb = convert_with_assimp(arts["mesh_obj"], out_dir / "mesh.fbx")
+        status["fbx"] = fb
+        if fb["ok"]:
+            arts["mesh_fbx"] = fb["path"]
+    (out_dir / "mesh_formats.json").write_text(json.dumps(status, indent=2))
+    arts["mesh_formats_json"] = str(out_dir / "mesh_formats.json")
+    return {"artifacts": arts, "status": status}
+
+
 def export_trajectory_csv(path, cameras_enu) -> str:
     """cameras_enu: list of dict {frame_index, C:[e,n,u]}."""
     path = Path(path)

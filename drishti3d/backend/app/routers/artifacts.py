@@ -38,6 +38,13 @@ _EXPORT_FILES = {
     "ortho_tif": "ortho.tif",
     "sigma_tif": "sigma.tif",
     "landcover_tif": "landcover.tif",
+    # Checkpoint/GCP accuracy report (routers/analysis.py).
+    "accuracy_json": "accuracy.json",
+    # Evidence package (scripts/evidence_package.py).
+    "evidence_json": "evidence_package.json",
+    # Mesh in OBJ, and FBX when assimp converted it (exports.export_mesh_formats).
+    "mesh_obj": "mesh.obj",
+    "mesh_fbx": "mesh.fbx",
 }
 
 #: Preview images rasters.py writes, by the name the API serves them under.

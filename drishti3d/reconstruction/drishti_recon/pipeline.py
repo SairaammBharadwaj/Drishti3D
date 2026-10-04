@@ -878,12 +878,21 @@ def run(project_dir, video_path, telemetry_path, *,
 
     # 11) MESH (optional) ----------------------------------------------------
     mesh_path = None
+    mesh_formats = {}
     with stage_timer("mesh"):
         if params.do_mesh:
             try:
                 _emit(progress, "mesh", 0.3, "meshing")
                 verts, faces, vcols = meshmod.mesh_poisson(cloud)
                 mesh_path = exports.export_glb(art_dir / "mesh.glb", verts, faces, vcols)
+                # OBJ written directly, FBX through assimp when installed; the
+                # status file says which, and that the mesh is display-only.
+                mf = exports.export_mesh_formats(art_dir, verts, faces, vcols,
+                                                 frame=None if no_gps else enu_frame)
+                mesh_formats = mf["artifacts"]
+                if not mf["status"].get("fbx", {}).get("ok"):
+                    warnings.append("FBX not written: "
+                                    + mf["status"].get("fbx", {}).get("detail", "disabled"))
             except Exception as e:  # meshing is optional; preserve the cloud
                 warnings.append(f"meshing skipped: {e}")
         _emit(progress, "mesh", 1.0, "")
@@ -981,6 +990,7 @@ def run(project_dir, video_path, telemetry_path, *,
         sub_timings["exports.hole_fill"] = round(time.perf_counter() - _t_f, 3)
         if mesh_path:
             artifacts["mesh_glb"] = mesh_path
+        artifacts.update(mesh_formats)
         if cov_grid is not None:
             artifacts["coverage_npz"] = cov_grid.to_npz(art_dir / "coverage.npz")
             (art_dir / "coverage.json").write_text(json.dumps({
