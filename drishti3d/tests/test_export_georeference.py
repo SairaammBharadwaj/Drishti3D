@@ -104,13 +104,24 @@ def test_ply_carries_sigma(tmp_path):
 
 
 def test_sidecar_places_a_local_file(tmp_path):
-    p = exports.export_georeference_sidecar(tmp_path / "geo.json", _cloud(), FRAME)
+    p = exports.export_georeference_sidecar(tmp_path / "geo.json", _cloud(), FRAME,
+                                            vertical_datum="ellipsoidal")
     doc = json.loads(open(p).read())
     assert doc["projected_crs"] == "EPSG:32632"
     assert doc["local_origin_wgs84"]["lat"] == pytest.approx(FRAME.lat0)
+    assert doc["vertical_datum"] == "ellipsoidal"
     assert "ellipsoidal" in doc["vertical_reference"]
     assert "sigma" in doc["fields"]
     assert "not a calibrated interval" in doc["caveat"]
+
+
+def test_sidecar_without_a_stated_datum_says_so(tmp_path):
+    """DEC-047: a source that does not name its datum is not called ellipsoidal."""
+    doc = json.loads(open(exports.export_georeference_sidecar(
+        tmp_path / "geo.json", _cloud(), FRAME)).read())
+    assert doc["vertical_datum"] == "unknown"
+    assert "ellipsoidal" not in doc["vertical_reference"]
+    assert "no known absolute datum" in doc["vertical_reference"]
 
 
 def test_sidecar_is_honest_without_a_frame(tmp_path):

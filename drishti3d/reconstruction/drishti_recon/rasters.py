@@ -12,8 +12,9 @@ The cloud's honesty rules carry over into raster form:
   which at least 75% of the surveyed footprint holds an observed point
   (:func:`choose_resolution`). A grid finer than the points is mostly holes;
   the six showcase missions need 0.25 m (UseGeo) to 2 m (AGZ's facades).
-* Heights are WGS84 ellipsoidal, as in the LAS export. They are not heights
-  above sea level.
+* Heights are on the telemetry's vertical datum, as in the LAS export, and
+  every file names it (``geo.VERTICAL_DATUMS``); a source that does not state
+  one is "unknown", never assumed ellipsoidal (DEC-047).
 * Land cover is rule-based: a ground filter, height above that ground,
   greenness, roughness, and walls round buildings. None of the reference LiDAR
   available to the project is classified, so it has not been validated against

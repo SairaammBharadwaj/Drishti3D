@@ -125,7 +125,8 @@ def test_point_classes():
 def test_geotiffs_carry_crs_nodata_mask_and_palette(tmp_path):
     rasterio = pytest.importorskip("rasterio")
     P, C, S, prov, _ = site(n=80_000)
-    out = R.build_products(P, C, S, prov, 32644, tmp_path, res=1.0)
+    out = R.build_products(P, C, S, prov, 32644, tmp_path, res=1.0,
+                           vertical_datum="ellipsoidal")
     arts = out["artifacts"]
     for key in ("dsm_tif", "dtm_tif", "ortho_tif", "sigma_tif", "landcover_tif",
                 "rasters_npz", "rasters_json", "ortho_preview", "landcover_preview"):
@@ -143,6 +144,17 @@ def test_geotiffs_carry_crs_nodata_mask_and_palette(tmp_path):
     assert len(out["point_classes"]) == len(P)
     assert (out["point_classes"][prov == AI] == R.UNCLASSIFIED).all()
     assert out["summary"]["cell_size_m"] == 1.0
+
+
+def test_geotiffs_without_a_stated_datum_say_so(tmp_path):
+    """DEC-047: heights from a source that names no datum are not labelled ellipsoidal."""
+    rasterio = pytest.importorskip("rasterio")
+    P, C, S, prov, _ = site(n=20_000)
+    out = R.build_products(P, C, S, prov, 32644, tmp_path, res=2.0)
+    assert out["summary"]["vertical_datum"] == "unknown"
+    with rasterio.open(out["artifacts"]["dsm_tif"]) as d:
+        tag = d.tags()["VERTICAL_REFERENCE"]
+    assert "ellipsoidal" not in tag and "no known absolute datum" in tag
 
 
 def test_cloth_filter_finds_the_same_ground():
