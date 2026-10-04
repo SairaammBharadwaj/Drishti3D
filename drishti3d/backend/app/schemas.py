@@ -57,7 +57,10 @@ class ProjectOut(BaseModel):
 
 
 class ProcessRequest(BaseModel):
-    preset: str = "balanced"          # fast|balanced|quality
+    preset: str = "balanced"          # preview|fast|balanced|quality
+    #: With preset="preview": when the preview finishes, queue the same request
+    #: at preset "balanced", which replaces the preview's artifacts.
+    then_full: bool = False
     mask_backend: str = "none"        # none|optical_flow|semantic
     do_mesh: bool = True
     engine: Literal["opencv", "colmap", "auto"] = "opencv"
@@ -85,6 +88,8 @@ class JobOut(BaseModel):
     warnings: list = []
     created_at: datetime
     updated_at: datetime
+    #: The full run a finished preview queued (ProcessRequest.then_full).
+    next_job_id: Optional[str] = None
 
     class Config:
         from_attributes = True

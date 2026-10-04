@@ -204,10 +204,34 @@ def _emit(progress, stage, local_frac, msg=""):
     progress(stage, a + (b - a) * max(0.0, min(1.0, local_frac)), msg)
 
 
+#: What the "preview" preset changes. A real reconstruction -- the same
+#: sparse solve, georegistration, uncertainty and rasters, so it can be
+#: measured and judged -- on at most 40 keyframes from 160 analysed frames at
+#: 960 px, without dense stereo, mesh, coverage or hole fill. It is a first
+#: look, labelled as one (``report["tier"]``); the full run replaces it.
+PREVIEW_OVERRIDES = {
+    "densify": "none", "do_mesh": False, "proc_max_width": 960,
+    "max_analyze_frames": 160, "build_coverage": False, "fill_holes": False,
+    "verify_inferred": False,
+}
+
+
+def apply_preset(params: PipelineParams) -> PipelineParams:
+    """The parameters a preset implies; only "preview" changes any."""
+    if params.preset != "preview":
+        return params
+    from dataclasses import replace
+    over = dict(PREVIEW_OVERRIDES)
+    # Never raise the frame budget or width above what was asked for.
+    over["proc_max_width"] = min(over["proc_max_width"], params.proc_max_width)
+    over["max_analyze_frames"] = min(over["max_analyze_frames"], params.max_analyze_frames)
+    return replace(params, **over)
+
+
 def run(project_dir, video_path, telemetry_path, *,
         params: PipelineParams | None = None,
         progress: Progress = _noop) -> PipelineResult:
-    params = params or PipelineParams()
+    params = apply_preset(params or PipelineParams())
     project_dir = Path(project_dir)
     art_dir = project_dir / "artifacts"
     art_dir.mkdir(parents=True, exist_ok=True)
@@ -942,6 +966,13 @@ def run(project_dir, video_path, telemetry_path, *,
             capture_assessment=assessment.to_dict(),
             recapture_plan=recapture.to_dict(),
             inferred_verification=verification_summary)
+        report["tier"] = {
+            "preset": params.preset,
+            "preview": params.preset == "preview",
+            "note": ("preview tier: at most 40 keyframes, no dense stereo or mesh; "
+                     "a first look, replaced by the full run") if params.preset == "preview"
+                    else None,
+        }
         if treport.fix_quality_counts:
             tsec = report.setdefault("input", {}).setdefault("telemetry", {})
             tsec["fix_quality_counts"] = dict(treport.fix_quality_counts)

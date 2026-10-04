@@ -21,6 +21,8 @@ export default function Wizard() {
   const [project, setProject] = useState<Project | null>(null)
 
   const [preset, setPreset] = useState('balanced')
+  // A fast real reconstruction first, then the full run replaces it.
+  const [previewFirst, setPreviewFirst] = useState(false)
   const [maskBackend, setMaskBackend] = useState('none')
   const [doMesh, setDoMesh] = useState(true)
   const [engine, setEngine] = useState<Engine>('opencv')
@@ -100,7 +102,9 @@ export default function Wizard() {
         throw new Error('intrinsics must be positive numbers')
       await api.setIntrinsics(project.id, intrinsics)
     }
-    const opts: ProcessOptions = { preset, mask_backend: maskBackend, do_mesh: doMesh, engine, densify, intrinsics }
+    const opts: ProcessOptions = previewFirst
+      ? { preset: 'preview', then_full: true, mask_backend: maskBackend, do_mesh: doMesh, engine, densify, intrinsics }
+      : { preset, mask_backend: maskBackend, do_mesh: doMesh, engine, densify, intrinsics }
     const frames = parseInt(maxFrames, 10), width = parseInt(procWidth, 10)
     if (Number.isFinite(frames)) opts.max_analyze_frames = frames
     if (Number.isFinite(width)) opts.proc_max_width = width
@@ -191,12 +195,17 @@ export default function Wizard() {
             </div>
             <div>
               <label htmlFor="preset">Preset</label>
-              <select id="preset" value={preset} onChange={(e) => setPreset(e.target.value)}>
+              <select id="preset" value={preset} onChange={(e) => setPreset(e.target.value)} disabled={previewFirst}>
+                <option value="preview">preview (first look, ≤40 keyframes)</option>
                 <option value="fast">fast</option>
                 <option value="balanced">balanced</option>
                 <option value="quality">quality</option>
               </select>
             </div>
+            <label className="checkline">
+              <input type="checkbox" checked={previewFirst} onChange={(e) => setPreviewFirst(e.target.checked)} />
+              Preview first, then the full balanced run (the preview is replaced when it finishes)
+            </label>
             <div>
               <label htmlFor="masking">Dynamic masking</label>
               <select id="masking" value={maskBackend} onChange={(e) => setMaskBackend(e.target.value)}>

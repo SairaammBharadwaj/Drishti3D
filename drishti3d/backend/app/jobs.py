@@ -122,6 +122,17 @@ def _worker_env() -> dict:
     return env
 
 
+def _queue_full_run(db, project_id: str, params: dict) -> str:
+    """After a preview, the same request at the balanced preset."""
+    full = dict(params, preset="balanced", then_full=False)
+    job = Job(project_id=project_id, status="queued")
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    submit(job.id, project_id, full)
+    return job.id
+
+
 def _run(job_id: str, project_id: str, params: dict) -> None:
     db = SessionLocal()
     try:
@@ -211,15 +222,20 @@ def _run(job_id: str, project_id: str, params: dict) -> None:
         # the superseded entries here rather than hold them until someone asks.
         _drop_caches(project_id)
 
+        next_id = None
+        message = "reconstruction complete"
+        if params.get("preset") == "preview" and params.get("then_full"):
+            next_id = _queue_full_run(db, project_id, params)
+            message = f"preview complete; full run queued (job {next_id})"
         job.status = "done"
         job.stage = "done"
         job.progress = 1.0
-        job.message = "reconstruction complete"
+        job.message = message
         job.warnings = warnings
-        project.status = "done"
+        project.status = "processing" if next_id else "done"
         db.commit()
         _set_state(job_id, status="done", stage="done", progress=1.0,
-                   message="reconstruction complete", warnings=warnings)
+                   message=message, warnings=warnings, next_job_id=next_id)
     except Exception as e:  # noqa: BLE001
         tb = traceback.format_exc()
         try:

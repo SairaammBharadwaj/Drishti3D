@@ -39,6 +39,7 @@ export interface Job {
   warnings: string[]
   created_at: string
   updated_at: string
+  next_job_id?: string | null
 }
 
 export interface AiBackend { name: string; available: boolean; setup: string }
@@ -56,6 +57,8 @@ export type Densify = 'none' | 'mvs' | 'depth'
 
 export interface ProcessOptions {
   preset: string
+  /** With preset 'preview': queue the balanced run when the preview finishes. */
+  then_full?: boolean
   mask_backend: string
   do_mesh: boolean
   engine: Engine
@@ -167,6 +170,8 @@ export interface QualityReport {
   } & Record<string, number | object> | null
   warnings: string[]
   limitations: string[]
+  /** Which processing tier made this: a preview is a first look only. */
+  tier?: { preset: string; preview: boolean; note: string | null }
 }
 
 export type MeasurementKind = 'point' | 'distance' | 'height' | 'area'

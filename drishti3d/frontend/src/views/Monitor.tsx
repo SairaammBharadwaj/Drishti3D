@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import ReconstructionNotice from '../ReconstructionNotice'
 import { api, type QualityReport } from '../api'
 
-interface Event { status: string; stage: string; progress: number; message: string; error?: string | null; warnings?: string[] }
+interface Event { status: string; stage: string; progress: number; message: string; error?: string | null; warnings?: string[]; next_job_id?: string | null }
 
 const STAGES = [
   'ingestion', 'telemetry', 'frames', 'quality', 'sync', 'keyframes',
@@ -95,8 +95,12 @@ export default function Monitor() {
 
       {ev.status === 'done' && (
         <div className="notebox" style={{ marginTop: 14 }}>
-          <strong className="badge done">Processing complete</strong>
+          <strong className="badge done">{ev.next_job_id ? 'Preview ready' : 'Processing complete'}</strong>
           <ReconstructionNotice quality={quality} />
+          {ev.next_job_id && <div style={{ marginTop: 8 }}>
+            The full balanced run is queued and will replace this preview.{' '}
+            <a href={`/projects/${id}/monitor?job=${ev.next_job_id}`}>Follow the full run →</a>
+          </div>}
           <div className="row" style={{ marginTop: 10 }}>
             <Link to={`/projects/${id}/demo`}><button className="primary">View 3D & metrics →</button></Link>
             <Link to={`/projects/${id}`}><button>Open analysis workspace →</button></Link>

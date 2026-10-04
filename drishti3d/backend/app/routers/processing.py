@@ -60,6 +60,7 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
         job.message = state.get("message", job.message)
         job.error = state.get("error", job.error)
         job.warnings = state.get("warnings", job.warnings)
+        job.next_job_id = state.get("next_job_id")
     return job
 
 
