@@ -4,7 +4,14 @@ import {
   api, PROVENANCE, enuToLatLon, processingTime,
   type ModelPayload, type QualityReport, type Trajectory,
   type Measurement, type MeasurementKind, type FrameMetric, type Keyframe, type Vec3,
+  type RasterInfo, type PointInfo, type TerrainTool,
 } from '../api'
+import AccuracyPanel from '../AccuracyPanel'
+import MapsPanel from '../MapsPanel'
+import TerrainTools from '../TerrainTools'
+import VideoSync from '../VideoSync'
+import type { Pose } from '../replayMath'
+import PositionCard from '../PositionCard'
 import ReconstructionNotice from '../ReconstructionNotice'
 import ToleranceLens from '../ToleranceLens'
 import PointCloudViewer from '../PointCloudViewer'
@@ -15,8 +22,9 @@ const KIND_MIN: Record<MeasurementKind, number> = { point: 1, distance: 2, heigh
 export default function Workspace() {
   const { id = '' } = useParams()
   const [model, setModel] = useState<ModelPayload | null>(null)
-  // The capped preview paints immediately; the full cloud is fetched on
-  // request because it is tens of megabytes and most sessions never need it.
+  // The capped preview paints immediately, then the full cloud (tens of
+  // megabytes) is fetched straight away and replaces it: every point is shown
+  // by default, and nobody looks at a thinned cloud without knowing it.
   const [full, setFull] = useState<Awaited<ReturnType<typeof api.modelFull>> | null>(null)
   const [fullState, setFullState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [fullProgress, setFullProgress] = useState(0)
@@ -32,6 +40,7 @@ export default function Workspace() {
   const [keyframes, setKeyframes] = useState<Keyframe[]>([])
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [exps, setExps] = useState<Record<string, string>>({})
+  const [maps, setMaps] = useState<RasterInfo | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
   const [colorMode, setColorMode] = useState<'true' | 'provenance'>('provenance')
@@ -43,16 +52,73 @@ export default function Workspace() {
   const [hover, setHover] = useState<Vec3 | null>(null)
   const [allowInferred, setAllowInferred] = useState(false)
   const [lastResult, setLastResult] = useState<Measurement | null>(null)
+  const [position, setPosition] = useState<PointInfo | null>(null)
+  const [terrainTool, setTerrainTool] = useState<TerrainTool | null>(null)
+  const [replayPose, setReplayPose] = useState<Pose | null>(null)
+  const [followReplay, setFollowReplay] = useState(false)
+  const [showVideo, setShowVideo] = useState(false)
+
+  // A measured point gets every coordinate form; other results do not.
+  useEffect(() => {
+    setPosition(null)
+    const p = lastResult?.kind === 'point' ? lastResult.points_enu[0] : null
+    if (!p) return
+    let live = true
+    api.pointInfo(id, p).then((info) => { if (live) setPosition(info) }).catch(() => {})
+    return () => { live = false }
+  }, [lastResult, id])
+
+  // This is the count that is actually drawable right now. It deliberately
+  // follows the layer switches, rather than reporting the size of the loaded
+  // file as if every provenance class were on screen.
+  const renderedPointCount = full ? full.n : model?.points.length ?? 0
+  const visiblePointCount = useMemo(() => {
+    const provenance = full?.provenance ?? model?.provenance
+    if (!provenance) return 0
+    let count = 0
+    for (let i = 0; i < provenance.length; i++) {
+      if (visible.has(provenance[i])) count++
+    }
+    return count
+  }, [full, model, visible])
+  const reportedCloudCount = quality?.cloud.n_points ?? renderedPointCount
+  const canLoadFullCloud = !full && reportedCloudCount > (model?.points.length ?? 0)
 
   useEffect(() => {
+    // The same view is reused across missions; a cloud from the previous one
+    // must not stay on screen while the next loads.
+    setModel(null); setQuality(null); setFull(null); setFullState('idle'); setFullProgress(0); setMaps(null)
     api.model(id).then(setModel).catch((e) => setErr(String(e)))
     api.quality(id).then(setQuality).catch(() => {})
     api.trajectory(id).then(setTraj).catch(() => {})
     api.frameMetrics(id).then(setMetrics).catch(() => {})
     api.keyframes(id).then(setKeyframes).catch(() => {})
     api.exports(id).then((e) => setExps(e.available)).catch(() => {})
+    api.rasters(id).then(setMaps).catch(() => setMaps(null))
     api.listMeasurements(id).then(setMeasurements).catch(() => {})
   }, [id])
+
+  const loadFull = useCallback(async (signal?: AbortSignal) => {
+    setFullState('loading'); setFullProgress(0)
+    try {
+      setFull(await api.modelFull(id, setFullProgress, signal))
+      setFullState('idle')
+    } catch (e) {
+      if (signal?.aborted) return
+      setErr(String(e)); setFullState('error')
+    }
+  }, [id])
+
+  // Starts once the preview and the report are both in: the report says how
+  // many points the full cloud has, and there is nothing to fetch when the
+  // preview already holds all of them.
+  const previewHoldsAll = !!model && !!quality && quality.cloud.n_points <= model.points.length
+  useEffect(() => {
+    if (!model || !quality || previewHoldsAll) return
+    const abort = new AbortController()
+    loadFull(abort.signal)
+    return () => abort.abort()
+  }, [model, quality, previewHoldsAll, loadFull])
 
   const toggleProv = (code: number) => {
     const s = new Set(visible)
@@ -60,9 +126,10 @@ export default function Workspace() {
     setVisible(s)
   }
 
-  const startKind = (k: MeasurementKind) => { setKind(k); setPts([]); setLastResult(null) }
+  const startKind = (k: MeasurementKind) => { setTerrainTool(null); setKind(k); setPts([]); setLastResult(null) }
+  const startTerrain = (t: TerrainTool) => { setKind(null); setTerrainTool(t); setPts([]) }
   const onPick = useCallback((p: Vec3) => setPts((prev) => [...prev, p]), [])
-  const cancel = () => { setKind(null); setPts([]) }
+  const cancel = () => { setKind(null); setTerrainTool(null); setPts([]) }
 
   const finish = async () => {
     if (!kind) return
@@ -127,6 +194,11 @@ export default function Workspace() {
             {lastResult.warnings.map((w, i) => <div key={i} className="warn" style={{ fontSize: 12 }}>⚠ {w}</div>)}
           </div>
         )}
+        {position && <PositionCard info={position} />}
+
+        <h3 style={{ marginTop: 18 }}>Terrain analysis</h3>
+        <TerrainTools projectId={id} tool={terrainTool} points={pts} available={!!maps}
+          onStart={startTerrain} onClear={() => setPts([])} onCancel={() => { setTerrainTool(null); setPts([]) }} />
 
         <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
           <ToleranceLens
@@ -172,42 +244,55 @@ export default function Workspace() {
       <div className="viewer-wrap">
         <PointCloudViewer
           model={model} full={full} colorMode={colorMode} splat={splat} pointSize={pointSize}
-          visibleProvenance={visible} picking={kind != null}
+          visibleProvenance={visible} picking={kind != null || terrainTool != null}
           onPick={onPick} onHover={setHover}
           activePoints={pts} savedLines={savedLines}
+          replayPose={showVideo ? replayPose : null} followReplay={showVideo && followReplay}
         />
         <div className="viewer-hint">
-          {kind ? `Picking for ${kind} — click points, then Finish` : 'Drag to orbit · scroll to zoom · pick a tool to measure'}
+          {kind ? `Picking for ${kind} — click points, then Finish`
+            : terrainTool ? `Picking for ${terrainTool} — click points, then Compute`
+            : 'Drag to orbit · scroll to zoom · pick a tool to measure'}
         </div>
-        <div className="viewer-detail">
+        <section className="viewer-detail" aria-label="Point cloud visibility">
           {full ? (
-            <span className="mono">all {full.n.toLocaleString()} points</span>
+            <>
+              <span className="viewer-detail-kicker">Full cloud</span>
+              <strong>{visiblePointCount.toLocaleString()}</strong>
+              <span>of {renderedPointCount.toLocaleString()} points visible</span>
+            </>
           ) : fullState === 'loading' ? (
-            <span className="mono">loading full cloud… {Math.round(fullProgress * 100)}%</span>
+            <>
+              <span className="viewer-detail-kicker">Loading full cloud</span>
+              <strong>{Math.round(fullProgress * 100)}%</strong>
+              <span>{visiblePointCount.toLocaleString()} preview points remain visible</span>
+            </>
           ) : (
-            <button
-              onClick={async () => {
-                setFullState('loading'); setFullProgress(0)
-                try {
-                  setFull(await api.modelFull(id, setFullProgress))
-                  setFullState('idle')
-                } catch (e) { setErr(String(e)); setFullState('error') }
-              }}
-              title="The view shows a downsampled preview. This loads every point."
-            >
-              Show all {model.points.length < (quality?.cloud.n_points ?? 0)
-                ? (quality?.cloud.n_points ?? 0).toLocaleString() : ''} points
-            </button>
+            <>
+              <div className="viewer-detail-summary">
+                <span className="viewer-detail-kicker">Preview</span>
+                <strong>{visiblePointCount.toLocaleString()}</strong>
+                <span>of {renderedPointCount.toLocaleString()} points visible</span>
+              </div>
+              {canLoadFullCloud && <button
+                className="viewer-detail-button"
+                onClick={() => loadFull()}
+                title="Load every point in the reconstruction; currently only a fast preview is shown."
+              >
+                {fullState === 'error' ? 'Retry full cloud' : `Load all ${reportedCloudCount.toLocaleString()} points`}
+                <span aria-hidden="true">→</span>
+              </button>}
+            </>
           )}
-        </div>
+        </section>
         <div className="viewer-overlay mono">
           {hover
             ? `ENU  E ${hover[0].toFixed(2)}  N ${hover[1].toFixed(2)}  U ${hover[2].toFixed(2)} m` +
               (hoverLL ? `\n${hoverLL.lat.toFixed(6)}, ${hoverLL.lon.toFixed(6)}` : '')
-            : `${(full ? full.n : model.points.length).toLocaleString()} points shown`
-              + (full || !quality?.cloud.n_points
-                 || quality.cloud.n_points <= model.points.length
-                  ? '' : ` of ${quality.cloud.n_points.toLocaleString()}`)}
+            : `${visiblePointCount.toLocaleString()} points visible`
+              + (visiblePointCount !== renderedPointCount
+                  ? ` of ${renderedPointCount.toLocaleString()} loaded`
+                  : '')}
         </div>
       </div>
 
@@ -234,8 +319,21 @@ export default function Workspace() {
           </>
         )}
 
+        <h3 style={{ marginTop: 18 }}>Absolute accuracy</h3>
+        <AccuracyPanel projectId={id} />
+
+        <div className="spread" style={{ marginTop: 18 }}>
+          <h3>Video ↔ 3-D</h3>
+          <button onClick={() => setShowVideo((v) => !v)}>{showVideo ? 'Hide' : 'Play video'}</button>
+        </div>
+        {showVideo && <VideoSync projectId={id} onPose={setReplayPose} follow={followReplay} onFollow={setFollowReplay} />}
+
         <h3 style={{ marginTop: 18 }}>Trajectory</h3>
         {traj ? <TrajectoryMap traj={traj} /> : <div className="muted">not available</div>}
+
+        <h3 style={{ marginTop: 18 }}>Maps</h3>
+        {maps ? <MapsPanel id={id} maps={maps} />
+          : <div className="muted">Not available: the mission is not georeferenced, or its maps have not been built.</div>}
 
         <h3 style={{ marginTop: 18 }}>Keyframe timeline</h3>
         <div className="timeline">

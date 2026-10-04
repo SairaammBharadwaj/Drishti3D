@@ -1,0 +1,28 @@
+{
+  "kind": "CPU microbenchmark; not end-to-end or ground-truth accuracy",
+  "workspace": "drishti3d/data/runs/dji_1003__t10/colmap_workspace",
+  "total_dense_points": 2632662,
+  "sampled_points": 50000,
+  "sampling": "uniform indices over saved fused cloud",
+  "median_track_length": 5.0,
+  "times_s": {
+    "current": [
+      0.69375829200726,
+      0.7147866899904329,
+      0.7007721510017291
+    ],
+    "grouped": [
+      0.16162453299330082,
+      0.1523973649891559,
+      0.1513541189924581
+    ]
+  },
+  "median_s": {
+    "current": 0.7007721510017291,
+    "grouped": 0.1523973649891559
+  },
+  "speedup": 4.598321966075947,
+  "max_abs_difference_degrees": 0.0,
+  "equivalence_tolerance": "atol=rtol=1e-10; NaN semantics checked",
+  "production_code_changed": false
+}

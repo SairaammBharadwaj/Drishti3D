@@ -1,0 +1,20 @@
+{
+  "nearest_neighbor_dimension_counterexample": {
+    "true_identified_length_m": 10.0,
+    "reconstructed_length_m": 10.5,
+    "nearest_reference_pair_length_m": 10.50000000000015,
+    "nearest_reference_score_m": 1.4921397450962104e-13,
+    "actual_identified_length_error_m": 0.5,
+    "maximum_nearest_reference_distance_m": 5.183067123890875e-13
+  },
+  "planar_similarity_counterexample": {
+    "similarity_jacobian_rank": 7,
+    "fit_max_error_m": 9.729507111180988e-15,
+    "production_planarity_flag": true,
+    "production_reason": "planar trajectory (out-of-plane geometry is weakly constrained)"
+  },
+  "median_ratio_is_not_coverage": {
+    "median_absolute_error_over_median_sigma": 0.0,
+    "fraction_inside_1_96_sigma": 0.6
+  }
+}

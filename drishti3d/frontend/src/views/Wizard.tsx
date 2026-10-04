@@ -4,9 +4,11 @@ import {
   api, recommendedProcessing,
   type Capabilities, type Densify, type Engine, type ProcessOptions, type Project,
 } from '../api'
+import { useReadOnly } from '../deployment'
 
 export default function Wizard() {
   const nav = useNavigate()
+  const readOnly = useReadOnly()
   const [params, setParams] = useSearchParams()
   const resumeId = params.get('project')
   const [resuming, setResuming] = useState(Boolean(resumeId))
@@ -19,6 +21,8 @@ export default function Wizard() {
   const [project, setProject] = useState<Project | null>(null)
 
   const [preset, setPreset] = useState('balanced')
+  // A fast real reconstruction first, then the full run replaces it.
+  const [previewFirst, setPreviewFirst] = useState(false)
   const [maskBackend, setMaskBackend] = useState('none')
   const [doMesh, setDoMesh] = useState(true)
   const [engine, setEngine] = useState<Engine>('opencv')
@@ -98,7 +102,9 @@ export default function Wizard() {
         throw new Error('intrinsics must be positive numbers')
       await api.setIntrinsics(project.id, intrinsics)
     }
-    const opts: ProcessOptions = { preset, mask_backend: maskBackend, do_mesh: doMesh, engine, densify, intrinsics }
+    const opts: ProcessOptions = previewFirst
+      ? { preset: 'preview', then_full: true, mask_backend: maskBackend, do_mesh: doMesh, engine, densify, intrinsics }
+      : { preset, mask_backend: maskBackend, do_mesh: doMesh, engine, densify, intrinsics }
     const frames = parseInt(maxFrames, 10), width = parseInt(procWidth, 10)
     if (Number.isFinite(frames)) opts.max_analyze_frames = frames
     if (Number.isFinite(width)) opts.proc_max_width = width
@@ -108,6 +114,7 @@ export default function Wizard() {
 
   const canProcess = project?.has_video
 
+  if (readOnly) return <div className="library"><div className="empty-state"><span className="outline-cube" aria-hidden="true">◇</span><h2>New reconstructions aren’t available here.</h2><p>This is a read-only showcase of finished missions. Reconstruction runs on the team’s own hardware.</p><Link className="action primary-action" to="/missions">Explore the missions ↗</Link></div></div>
   return (
     <div className="wizard-page">
       <div className="page-heading"><div><div className="eyebrow">CAPTURE → RECONSTRUCTION</div><h1>A new perspective.</h1><p>{project ? project.name : 'Set up your mission. Let the footage do the talking.'}</p></div><Link className="text-action" to="/missions">← Mission library</Link></div>
@@ -149,12 +156,12 @@ export default function Wizard() {
 
       {step === 2 && project && (
         <div className="card stack">
-          <h3>Telemetry (optional · CSV / JSON / SRT)</h3>
+          <h3>Telemetry (optional · CSV / JSON / SRT / RTKLIB .pos)</h3>
           <div className="muted" style={{ fontSize: 13 }}>
             If supplied, required fields are timestamp, latitude, longitude, altitude. Optional: yaw, gps_accuracy, rtk_status, fx/fy/cx/cy.
           </div>
           <div className="notebox">No telemetry? Continue with video only. The reconstruction will have relative scale, without established distances in metres or a geographic position.</div>
-          <input type="file" aria-label="Upload telemetry" accept=".csv,.json,.srt" onChange={(e) => onTelemetry(e.target.files?.[0])} />
+          <input type="file" aria-label="Upload telemetry" accept=".csv,.json,.srt,.pos" onChange={(e) => onTelemetry(e.target.files?.[0])} />
           {project.telemetry_filename && <div className="notebox">Uploaded: <span className="mono">{project.telemetry_filename}</span></div>}
           <div className="row">
             <button onClick={() => setStep(1)}>← Back</button>
@@ -188,12 +195,17 @@ export default function Wizard() {
             </div>
             <div>
               <label htmlFor="preset">Preset</label>
-              <select id="preset" value={preset} onChange={(e) => setPreset(e.target.value)}>
+              <select id="preset" value={preset} onChange={(e) => setPreset(e.target.value)} disabled={previewFirst}>
+                <option value="preview">preview (first look, ≤40 keyframes)</option>
                 <option value="fast">fast</option>
                 <option value="balanced">balanced</option>
                 <option value="quality">quality</option>
               </select>
             </div>
+            <label className="checkline">
+              <input type="checkbox" checked={previewFirst} onChange={(e) => setPreviewFirst(e.target.checked)} />
+              Preview first, then the full balanced run (the preview is replaced when it finishes)
+            </label>
             <div>
               <label htmlFor="masking">Dynamic masking</label>
               <select id="masking" value={maskBackend} onChange={(e) => setMaskBackend(e.target.value)}>

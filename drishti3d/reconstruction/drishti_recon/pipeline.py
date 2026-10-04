@@ -204,10 +204,34 @@ def _emit(progress, stage, local_frac, msg=""):
     progress(stage, a + (b - a) * max(0.0, min(1.0, local_frac)), msg)
 
 
+#: What the "preview" preset changes. A real reconstruction -- the same
+#: sparse solve, georegistration, uncertainty and rasters, so it can be
+#: measured and judged -- on at most 40 keyframes from 160 analysed frames at
+#: 960 px, without dense stereo, mesh, coverage or hole fill. It is a first
+#: look, labelled as one (``report["tier"]``); the full run replaces it.
+PREVIEW_OVERRIDES = {
+    "densify": "none", "do_mesh": False, "proc_max_width": 960,
+    "max_analyze_frames": 160, "build_coverage": False, "fill_holes": False,
+    "verify_inferred": False,
+}
+
+
+def apply_preset(params: PipelineParams) -> PipelineParams:
+    """The parameters a preset implies; only "preview" changes any."""
+    if params.preset != "preview":
+        return params
+    from dataclasses import replace
+    over = dict(PREVIEW_OVERRIDES)
+    # Never raise the frame budget or width above what was asked for.
+    over["proc_max_width"] = min(over["proc_max_width"], params.proc_max_width)
+    over["max_analyze_frames"] = min(over["max_analyze_frames"], params.max_analyze_frames)
+    return replace(params, **over)
+
+
 def run(project_dir, video_path, telemetry_path, *,
         params: PipelineParams | None = None,
         progress: Progress = _noop) -> PipelineResult:
-    params = params or PipelineParams()
+    params = apply_preset(params or PipelineParams())
     project_dir = Path(project_dir)
     art_dir = project_dir / "artifacts"
     art_dir.mkdir(parents=True, exist_ok=True)
@@ -878,12 +902,21 @@ def run(project_dir, video_path, telemetry_path, *,
 
     # 11) MESH (optional) ----------------------------------------------------
     mesh_path = None
+    mesh_formats = {}
     with stage_timer("mesh"):
         if params.do_mesh:
             try:
                 _emit(progress, "mesh", 0.3, "meshing")
                 verts, faces, vcols = meshmod.mesh_poisson(cloud)
                 mesh_path = exports.export_glb(art_dir / "mesh.glb", verts, faces, vcols)
+                # OBJ written directly, FBX through assimp when installed; the
+                # status file says which, and that the mesh is display-only.
+                mf = exports.export_mesh_formats(art_dir, verts, faces, vcols,
+                                                 frame=None if no_gps else enu_frame)
+                mesh_formats = mf["artifacts"]
+                if not mf["status"].get("fbx", {}).get("ok"):
+                    warnings.append("FBX not written: "
+                                    + mf["status"].get("fbx", {}).get("detail", "disabled"))
             except Exception as e:  # meshing is optional; preserve the cloud
                 warnings.append(f"meshing skipped: {e}")
         _emit(progress, "mesh", 1.0, "")
@@ -933,6 +966,13 @@ def run(project_dir, video_path, telemetry_path, *,
             capture_assessment=assessment.to_dict(),
             recapture_plan=recapture.to_dict(),
             inferred_verification=verification_summary)
+        report["tier"] = {
+            "preset": params.preset,
+            "preview": params.preset == "preview",
+            "note": ("preview tier: at most 40 keyframes, no dense stereo or mesh; "
+                     "a first look, replaced by the full run") if params.preset == "preview"
+                    else None,
+        }
         if treport.fix_quality_counts:
             tsec = report.setdefault("input", {}).setdefault("telemetry", {})
             tsec["fix_quality_counts"] = dict(treport.fix_quality_counts)
@@ -981,6 +1021,7 @@ def run(project_dir, video_path, telemetry_path, *,
         sub_timings["exports.hole_fill"] = round(time.perf_counter() - _t_f, 3)
         if mesh_path:
             artifacts["mesh_glb"] = mesh_path
+        artifacts.update(mesh_formats)
         if cov_grid is not None:
             artifacts["coverage_npz"] = cov_grid.to_npz(art_dir / "coverage.npz")
             (art_dir / "coverage.json").write_text(json.dumps({
@@ -1461,16 +1502,41 @@ def _write_artifacts(art_dir, cloud, cameras_enu, enu_frame, report, timeline,
     georeferenced = bool(alignment) and scale_source not in (
         None, "", "none", "relative", "arbitrary")
     export_frame = enu_frame if georeferenced else None
+    # What the heights are measured from: the telemetry's altitude reference,
+    # passed through to every export that carries heights (DEC-047).
+    tel_in = (report.get("input") or {}).get("telemetry") or {}
+    vdatum = tel_in.get("vertical_datum", "unknown")
+
+    # DSM, DTM, orthophoto, sigma and land cover (rasters.py). Only for a
+    # georeferenced cloud: a relative-scale one has no place on the earth to
+    # rasterise into. Their land-cover classes also go into the LAS. A failure
+    # here costs the rasters, never the run.
+    point_classes = None
+    if export_frame is not None:
+        try:
+            from . import rasters
+            utm, epsg = exports.enu_to_utm(export_frame, cloud.points)
+            sig = cloud.sigma_major if cloud.sigma_major is not None else cloud.sigma
+            products = rasters.build_products(utm, cloud.colors, sig, cloud.provenance,
+                                              epsg, art_dir, vertical_datum=vdatum)
+            artifacts.update(products["artifacts"])
+            point_classes = products["point_classes"]
+            report["rasters"] = products["summary"]
+        except Exception as e:
+            report.setdefault("warnings", []).append(f"raster products skipped: {e}")
 
     try:
         artifacts["las"] = exports.export_las(art_dir / "point_cloud.las",
-                                              cloud, export_frame)
+                                              cloud, export_frame,
+                                              classification=point_classes)
     except Exception as e:
         report.setdefault("warnings", []).append(f"LAS export skipped: {e}")
     # Every cloud export is local ENU; the sidecar is what makes it placeable,
     # or states plainly that it is not.
     artifacts["georeference"] = exports.export_georeference_sidecar(
         art_dir / "georeference.json", cloud, export_frame,
+        vertical_datum=vdatum,
+        vertical_datum_basis=tel_in.get("vertical_datum_basis"),
         extra={"scale_source": scale_source,
                "georeferenced": georeferenced,
                "units": "metres" if georeferenced else "reconstruction units"})
@@ -1554,10 +1620,11 @@ def _write_manifest(project_dir, vinfo, treport, params, artifacts, warnings,
             "recon_to_enu": align.transform.to_dict() if align is not None else None,
             "gravity_leveling": leveling,
         },
-        # GNSS altitude is ellipsoidal here (EPSG:4979); it is NOT orthometric
-        # height above a geoid.  Recorded explicitly so a consumer never assumes
-        # the wrong vertical datum.
-        "vertical_datum": "WGS84 ellipsoidal (EPSG:4979); not orthometric/geoid",
+        # What the telemetry altitude, and so every height, is measured from.
+        # This said "WGS84 ellipsoidal" for every run until DEC-047 found
+        # sea-level and take-off-relative altitudes under that label.
+        "vertical_datum": treport.vertical_datum,
+        "vertical_datum_basis": treport.vertical_datum_basis,
         # Where the metric scale came from and how well determined it is. A
         # measurement's interval is dominated by this on anything longer than a
         # few metres, so it belongs in the artifact manifest rather than only

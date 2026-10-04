@@ -2,7 +2,7 @@
 
 Combines temporal spacing, optical-flow magnitude and GPS displacement so that
 consecutive keyframes keep enough parallax/overlap for SfM while avoiding
-redundant near-duplicate frames.  Presets: fast / balanced / quality.
+redundant near-duplicate frames.  Presets: preview / fast / balanced / quality.
 """
 from __future__ import annotations
 
@@ -21,6 +21,9 @@ class KeyframePreset:
 
 
 PRESETS = {
+    # The preview tier (pipeline.PREVIEW_OVERRIDES): at most 40 widely spaced
+    # keyframes, for a first look minutes before the full run.
+    "preview": KeyframePreset("preview", 24.0, 4, 30, 40),
     "fast": KeyframePreset("fast", 18.0, 3, 25, 40),
     "balanced": KeyframePreset("balanced", 10.0, 2, 18, 80),
     "quality": KeyframePreset("quality", 6.0, 1, 12, 160),

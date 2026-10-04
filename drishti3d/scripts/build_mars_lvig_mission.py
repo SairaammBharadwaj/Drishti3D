@@ -198,9 +198,12 @@ def main() -> int:
                 "altitude": f"{alt:.3f}",
                 "latitude_deg": f"{lat:.9f}", "longitude_deg": f"{lon:.9f}",
                 "altitude_m": f"{alt:.3f}",
-                # DJI OSDK documents the RTK altitude only as metres; the datum
-                # is not stated, so it is not asserted here either.
-                "altitude_reference": "UNSPECIFIED",
+                # DJI OSDK documents the RTK altitude only as metres. It is
+                # WGS84 ellipsoidal by measurement (DEC-047): the same-flight
+                # L1 LiDAR, which these altitudes match within 0.06 m, puts the
+                # sea at -1.0 m while the tide was at mean sea level -- the
+                # ellipsoidal height of the sea here, not 0.
+                "altitude_reference": "ELLIPSOIDAL",
                 "sigma_e_m": f"{RTK_SIGMA_H_M:.3f}" if ok else "",
                 "sigma_n_m": f"{RTK_SIGMA_H_M:.3f}" if ok else "",
                 "sigma_u_m": f"{RTK_SIGMA_V_M:.3f}" if ok else "",
@@ -297,7 +300,8 @@ def main() -> int:
             "n_samples": len(rows),
             "present": True,
             "rtk_fixed_fraction": round(fixed / len(rows), 4),
-            "altitude_reference": "UNSPECIFIED",
+            "altitude_reference": "ELLIPSOIDAL",
+            "altitude_note": "established by measurement, not documented by DJI (DEC-047)",
             "sigma_note": ("sigmas are the DJI M300 RTK specification at a 5 km "
                            "baseline, not per-sample covariances"),
         },

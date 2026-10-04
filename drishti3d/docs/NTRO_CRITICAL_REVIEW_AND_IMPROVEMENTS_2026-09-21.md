@@ -11,7 +11,7 @@ The strongest possible pitch is: **“From one pass, obtain useful 3D geometry, 
 
 I read the current overview and backlog, recent dense-MVS and refinement results, reconstruction and uncertainty code, API routes, frontend workflows, exports, job handling, and deployment files. I built the frontend, ran focused tests, and exercised small numerical and file-level reproductions. Verification results and limitations are recorded at the end.
 
-The requirement baseline is the repository's [problem-statement transcription](../../SIH26158_Drishti3D_research_and_claude_prompt.md): single-pass UAV video plus GPS/flight metadata into georeferenced, metrically accurate 3D, including point clouds and textured meshes useful for measurement and analysis. An official-site search did not establish a public SIH26158 page during this review. Any additional expectations below are my proposed evaluation criteria, not invented official requirements.
+The requirement baseline is the repository's [problem-statement transcription](PROBLEM_STATEMENT.md): single-pass UAV video plus GPS/flight metadata into georeferenced, metrically accurate 3D, including point clouds and textured meshes useful for measurement and analysis. An official-site search did not establish a public SIH26158 page during this review. Any additional expectations below are my proposed evaluation criteria, not invented official requirements.
 
 Finding labels:
 

@@ -35,3 +35,17 @@ datasets/public/
 datasets/field/
 datasets/truth/
 datasets/public/usegeo/dataset_*/
+
+# Local-only working material: kept on disk, never published. The SIH decks
+# contain template sources whose licence forbids redistribution; the demo
+# videos are multi-gigabyte renders; the review's PDF is an export of files
+# that are tracked.
+drishti3d/docs/sih_submission_2026/
+drishti3d/docs/sih_submission_redesign_2026/
+drishti3d/docs/demo/final_video/
+drishti3d/docs/demo/video_capture/
+drishti3d/docs/review_2026_09_22/*.pdf
+
+# Coding-agent state
+.agents/
+.codex/

@@ -1,0 +1,42 @@
+@page { size: A4; margin: 17mm 16mm 19mm; }
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { max-width: 1020px; margin: 0 auto; padding: 48px; color: #202d3b; background: #fff; font: 15px/1.6 "DejaVu Sans", Arial, sans-serif; }
+header { border-top: 8px solid #185e56; padding: 34px 0 24px; border-bottom: 1px solid #b9cdca; }
+header h1 { font-size: 38px; line-height: 1.15; color: #143c37; }
+header .subtitle { font-size: 20px; color: #526c69; }
+header .date { color: #61716e; }
+h1, h2, h3 { line-height: 1.25; color: #173f3b; break-after: avoid; }
+h1 { margin-top: 48px; font-size: 29px; }
+h2 { margin-top: 30px; font-size: 22px; }
+h3 { margin-top: 22px; font-size: 17px; }
+p { margin: 10px 0; orphans: 3; widows: 3; }
+a { color: #14675d; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+strong { color: #152f38; }
+table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 13px; line-height: 1.45; }
+th { background: #e8f1ee; color: #153f38; text-align: left; }
+th, td { border: 1px solid #cbd8d5; padding: 8px 9px; vertical-align: top; overflow-wrap: anywhere; }
+th:first-child, td:first-child { min-width: 90px; }
+tr { break-inside: avoid; }
+thead { display: table-header-group; }
+pre { padding: 14px; background: #f0f4f3; border-left: 3px solid #4c857b; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 "DejaVu Sans Mono", monospace; break-inside: avoid; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: .9em; overflow-wrap: anywhere; }
+li { margin: 6px 0; }
+nav#TOC { padding: 20px 0; }
+nav#TOC > ul { padding-left: 20px; }
+nav#TOC li { margin: 4px 0; }
+@media print {
+  body { max-width: none; margin: 0; padding: 0; font-size: 9.5pt; line-height: 1.48; }
+  header { padding-top: 45mm; min-height: 225mm; border-bottom: 0; break-after: page; }
+  header h1 { font-size: 34pt; }
+  header .subtitle { font-size: 16pt; }
+  h1 { break-before: page; margin-top: 0; font-size: 23pt; }
+  h2 { font-size: 15pt; margin-top: 20px; }
+  h3 { font-size: 12pt; }
+  table { font-size: 8.3pt; margin: 12px 0; }
+  th, td { padding: 5px 6px; }
+  pre { font-size: 8pt; }
+  nav#TOC { font-size: 9pt; }
+  nav#TOC > h2 { margin-top: 0; }
+  a { text-decoration: none; }
+}

@@ -5,6 +5,9 @@ export function hasInsufficientGeometry(q: QualityReport) {
 }
 
 export default function ReconstructionNotice({ quality }: { quality: QualityReport | null }) {
+  if (quality?.tier?.preview && !hasInsufficientGeometry(quality)) return <div className="notebox" role="status">
+    <strong>Preview reconstruction.</strong> <span className="muted">{quality.tier.note}</span>
+  </div>
   if (!quality || !hasInsufficientGeometry(quality)) return null
   return <div className="notebox warn" role="alert">
     <strong>Processing finished, but there is too little geometry to show a usable scene.</strong>

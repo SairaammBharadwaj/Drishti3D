@@ -1918,3 +1918,134 @@ flight). Synthetic test recovers a known k1/k2 with focal fixed. 497 tests pass.
 - Residual-distortion refinement on a camera without a supplied calibration
   (it only runs when one is supplied), and on DJI/UseGeo.
 - Per-point horizontal error.
+
+## 2026-10-03 — Raster products: DSM validated, land cover experimental (DEC-045)
+
+`drishti_recon/rasters.py` writes DSM, DTM, orthophoto, sigma and land-cover
+GeoTIFFs for georeferenced runs; `scripts/build_rasters.py` made them for the
+existing missions (0.4–18 s each). Details in `drishti3d/docs/RASTERS.md`.
+
+### DSM against same-flight LiDAR (`scripts/score_raster_dsm.py`)
+Flat-cell vertical metric of DEC-042, DEC-044 antenna offsets (other flight's),
+each DSM cell scored as a point at its centre:
+
+| mission | cloud RMSE / bias | DSM RMSE / bias | mean-Z RMSE / bias | cell |
+|---|---|---|---|---|
+| HKisland03 (corr +0.324) | 0.377 / +0.032 | **0.407 / +0.055** | 0.402 / +0.006 | 0.5 m |
+| HKisland02 (corr +0.356) | 0.418 / -0.032 | **0.416 / -0.026** | 0.420 / -0.051 | 0.35 m |
+| UseGeo 1 (no corr) | 0.432 / +0.363 | **0.444 / +0.370** | 0.424 / +0.357 | 0.25 m |
+
+The cloud rows reproduce DEC-044 to the millimetre. Injection on each DSM:
++0.30 / +1.00 / -0.10 m recovered within 0.3 mm. **New:** UseGeo 1 sits +0.36 m
+high on flat cells (not measured with this metric before).
+
+### Building class against OSM footprints (`scripts/score_landcover_osm.py`)
+Footprints from Overpass, OSM data of 2026-10-03, kept in
+`datasets/truth/osm_buildings/` with provenance. Tolerance 1.5 m.
+
+| mission | precision | recall | F1 | roofs as ground |
+|---|---:|---:|---:|---:|
+| UseGeo 1 | 0.766 | 0.863 | 0.812 | 0.020 |
+| DJI_1003 | 0.303 | 0.108 | 0.159 | 0.521 |
+| DJI_1001 | 0.379 | 0.127 | 0.190 | 0.406 |
+| HKisland03 | 0.140 | 0.953 | 0.245 | 0.000 |
+| HKisland02 | 0.247 | 0.931 | 0.390 | 0.000 |
+
+Ground-filter window 120 m (tuned on DJI_1003): DJI_1003 F1 0.241, DJI_1001
+0.213, UseGeo 0.797, HKisland03 0.155 (precision 0.084), HKisland02 0.105
+(precision 0.056; building cells 9,919 -> 46,196). Rejected: cliffs.
+
+### Austin placement against OSM
+Elevated-cell (DSM > 5 m above a 120 m local minimum) cross-correlation with
+footprints, +-40 m: UseGeo 0.0 m (peak 5.5x median). DJI_1001 quadrants
+(E, N): (-4, -19), (-22, -14), (+10, -12), (+20, -40) m. DJI_1003: (0, 0),
+(0, 0), (+4.5, +10.5), (-33, +39) m. Inconsistent; not a constant offset.
+
+### Checks
+10 new tests (8 in `tests/test_rasters.py`, LAS classes, rasters API), with one
+proven by a deliberate bug (highest-point selection swapped for lowest fails
+it). End-to-end pipeline test asserts rasters on a georeferenced run.
+
+### NOT TESTED
+- The DTM against any ground truth (none available).
+- Land cover classes other than building.
+- AGZ against OSM (Overpass timed out twice).
+- Austin absolute placement (planned: StratMap 2021, horizontal only).
+
+## 2026-10-03 (later) — Land cover: cloth filter, top-surface rule, walls (DEC-046)
+
+All against OSM footprints (`score_landcover_osm.py`, tolerance 1.5 m). F1 per
+mission, DJI_1003 / DJI_1001 / UseGeo / HKisland03 / HKisland02:
+
+| configuration | F1 |
+|---|---|
+| morphological, 40 m (first version) | 0.159 / 0.190 / 0.812 / 0.245 / 0.390 |
+| + top-surface rule | 0.168 / 0.191 / 0.814 / 0.245 / 0.390 |
+| cloth 2 m, rigidness 2 | 0.274 / 0.263 / 0.887 / 0.054 / 0.057 |
+| cloth 2 m, rigidness 1 / 3; cloth 1 m, rigidness 1 | cliffs no better (HK precision 0.03–0.06) |
+| morphological + walls 10% (**default**) | 0.166 / 0.187 / 0.810 / 0.250 / 0.412 |
+| cloth + walls 10% | 0.259 / 0.247 / 0.885 / 0.628 / 0.665 |
+| cloth + walls 5% / 8% / 12% / 15% / 20% | HK03 0.063 / 0.106 / 0.690 / 0.000 / 0.000; HK02 0.623 / 0.665 / 0.007 / 0.007 / 0.007 |
+
+AGZ (held out, footprints fetched after tuning): default 0.455, cloth + walls
+0.470, first version 0.446.
+
+Features measured before the wall rule: roof vs cliff plane-fit residual and
+slope do not separate (HK rock residual median 0.07–0.10 m, Austin roofs
+0.38–0.44 m; slopes 21–22 vs 13–21 deg). Edge-wall share does (HK cliff patches
+median 0.01–0.02; real buildings 0.31 UseGeo, 0.54–0.60 Austin, 0.11–0.14 the
+two HK buildings).
+
+Visual check that reversed the cloth default: on HKisland03 the cloth DTM kept
+only the shoreline, ground fell from 83% to 34% of cells and the grass slopes
+became high vegetation; AGZ's ground fell to 0.2%.
+
+## 2026-10-04 — Audit P0/P1: accuracy, RTK, analytics, OBJ/FBX, replay, preview (DEC-048)
+
+Environment: build sandbox, 4-core Xeon, no GPU, Python 3.11, `open3d` 0.20,
+`assimp` CLI installed, `torch` not installed, EGM2008 grid not installed (its
+download is blocked by the sandbox network policy).
+
+### Suites
+- Focused command from the action plan's section 6: **97 passed, 3 skipped**
+  (was 83 passed, 2 failed). The two vertical-reference failures are fixed by
+  declaring the datum in the fixtures; two new tests pin the unknown state.
+- Full suite: **645 passed, 5 skipped, 1 failed.** The failure,
+  `test_masking_backends.py::TestUntrainedSemanticRefused`, needs `torch` to
+  reach the "no weights" refusal; without it the import fails first. Not
+  related to this work.
+- Frontend: `tsc` clean; `npm test` (replay interpolation) 4/4.
+- New tests: `test_accuracy.py` (10), `test_rtk_pos.py` (11), `test_terrain.py`
+  (10), `test_analysis_api.py` (7), `test_mesh_formats.py` (5),
+  `test_replay.py` (11), `test_evidence_package.py` (3),
+  `test_texture_hero.py` (4), `test_preview_tier.py` (4).
+
+### End to end (synthetic flight, 150 frames, 5 s, through the web API)
+- Balanced run with `altitude_reference=ELLIPSOIDAL` telemetry: cloud, DSM,
+  DTM, ortho, sigma, land cover, `mesh.obj` (22,065 vertices) and `mesh.fbx`
+  via assimp; rasters at 1.5 m, datum ellipsoidal.
+- Terrain endpoints on that run: volume ok (95% observed), slope ok, profile
+  ok, line of sight blocked. A picked point gave MGRS `43RGM1598767202`,
+  ellipsoidal height, and no sea-level height with "geoid grid not installed".
+- Accuracy from 12 synthetic points (4 GCP, 8 check, 0.4/0.25/0.3 m offset +
+  5 cm noise): raw RMSE_H 0.495 m; checkpoints after similarity 0.089 m H,
+  0.058 m V. Synthetic truth: this checks the code, not field accuracy.
+- Browser (Playwright, Chromium): volume, profile (with breaks) and line of
+  sight from picks; accuracy panel with independent / NOT independent badges;
+  video seek to 1.00 s → "Synced", play, pause (pose stable while paused), end
+  of video → "No solved camera here". No console errors. Open-source Chromium
+  has no H.264, so the clip was re-uploaded as VP9 for this check.
+- Preview → full: preview 159 s (36 keyframes, 7,610 points), then the queued
+  balanced run 283 s (47 keyframes, 8,023 points) replaced it; project ended
+  `done`. CPU only, 5-second clip: not a timing claim for real flights.
+
+### Measured while writing
+- Volume bias of the DSM against mean height: flat 256 m², 0.1 m noise,
+  ~25 points per 0.5 m cell: DSM 50.2 m³, mean 0.06 m³.
+
+### NOT TESTED
+- Any of this on a real flight or on the demo laptop; the evidence package on
+  the hero mission.
+- Checkpoint accuracy against real surveyed points.
+- OpenMVS texturing (OpenMVS unavailable); EGM2008 conversion (grid
+  unavailable).

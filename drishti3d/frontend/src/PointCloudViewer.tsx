@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js'
 import { PROVENANCE, type ModelPayload, type Vec3 } from './api'
+import type { Pose } from './replayMath'
 
 interface Props {
   model: ModelPayload
@@ -16,6 +17,10 @@ interface Props {
   onHover: (enu: Vec3 | null) => void
   activePoints: Vec3[]      // current in-progress measurement points
   savedLines: Vec3[][]      // completed measurement polylines
+  /** The video camera at the current playback time (VideoSync), Three.js convention. */
+  replayPose?: Pose | null
+  /** Put the 3-D view where the video camera is. */
+  followReplay?: boolean
 }
 
 export default function PointCloudViewer(props: Props) {
@@ -34,6 +39,9 @@ export default function PointCloudViewer(props: Props) {
     raycaster: THREE.Raycaster
     radius: number
     markerGroup: THREE.Group
+    replayMarker: THREE.Group
+    /** Draw on the next frame. The loop draws only after a change. */
+    invalidate: () => void
     dispose: () => void
   } | null>(null)
 
@@ -166,6 +174,22 @@ export default function PointCloudViewer(props: Props) {
     const markerGroup = new THREE.Group()
     scene.add(markerGroup)
 
+    // The video camera during replay: a small frustum, apex at the camera,
+    // opening down its local -Z (Three.js convention, as /replay sends it).
+    const replayMarker = new THREE.Group()
+    {
+      const s = radius * 0.04, a = s * 0.8, b = s * 0.45
+      const v = [[0, 0, 0], [-a, -b, -s], [a, -b, -s], [a, b, -s], [-a, b, -s]]
+      const e = [0, 1, 0, 2, 0, 3, 0, 4, 1, 2, 2, 3, 3, 4, 4, 1]
+      const fg = new THREE.BufferGeometry()
+      fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(e.flatMap((i) => v[i])), 3))
+      replayMarker.add(new THREE.LineSegments(fg, new THREE.LineBasicMaterial({ color: 0xffd23c })))
+      const up = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, b, -s), new THREE.Vector3(0, b * 1.8, -s)])
+      replayMarker.add(new THREE.Line(up, new THREE.LineBasicMaterial({ color: 0xffd23c })))
+    }
+    replayMarker.visible = false
+    scene.add(replayMarker)
+
     camera.position.set(center.x + radius * 1.6, center.y - radius * 1.8, center.z + radius * 1.4)
     controls.target.copy(center)
     controls.update()
@@ -173,19 +197,33 @@ export default function PointCloudViewer(props: Props) {
     const raycaster = new THREE.Raycaster()
     raycaster.params.Points = { threshold: radius * 0.01 }
 
+    // Draw only when something changed. Redrawing every point 60 times a
+    // second while nothing moves kept the graphics chip busy for no visible
+    // difference -- on millions of points that is the whole machine on a
+    // laptop or phone. controls.update() still runs each frame (cheap) and
+    // reports 'change' while the camera moves, including the damped glide.
     let raf = 0
-    const animate = () => { raf = requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera) }
+    let dirty = true
+    const invalidate = () => { dirty = true }
+    controls.addEventListener('change', invalidate)
+    const animate = () => {
+      raf = requestAnimationFrame(animate)
+      controls.update()
+      if (dirty) { dirty = false; renderer.render(scene, camera) }
+    }
     animate()
 
     const onResize = () => {
       const nw = mount.clientWidth, nh = mount.clientHeight
       camera.aspect = nw / nh; camera.updateProjectionMatrix(); renderer.setSize(nw, nh)
       controls.handleResize()
+      invalidate()
     }
     window.addEventListener('resize', onResize)
 
     const dispose = () => {
       cancelAnimationFrame(raf)
+      controls.removeEventListener('change', invalidate)
       window.removeEventListener('resize', onResize)
       controls.dispose(); renderer.dispose()
       geom.dispose(); mat.dispose(); sprite.dispose()
@@ -194,7 +232,7 @@ export default function PointCloudViewer(props: Props) {
 
     ctx.current = {
       renderer, scene, camera, controls, points, basePositions,
-      trueColors, provColors, provCodes, raycaster, radius, markerGroup, dispose,
+      trueColors, provColors, provCodes, raycaster, radius, markerGroup, replayMarker, invalidate, dispose,
     }
     return dispose
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -222,6 +260,7 @@ export default function PointCloudViewer(props: Props) {
     colorAttr.needsUpdate = true
     posAttr.needsUpdate = true
     c.points.geometry.computeBoundingSphere()
+    c.invalidate()
     // The scene effect above rebuilds the geometry in true colour with every
     // layer shown whenever the model or the full cloud changes, so this has to
     // re-run then too -- otherwise "show all points" silently drops the chosen
@@ -247,6 +286,7 @@ export default function PointCloudViewer(props: Props) {
       m.size = c.radius * 0.004 * props.pointSize
     }
     m.needsUpdate = true
+    c.invalidate()
   }, [props.pointSize, props.splat])
 
   // ---- measurement markers -----------------------------------------------
@@ -267,7 +307,32 @@ export default function PointCloudViewer(props: Props) {
     props.savedLines.forEach((l) => { addLine(l, 0x2ecc71); l.forEach((p) => addDot(p, 0x2ecc71)) })
     props.activePoints.forEach((p) => addDot(p, 0xff9a3c))
     addLine(props.activePoints, 0xff9a3c)
+    c.invalidate()
   }, [props.activePoints, props.savedLines])
+
+  // ---- video replay camera ------------------------------------------------
+  useEffect(() => {
+    const c = ctx.current; if (!c) return
+    const p = props.replayPose
+    if (!p?.position || !p.quaternion) { c.replayMarker.visible = false; c.invalidate(); return }
+    const q = new THREE.Quaternion(...p.quaternion)
+    c.replayMarker.position.set(...p.position)
+    c.replayMarker.quaternion.copy(q)
+    c.replayMarker.visible = !props.followReplay
+    if (props.followReplay) {
+      // Trackball re-aims the camera at its target every frame, so steer it
+      // through position, up and target rather than setting the rotation.
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q)
+      c.camera.position.set(...p.position)
+      c.camera.up.copy(new THREE.Vector3(0, 1, 0).applyQuaternion(q))
+      c.controls.target.copy(c.camera.position).addScaledVector(fwd, c.radius * 0.5)
+      c.controls.update()
+    }
+    c.invalidate()
+  }, [props.replayPose, props.followReplay])
+
+  // Any other prop change redraws too, so a scene update cannot be missed.
+  useEffect(() => { ctx.current?.invalidate() })
 
   // ---- pointer handlers (pick / hover) -----------------------------------
   useEffect(() => {

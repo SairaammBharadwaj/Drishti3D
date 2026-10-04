@@ -3,6 +3,7 @@ import {
   api, type Question, type QuestionEvidence, type QuestionStatus,
   type Refinement, type MeasurementKind, type Vec3,
 } from './api'
+import { useReadOnly } from './deployment'
 
 /**
  * The Tolerance Lens.
@@ -39,6 +40,8 @@ function Card({ q, projectId, onChanged, onDelete }: {
   const [evidence, setEvidence] = useState<QuestionEvidence | null>(null)
   const [showEvidence, setShowEvidence] = useState(false)
   const [refining, setRefining] = useState(false)
+  // Refinement re-reads frames from the source video, which a showcase lacks.
+  const canRefine = useReadOnly() === false
   const [refinement, setRefinement] = useState<Refinement | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -145,14 +148,14 @@ function Card({ q, projectId, onChanged, onDelete }: {
 
       <div className="row" style={{ marginTop: 10 }}>
         <button onClick={loadEvidence}>{showEvidence ? 'Hide evidence' : 'Show evidence'}</button>
-        <button className="primary" disabled={refining} onClick={improve} aria-describedby={`refinement-help-${q.id}`}>
+        {canRefine && <button className="primary" disabled={refining} onClick={improve} aria-describedby={`refinement-help-${q.id}`}>
           {refining ? 'Checking more frames…' : 'Try targeted refinement'}
-        </button>
+        </button>}
         <button onClick={() => onDelete(q.id)}>Delete</button>
       </div>
-      <p id={`refinement-help-${q.id}`} className="muted" style={{ fontSize: 11, lineHeight: 1.6 }}>
+      {canRefine && <p id={`refinement-help-${q.id}`} className="muted" style={{ fontSize: 11, lineHeight: 1.6 }}>
         Checks additional frames for this measurement. Extra processing may improve its support; a better result is not guaranteed.
-      </p>
+      </p>}
 
       {err && <div className="warn" style={{ fontSize: 12 }}>⚠ {err}</div>}
 

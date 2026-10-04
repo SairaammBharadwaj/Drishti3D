@@ -1,0 +1,17 @@
+# Runtime for the read-only showcase image, pinned to the versions the
+# workstation venv runs (2026-09-28). Nothing for processing: no open3d, laspy,
+# COLMAP or torch, because a showcase server never reconstructs.
+fastapi==0.141.1
+uvicorn==0.52.4
+starlette==1.6.0
+sqlalchemy==2.0.52
+pydantic==2.13.5
+python-multipart==0.0.32
+aiofiles==25.1.0
+# drishti_recon's declared dependencies (reconstruction/pyproject.toml)
+numpy==2.5.2
+scipy==1.18.1
+opencv-python-headless==5.0.0.93
+pyproj==3.7.2
+imageio==2.37.4
+imageio-ffmpeg==0.6.0

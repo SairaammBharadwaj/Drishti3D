@@ -9,7 +9,7 @@ from pathlib import Path
 import json
 import numpy as np
 
-from .geo import ENUFrame
+from .geo import ENUFrame, VERTICAL_DATUMS
 from .provenance import Provenance
 
 
@@ -73,9 +73,10 @@ def utm_epsg(lat: float, lon: float) -> int:
 def enu_to_utm(frame: ENUFrame, points) -> tuple[np.ndarray, int]:
     """Project local ENU metres into the WGS84 UTM zone of the frame origin.
 
-    Returns ``(points_utm, epsg)``. The third column is **ellipsoidal height**
-    (WGS84), because that is what the ENU up axis is measured against; it is
-    not an orthometric elevation and must not be read as one.
+    Returns ``(points_utm, epsg)``. The third column is height on whatever
+    datum the telemetry altitude used (``geo.VERTICAL_DATUMS``): WGS84
+    ellipsoidal only if the source said so. It is passed through, never
+    converted.
     """
     import pyproj
     pts = np.asarray(points, float).reshape(-1, 3)
@@ -86,7 +87,8 @@ def enu_to_utm(frame: ENUFrame, points) -> tuple[np.ndarray, int]:
     return np.column_stack([x, y, geo[:, 2]]), epsg
 
 
-def export_las(path, cloud, frame: ENUFrame | None = None) -> str:
+def export_las(path, cloud, frame: ENUFrame | None = None, *,
+               classification=None) -> str:
     """LAS point cloud (requires laspy), georeferenced when a frame is given.
 
     ``frame`` used to be accepted and ignored: the file held local ENU metres
@@ -103,6 +105,11 @@ def export_las(path, cloud, frame: ENUFrame | None = None) -> str:
     Per-point ``provenance``, ``confidence`` and ``sigma`` (worst-axis, metres)
     are written as LAS extra dimensions under those names, so the trust
     information survives the trip into another tool.
+
+    ``classification``, when given, is one ASPRS code per point
+    (``rasters.classify_points``: 1 unclassified, 2 ground, 5 high
+    vegetation, 6 building). Without it every point stays 0, "never
+    classified", which is what the file says rather than a guess.
     """
     import laspy
     path = Path(path)
@@ -139,28 +146,38 @@ def export_las(path, cloud, frame: ENUFrame | None = None) -> str:
         sig = getattr(cloud, "sigma", None)
     las.sigma = (np.full(len(pts), np.nan, np.float32) if sig is None
                  else np.asarray(sig, np.float32))
+    if classification is not None:
+        las.classification = np.asarray(classification, np.uint8)
     las.write(str(path))
     return str(path)
 
 
 def export_georeference_sidecar(path, cloud, frame: ENUFrame | None,
-                                *, extra: dict | None = None) -> str:
+                                *, vertical_datum: str = "unknown",
+                                vertical_datum_basis: str | None = None,
+                                extra: dict | None = None) -> str:
     """JSON describing how to place a local-coordinate export on the earth.
 
     Written beside every cloud export so a local file is still usable: it
     carries the ENU origin, the projected CRS the georeferenced exports use,
     the vertical reference, and the field meanings that LAS extra dimensions
     and PLY scalars abbreviate.
+
+    ``vertical_datum`` is the telemetry's (``telemetry.vertical_datum``). Every
+    sidecar used to say "WGS84 ellipsoidal" whatever the source; DEC-047 found
+    sea-level and take-off-relative heights under that label.
     """
     path = Path(path)
     doc = {
         "coordinate_frame": "local ENU metres" if frame is None else "local ENU metres, with a georeferenced twin",
         "units": "metres",
         "local_origin_wgs84": None if frame is None else {
-            "lat": frame.lat0, "lon": frame.lon0, "alt_ellipsoidal_m": frame.alt0},
+            "lat": frame.lat0, "lon": frame.lon0, "alt_m": frame.alt0},
         "projected_crs": None if frame is None else f"EPSG:{utm_epsg(frame.lat0, frame.lon0)}",
-        "vertical_reference": (
-            "WGS84 ellipsoidal height; NOT an orthometric/MSL elevation"),
+        "vertical_datum": vertical_datum,
+        "vertical_reference": VERTICAL_DATUMS.get(vertical_datum,
+                                                  VERTICAL_DATUMS["unknown"]),
+        "vertical_datum_basis": vertical_datum_basis,
         "fields": {
             "provenance": "Provenance enum: "
                           + ", ".join(f"{int(p)}={p.name}" for p in Provenance),
@@ -193,6 +210,99 @@ def export_glb(path, verts, faces, colors) -> str:
     if not ok:
         raise RuntimeError(f"failed to write mesh {path}")
     return str(path)
+
+
+#: Written into every mesh file and its status: a Poisson surface is display
+#: geometry. It interpolates across gaps the cameras never saw, so measurements
+#: are made on the observed points, never on the mesh.
+MESH_CAVEAT = ("display geometry: a Poisson surface interpolated over the observed "
+               "points; not for measurement")
+
+
+def export_obj(path, verts, faces, colors=None, *, comment: str | None = None) -> str:
+    """Wavefront OBJ, written directly (no Open3D needed).
+
+    Vertex colours use the common ``v x y z r g b`` extension (0-1 floats),
+    which Blender, MeshLab and CloudCompare read. Coordinates are local ENU
+    metres; ``comment`` lines (the frame, the caveat) go in the header.
+    """
+    path = Path(path)
+    V = np.asarray(verts, float).reshape(-1, 3)
+    F = np.asarray(faces, np.int64).reshape(-1, 3)
+    if len(F) and (F.min() < 0 or F.max() >= len(V)):
+        raise ValueError("face index out of range")
+    with open(path, "w") as f:
+        f.write("# Drishti3D mesh, local ENU metres (x east, y north, z up)\n")
+        f.write(f"# {MESH_CAVEAT}\n")
+        for line in (comment or "").splitlines():
+            f.write(f"# {line}\n")
+        if colors is not None:
+            C = np.asarray(colors, float).reshape(-1, 3) / 255.0
+            np.savetxt(f, np.c_[V, C], fmt="v %.4f %.4f %.4f %.4f %.4f %.4f")
+        else:
+            np.savetxt(f, V, fmt="v %.4f %.4f %.4f")
+        np.savetxt(f, F + 1, fmt="f %d %d %d")
+    return str(path)
+
+
+def assimp_available() -> str | None:
+    """Path of the ``assimp`` command-line tool, or None."""
+    import shutil
+    return shutil.which("assimp")
+
+
+def convert_with_assimp(src, dst, *, timeout_s: float = 600) -> dict:
+    """Convert a mesh with ``assimp export`` (FBX from OBJ, for example).
+
+    Returns ``{"available": bool, "ok": bool, "path"|"detail": ...}``; never
+    raises. FBX is offered only through assimp: there is no clean-licence FBX
+    writer in Python, and an FBX that silently failed would be worse than none.
+    """
+    import subprocess
+    exe = assimp_available()
+    if exe is None:
+        return {"available": False, "ok": False,
+                "detail": "assimp unavailable: install the assimp command-line tool "
+                          "(apt install assimp-utils, brew install assimp) for FBX"}
+    dst = Path(dst)
+    try:
+        r = subprocess.run([exe, "export", str(src), str(dst)], capture_output=True,
+                           text=True, timeout=timeout_s)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"available": True, "ok": False, "detail": f"assimp failed: {exc}"}
+    if r.returncode != 0 or not dst.exists() or dst.stat().st_size == 0:
+        tail = (r.stderr or r.stdout or "").strip().splitlines()[-3:]
+        return {"available": True, "ok": False,
+                "detail": "assimp failed: " + (" | ".join(tail) or f"exit {r.returncode}")}
+    return {"available": True, "ok": True, "path": str(dst)}
+
+
+def export_mesh_formats(out_dir, verts, faces, colors=None, *, frame=None,
+                        fbx: bool = True) -> dict:
+    """mesh.obj always, mesh.fbx when assimp can make it; with a status record.
+
+    Returns ``{"artifacts": {...}, "status": {...}}``. The status names the
+    frame, the caveat that the mesh is display geometry, and why FBX is absent
+    when it is.
+    """
+    out_dir = Path(out_dir)
+    comment = None
+    if frame is not None:
+        comment = (f"ENU origin WGS84 lat {frame.lat0:.8f} lon {frame.lon0:.8f} "
+                   f"alt {frame.alt0:.3f}; see georeference.json")
+    arts = {"mesh_obj": export_obj(out_dir / "mesh.obj", verts, faces, colors,
+                                   comment=comment)}
+    status = {"obj": {"ok": True, "vertices": int(len(verts)), "faces": int(len(faces))},
+              "frame": "local ENU metres", "caveat": MESH_CAVEAT}
+    if fbx:
+        fb = convert_with_assimp(arts["mesh_obj"], out_dir / "mesh.fbx")
+        if fb["ok"]:
+            arts["mesh_fbx"] = fb.pop("path")
+            fb["file"] = "mesh.fbx"          # no machine-specific path in the record
+        status["fbx"] = fb
+    (out_dir / "mesh_formats.json").write_text(json.dumps(status, indent=2))
+    arts["mesh_formats_json"] = str(out_dir / "mesh_formats.json")
+    return {"artifacts": arts, "status": status}
 
 
 def export_trajectory_csv(path, cameras_enu) -> str:

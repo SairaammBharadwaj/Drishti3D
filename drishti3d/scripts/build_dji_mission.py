@@ -205,7 +205,10 @@ def main() -> int:
             "altitude_reference": alt_ref,
             "altitude_note": (
                 "DJI writes a bare `altitude` without stating its datum; "
-                "carried through as UNSPECIFIED rather than assumed to be MSL"
+                "carried through as UNSPECIFIED rather than assumed to be MSL. "
+                "For AirLock DJI_1001/1003 it is not an absolute height: the "
+                "ground comes out 115-135 m below SRTM (DEC-047), most likely "
+                "because it is height above take-off"
                 if alt_ref == "UNSPECIFIED" else ""),
             "warnings": report.warnings[:5] if report else [],
         },

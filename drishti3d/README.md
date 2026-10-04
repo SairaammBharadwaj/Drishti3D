@@ -57,17 +57,21 @@ drishti3d/
   frontend/         React + TypeScript + Vite + Three.js operational UI
   sample_data/      synthetic dataset generator (video + telemetry + ground truth)
   tests/            pytest unit + integration tests (no weight downloads)
-  docs/             telemetry schema, calibration, demo script, troubleshooting
+  eval/, scripts/   benchmark harness and scorers; mission and operator tools
+  deploy/           read-only public showcase: image build and laptop-server kit
+  docs/             accuracy write-ups, benchmarks, guides, reviews (docs/README.md)
   docker-compose.yml
 ```
 
-For the current evidence audit, prioritized technical roadmap, decision rationale,
-and distinctive research ideas, see:
+Every document is indexed in [`docs/README.md`](docs/README.md). The current
+engineering record is at the repository root: [`DECISIONS.md`](../DECISIONS.md)
+(each decision and its evidence), [`TESTS_AND_RESULTS.md`](../TESTS_AND_RESULTS.md)
+and [`WORKLOG.md`](../WORKLOG.md). Also:
 
 - [`docs/REPOSITORY_AUDIT_AND_IMPROVEMENT_ROADMAP.md`](docs/REPOSITORY_AUDIT_AND_IMPROVEMENT_ROADMAP.md)
-  — the audit and prioritized roadmap being executed (with corrections in §1a)
-- [`docs/WORK_LOG.md`](docs/WORK_LOG.md) — what has been changed, why, and its
-  measured effect
+  — the first audit and roadmap, to 6 September (with corrections in §1a)
+- [`docs/WORK_LOG.md`](docs/WORK_LOG.md) — the early work log, to 6 September;
+  the root `WORKLOG.md` continues it
 - [`docs/BENCHMARK.md`](docs/BENCHMARK.md) — the truth harness and the rule that
   no accuracy claim may be published unless it generated it
 - [`docs/VIDEO_ACCURACY_MARS_LVIG.md`](docs/VIDEO_ACCURACY_MARS_LVIG.md) — native
@@ -100,8 +104,16 @@ optional mesh → quality/uncertainty report → exports.
 | Confidence / provenance classification | ✅ | — | implemented |
 | Dynamic masking (optical-flow residual) | ✅ | — | implemented (opt-in) |
 | Dynamic masking (semantic) | ✅/slow | recommended | optional (local weights) |
-| Mesh (Open3D Poisson) | ✅ | — | optional |
-| Exports PLY / LAS / GLB / GeoJSON / CSV / JSON / HTML | ✅ | — | implemented |
+| Mesh (Open3D Poisson), display only | ✅ | — | optional |
+| Exports PLY / LAS / GLB / OBJ / GeoJSON / CSV / JSON / HTML | ✅ | — | implemented |
+| FBX mesh export | ✅ | — | optional (`assimp` CLI); explicit unavailable state |
+| DSM / DTM / orthophoto / sigma / land-cover GeoTIFFs | ✅ | — | implemented (DTM, land cover experimental) |
+| Volume / profile / slope / line of sight on observed rasters | ✅ | — | implemented; refuse below 80% coverage |
+| GCP / checkpoint accuracy, leave-one-out, CE90/LE90 | ✅ | — | implemented; independence labelled |
+| RTKLIB `.pos` RTK/PPK import | ✅ | — | implemented |
+| Video ↔ 3-D replay with sync state | ✅ | — | implemented |
+| Preview tier chained to the full run | ✅ | — | implemented |
+| Photo-textured hero mesh (OpenMVS), display only | — | ✅ | script; not yet run on a hero mission |
 | COLMAP verified engine | ✅ | optional | optional adapter |
 | MASt3R-SLAM / VGGT learned reconstruction | — | ✅ | optional adapter (stub) |
 
@@ -146,15 +158,54 @@ docker compose up --build
 # frontend: http://localhost:8080   backend API: http://localhost:8000
 ```
 
+### Public showcase (read-only)
+
+To show finished missions to people outside the team, export them as a
+bundle and serve it read-only. The default set is six missions (about 1 GB):
+the LiDAR-scored HKisland02/03 passes, UseGeo 1, DJI_1003/1001 and AGZ dense.
+
+```bash
+.venv/bin/python scripts/export_showcase.py --out data/showcase --dry-run   # what and how big
+.venv/bin/python scripts/export_showcase.py --out data/showcase
+(cd frontend && npm run build)                                              # the API serves the SPA
+DRISHTI_READ_ONLY=1 DRISHTI_DATA_DIR=data/showcase \
+    .venv/bin/uvicorn backend.app.main:app --port 8001
+```
+
+A read-only server refuses creating, uploading, processing, refining and
+deleting missions. Measuring and asking questions still work: each visitor
+writes to a temporary copy of the database, so nobody else sees their
+results and the published missions never change (`backend/app/sandbox.py`).
+Source videos are not exported. Every mission carries a credit for its source
+dataset, shown on every page; the script refuses a mission that has none.
+
+To host it, assemble the image source and build it. The folder is also exactly
+what to upload to a Hugging Face Docker Space (port 7860, uid 1000):
+
+```bash
+.venv/bin/python scripts/build_space.py --bundle data/showcase --out data/space
+docker build -t drishti3d-showcase data/space
+docker run --rm -p 7860:7860 --memory 6g drishti3d-showcase                  # http://127.0.0.1:7860
+huggingface-cli upload <you>/<space> data/space . --repo-type=space          # publish
+```
+
+The folder is built from an allow-list, because all of it becomes public. The
+Gymnasium footage (Wikimedia Commons, CC BY-SA, author not recorded) and the
+research lab made from it are left out until they can be credited.
+
 ---
 
 ## Telemetry schema
 
-CSV / JSON / SRT accepted. **Required:** `timestamp, latitude, longitude,
+CSV / JSON / SRT and RTKLIB `.pos` (RTK/PPK) accepted. **Required:** `timestamp, latitude, longitude,
 altitude`. **Optional:** `roll, pitch, yaw, velocity, gps_accuracy, rtk_status,
 fx, fy, cx, cy, focal_length`. Column aliases are recognised (`lat`, `lon`,
 `heading`, `hdop`, …). Invalid rows are reported, never silently dropped. See
 `docs/TELEMETRY.md`.
+
+Accuracy against surveyed points, terrain analytics, the mesh formats, the
+geoid, the evidence package, replay and the preview tier are described in
+[`docs/ANALYTICS_AND_ACCURACY.md`](docs/ANALYTICS_AND_ACCURACY.md).
 
 ## Camera calibration
 
@@ -165,6 +216,8 @@ assumption as a warning**.
 ## Accuracy & honesty rules
 
 - Alignment residual ≠ independent accuracy (reported separately).
+- GCP fit residuals and leave-one-out scores are labelled NOT independent;
+  only held-back checkpoints give an independent corrected figure.
 - With ordinary GPS, absolute accuracy is **GPS-limited (often metre-level)**;
   with RTK/PPK the report labels scale as RTK-derived.
 - Centimetre accuracy is never claimed without measured ground-truth evidence.

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project
 from ..schemas import ExportRequest
-from .. import storage
+from .. import cloud_pack, storage
 
 router = APIRouter(prefix="/api/projects", tags=["artifacts"])
 
@@ -32,7 +32,27 @@ _EXPORT_FILES = {
     "georeference": "georeference.json",
     # Per-hole record of the inferred fill: what each surface rests on.
     "fill": "fill.json",
+    # Raster products (drishti_recon.rasters), UTM GeoTIFFs.
+    "dsm_tif": "dsm.tif",
+    "dtm_tif": "dtm.tif",
+    "ortho_tif": "ortho.tif",
+    "sigma_tif": "sigma.tif",
+    "landcover_tif": "landcover.tif",
+    # Checkpoint/GCP accuracy report (routers/analysis.py).
+    "accuracy_json": "accuracy.json",
+    # Evidence package (scripts/evidence_package.py).
+    "evidence_json": "evidence_package.json",
+    # Mesh in OBJ, and FBX when assimp converted it (exports.export_mesh_formats).
+    "mesh_obj": "mesh.obj",
+    "mesh_fbx": "mesh.fbx",
+    # Photo-textured OpenMVS mesh, display only (scripts/texture_hero.py).
+    "textured_zip": "textured_mesh.zip",
+    "textured_json": "textured_mesh.json",
 }
+
+#: Preview images rasters.py writes, by the name the API serves them under.
+_RASTER_PREVIEWS = {"ortho": "ortho_preview.png", "dsm": "dsm_preview.png",
+                    "dtm": "dtm_preview.png", "landcover": "landcover_preview.png"}
 
 #: Provenance code of fill points (``Provenance.INFERRED_FILL``). Written here
 #: rather than imported so the API does not load the reconstruction package.
@@ -146,24 +166,8 @@ def get_model_binary(project_id: str, fill: bool = True):
     many of the points it is.
     """
     import io
-    npz = _artifact(project_id, "cloud.npz")
-    d = np.load(npz)
-    pts = np.ascontiguousarray(d["points"], dtype="<f4")
+    pts, cols, prov, n_fill = _full_cloud(project_id, fill)
     n = len(pts)
-    cols = np.ascontiguousarray(
-        d["colors"] if "colors" in d.files else np.full((n, 3), 200),
-        dtype=np.uint8)
-    prov = np.ascontiguousarray(
-        d["provenance"] if "provenance" in d.files else np.zeros(n),
-        dtype=np.uint8)
-    n_fill = 0
-    f = _load_fill(project_id) if fill else None
-    if f is not None and len(f[0]):
-        n_fill = len(f[0])
-        pts = np.concatenate([pts, np.asarray(f[0], dtype="<f4")])
-        cols = np.concatenate([cols, np.asarray(f[1], dtype=np.uint8)])
-        prov = np.concatenate([prov, np.full(n_fill, _FILL_CODE, np.uint8)])
-        n = len(pts)
 
     buf = io.BytesIO()
     buf.write(_CLOUD_MAGIC)
@@ -179,6 +183,138 @@ def get_model_binary(project_id: str, fill: bool = True):
                  "X-Point-Count": str(n),
                  "X-Fill-Count": str(n_fill),
                  "Cache-Control": "no-cache"})
+
+
+def _full_cloud(project_id: str, fill: bool):
+    """Every point the viewer shows: the cloud, then the inferred fill."""
+    d = np.load(_artifact(project_id, "cloud.npz"))
+    pts = np.ascontiguousarray(d["points"], dtype="<f4")
+    n = len(pts)
+    cols = np.ascontiguousarray(
+        d["colors"] if "colors" in d.files else np.full((n, 3), 200),
+        dtype=np.uint8)
+    prov = np.ascontiguousarray(
+        d["provenance"] if "provenance" in d.files else np.zeros(n),
+        dtype=np.uint8)
+    n_fill = 0
+    f = _load_fill(project_id) if fill else None
+    if f is not None and len(f[0]):
+        n_fill = len(f[0])
+        pts = np.concatenate([pts, np.asarray(f[0], dtype="<f4")])
+        cols = np.concatenate([cols, np.asarray(f[1], dtype=np.uint8)])
+        prov = np.concatenate([prov, np.full(n_fill, _FILL_CODE, np.uint8)])
+    return pts, cols, prov, n_fill
+
+
+def pack_for(project_id: str, fill: bool = True) -> bytes:
+    """The cloud as model.pack sends it, built once per artifact revision."""
+    key = (project_id, storage.artifact_revision(project_id), fill)
+
+    def build():
+        pts, cols, prov, _ = _full_cloud(project_id, fill)
+        return cloud_pack.encode(pts, cols, prov)
+    return cloud_pack.cached(key, build)
+
+
+@router.get("/{project_id}/model.pack")
+def get_model_pack(project_id: str, fill: bool = True):
+    """The same points as model.bin, 2.7x smaller: see cloud_pack.py.
+
+    For display over a slow link. Positions are quantised to about 2 cm on a
+    1.4 km scene; measurements never use them, they are made on the
+    full-precision cloud here.
+    """
+    data = pack_for(project_id, fill)
+    return Response(content=data, media_type="application/octet-stream",
+                    headers={"Content-Length": str(len(data))})
+
+
+#: What a mission's placement on the earth rests on, by georeference.json's
+#: scale_source. The coordinates are only as good as this.
+_PLACEMENT_NOTES = {
+    "rtk": "Placed by RTK GNSS. Where checked against same-flight LiDAR, "
+           "placement was within 0.08-0.28 m horizontally (DEC-044).",
+    "gps": "Placed by GPS without RTK. The absolute position can be off by "
+           "metres or more; the Austin missions' placement is unverified "
+           "(DEC-045). Distances and heights within the scene are unaffected.",
+}
+
+
+@router.get("/{project_id}/point_info")
+def point_info(project_id: str, e: float, n: float, u: float):
+    """Every coordinate form of one picked point (``drishti_recon.position``).
+
+    Latitude/longitude, UTM, MGRS, and the heights the mission's vertical
+    datum supports: ellipsoidal and above sea level (EGM2008) when the
+    telemetry said which it was, none when it did not. A sidecar written
+    before the datum was recorded counts as unknown. A mission that is not
+    georeferenced has no position to give.
+    """
+    from drishti_recon import position
+    from drishti_recon.geo import ENUFrame
+    geo = _load_json(project_id, "georeference.json")
+    frame = ENUFrame(**_load_json(project_id, "trajectory.json")["frame"])
+    out = position.describe(frame, [e, n, u],
+                            georeferenced=bool(geo.get("georeferenced")),
+                            vertical_datum=geo.get("vertical_datum") or "unknown")
+    if out.get("georeferenced"):
+        src = geo.get("scale_source")
+        out["placement_source"] = src
+        out["placement_note"] = _PLACEMENT_NOTES.get(
+            src, f"Placement source '{src}' has no recorded accuracy.")
+        out["vertical_datum_basis"] = geo.get("vertical_datum_basis")
+    return out
+
+
+@router.get("/{project_id}/rasters")
+def get_rasters(project_id: str):
+    """The raster products' summary and which preview images exist.
+
+    404 when the mission has none: it is not georeferenced, or predates them
+    and ``scripts/build_rasters.py`` has not been run for it.
+    """
+    summary = _load_json(project_id, "rasters.json")
+    d = storage.artifacts_dir(project_id)
+    previews = [k for k, f in _RASTER_PREVIEWS.items() if (d / f).exists()]
+    return {"summary": summary, "previews": previews}
+
+
+@router.get("/{project_id}/rasters/{name}.png")
+def get_raster_preview(project_id: str, name: str):
+    if name not in _RASTER_PREVIEWS:
+        raise HTTPException(404, "unknown raster preview")
+    return FileResponse(_artifact(project_id, _RASTER_PREVIEWS[name]),
+                        media_type="image/png")
+
+
+def _replay_track(project_id: str):
+    from drishti_recon import replay
+    cams = _load_json(project_id, "trajectory.json").get("cameras_enu", [])
+    return replay.build_track(cams, _load_json(project_id, "keyframes.json"))
+
+
+@router.get("/{project_id}/replay")
+def get_replay(project_id: str):
+    """Solved camera poses on the video clock, for video <-> 3-D playback.
+
+    Poses are converted here to the Three.js convention (camera looks down -Z,
+    +Y up; quaternion x, y, z, w) so the browser only interpolates: linear in
+    position, slerp in rotation (``drishti_recon.replay``).
+    """
+    from drishti_recon import replay
+    return {"track": _replay_track(project_id), "max_gap_s": replay.MAX_GAP_S,
+            "convention": "Three.js camera-to-world; local -Z forward, +Y up; "
+                          "positions local ENU metres; t is video seconds",
+            "states": {"synced": "between keyframes at most max_gap_s apart",
+                       "gap": "between keyframes further apart: interpolated across a gap",
+                       "out_of_range": "outside the solved span: no pose"}}
+
+
+@router.get("/{project_id}/replay/pose")
+def get_replay_pose(project_id: str, t: float):
+    """The interpolated pose at video time ``t`` (the reference for the viewer)."""
+    from drishti_recon import replay
+    return replay.pose_at(_replay_track(project_id), t)
 
 
 @router.get("/{project_id}/keyframes")

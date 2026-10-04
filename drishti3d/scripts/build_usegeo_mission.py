@@ -306,10 +306,13 @@ def build(source: Path, name: str, *, overwrite: bool, crf: int,
                 "altitude": f"{fr.up:.3f}",
                 "latitude_deg": f"{lat:.8f}", "longitude_deg": f"{lon:.8f}",
                 "altitude_m": f"{fr.up:.3f}",
-                # The trajectory's elevation is ellipsoidal in the same frame
-                # the LiDAR uses. Calling it MSL would be a datum error of tens
-                # of metres that nothing downstream could detect.
-                "altitude_reference": "ELLIPSOIDAL",
+                # The trajectory's elevation is in the same frame the LiDAR
+                # uses, and that frame's heights are above sea level, not
+                # ellipsoidal: the ground matches SRTM within 0.6 m as
+                # sea-level heights and would be 47.5 m low as ellipsoidal
+                # (DEC-047; this said ELLIPSOIDAL until then). Which geoid model
+                # the publisher used is not stated.
+                "altitude_reference": "MSL",
                 # UseGeo publishes no per-epoch GNSS covariance. Empty means
                 # unknown, which is not the same as small -- the same rule
                 # AGZ's corrupt epv column is handled under.
