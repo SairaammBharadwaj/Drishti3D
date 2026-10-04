@@ -284,6 +284,36 @@ def get_raster_preview(project_id: str, name: str):
                         media_type="image/png")
 
 
+def _replay_track(project_id: str):
+    from drishti_recon import replay
+    cams = _load_json(project_id, "trajectory.json").get("cameras_enu", [])
+    return replay.build_track(cams, _load_json(project_id, "keyframes.json"))
+
+
+@router.get("/{project_id}/replay")
+def get_replay(project_id: str):
+    """Solved camera poses on the video clock, for video <-> 3-D playback.
+
+    Poses are converted here to the Three.js convention (camera looks down -Z,
+    +Y up; quaternion x, y, z, w) so the browser only interpolates: linear in
+    position, slerp in rotation (``drishti_recon.replay``).
+    """
+    from drishti_recon import replay
+    return {"track": _replay_track(project_id), "max_gap_s": replay.MAX_GAP_S,
+            "convention": "Three.js camera-to-world; local -Z forward, +Y up; "
+                          "positions local ENU metres; t is video seconds",
+            "states": {"synced": "between keyframes at most max_gap_s apart",
+                       "gap": "between keyframes further apart: interpolated across a gap",
+                       "out_of_range": "outside the solved span: no pose"}}
+
+
+@router.get("/{project_id}/replay/pose")
+def get_replay_pose(project_id: str, t: float):
+    """The interpolated pose at video time ``t`` (the reference for the viewer)."""
+    from drishti_recon import replay
+    return replay.pose_at(_replay_track(project_id), t)
+
+
 @router.get("/{project_id}/keyframes")
 def get_keyframes(project_id: str):
     return _load_json(project_id, "keyframes.json")
