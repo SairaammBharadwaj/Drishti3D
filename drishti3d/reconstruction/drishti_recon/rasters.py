@@ -504,6 +504,11 @@ def build_products(utm_xyz, colors, sigma, provenance, epsg: int, out_dir,
         "class_shares": shares,
         "class_codes": {"0": "no data", "1": "unclassified", "2": "ground",
                         "5": "high vegetation", "6": "building"},
+        # No road class until one can be scored against labelled roads: a
+        # paved/unpaved split from colour alone would be a guess with a name.
+        "roads": "not separated: roads and other paved surfaces are in 'ground'. A "
+                 "road class needs labelled validation data, which the project "
+                 "does not have",
         "method": {
             "points": "observed only (provenance 0-1); empty cells are NoData",
             "dtm": f"{ground_method}, on the lowest point per cell",

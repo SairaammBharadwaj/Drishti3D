@@ -69,7 +69,7 @@ def test_volume_uses_mean_not_max():
     r = R.rasterize(P, np.full((len(P), 3), 0), None, np.full(len(P), OBS), res)
     s = T.Surfaces(r["grid"], r["dsm"], r["zmean"], r["sigma"], r["count"], 32643)
     out = T.volume(s, [(2, 2), (18, 2), (18, 18), (2, 18)], base="fixed", base_z=10.0)
-    # The DSM would be ~0.15 m high everywhere: ~38 m3 of phantom volume.
+    # The DSM is ~0.2 m high everywhere here: 50 m3 of phantom volume.
     assert abs(out["net_m3"]) < 2.0
 
 

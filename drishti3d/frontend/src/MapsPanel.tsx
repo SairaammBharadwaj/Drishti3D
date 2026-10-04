@@ -7,7 +7,7 @@ const LAYERS: { key: string; label: string; caption: string; experimental?: bool
   { key: 'ortho', label: 'Orthophoto', caption: 'Colour of the highest observed point in each cell. Built from the point cloud, not projected from the camera images.' },
   { key: 'dsm', label: 'Surface', caption: 'DSM: the highest observed point in each cell. Checked against same-flight LiDAR on three missions, it stays within 3 cm of the cloud’s own accuracy.' },
   { key: 'dtm', label: 'Terrain', caption: 'DTM: bare earth where the ground filter finds it, empty under buildings and trees. Large roofs can pass as ground.', experimental: true },
-  { key: 'landcover', label: 'Land cover', caption: 'Rule-based classes. Dependable for ordinary buildings on open ground; large roofs can read as ground and steep rock as building.', experimental: true },
+  { key: 'landcover', label: 'Land cover', caption: 'Rule-based classes. Dependable for ordinary buildings on open ground; large roofs can read as ground and steep rock as building. Roads are not a separate class: they are part of ground.', experimental: true },
 ]
 
 const LEGEND: [string, string][] = [

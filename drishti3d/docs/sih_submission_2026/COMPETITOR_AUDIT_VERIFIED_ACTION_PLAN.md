@@ -163,3 +163,55 @@ Acceptance is met only when:
 - Do not claim universal `<1 m` accuracy or universal `<15 min` runtime; state the exact mission, hardware, truth source and processing preset.
 
 **Recommended submission position:** lead with the completed evidence features (lineage, uncertainty, refusal, same-flight LiDAR evidence, measured runtime and georeferenced exports), show the textured hero asset as a labelled visual layer, and describe the partial/missing checklist items as the concrete next sprint above.
+
+## 8. Implementation status — 4 October 2026 (later)
+
+Work on branch `repo-cleanup-and-showcase`; decision DEC-048; user guide
+[`docs/ANALYTICS_AND_ACCURACY.md`](../ANALYTICS_AND_ACCURACY.md).
+
+### P0
+
+| # | Item | Status | Where |
+|---:|---|---|---|
+| 1 | Checkpoint/GCP accuracy, CE90/LE90, translation / 7-parameter correction, leave-one-out, API + UI, "not independent" labels | **Done** | `drishti_recon/accuracy.py`, `POST/GET /accuracy`, Absolute accuracy panel; `tests/test_accuracy.py`, `tests/test_analysis_api.py` |
+| 2 | RTKLIB `.pos` with GPS time/UTC and Q codes; fixed/float/SBAS/DGPS/single/malformed fixtures | **Done** | `drishti_recon/rtk.py`; `tests/test_rtk_pos.py`, `tests/fixtures/rtk/` |
+| 3 | Raster outputs: NoData kept, mean-Z for volume/profile, names, CRS, datum, observed/inferred metadata | **Done in code; hero mission not re-run here** | `rasters.py` (unchanged contract), `terrain.py` |
+| 4 | Explicit OBJ test; FBX through assimp with an unavailable state | **Done** | `exports.export_mesh_formats`; `tests/test_mesh_formats.py` |
+| 5 | Volume/profile/slope/line-of-sight endpoints and viewer controls; refusal below coverage; `unknown` over unobserved cells | **Done** | `drishti_recon/terrain.py`, `/terrain/*`, Terrain analysis tools; `tests/test_terrain.py` |
+| 6 | EGM2008 on the demo machine, known-point check, refusal when missing | **Tooling done; grid must be installed on the demo laptop** | `scripts/install_geoid.py`, `GET /api/system/geoid`; refusal tested. The download is blocked in the build sandbox |
+| 7 | Evidence package | **Tool done; run it on the hero mission on the demo laptop** | `scripts/evidence_package.py`; `tests/test_evidence_package.py` |
+
+### P1
+
+| # | Item | Status |
+|---:|---|---|
+| 8 | OpenMVS textured OBJ in ENU, display only | **Tool done, not yet run** (`scripts/texture_hero.py`; transform check refuses a mismatched workspace). Needs OpenMVS and a kept COLMAP workspace |
+| 9 | Video ↔ 3-D sync: keyframe interpolation, OpenCV→Three.js, scrub/pause tests, sync indicator | **Done** (`drishti_recon/replay.py`, `/replay`, `VideoSync.tsx`; `tests/test_replay.py`, `npm test`; checked in Chromium) |
+| 10 | Road class only after labelled validation | **Not added, by design**; disclosed in `rasters.json` and the land-cover caption |
+| 11 | Real preview preset chained to the balanced run | **Done** (`preset=preview`, `then_full`; `tests/test_preview_tier.py`; run end to end) |
+
+### P2
+
+Not attempted: GLOMAP, NVDEC, stage resume, trained 3DGS, Cesium/3D Tiles,
+live RTSP, semantic models. Each needs a GPU and real flights for its A/B.
+
+### Section 6 test failures
+
+The two vertical-reference failures are resolved without weakening the
+fail-closed behaviour: the fixtures that assert "ellipsoidal" now declare an
+ellipsoidal datum, and two new tests assert the unknown-datum wording.
+
+### Revised count of the 29 rows
+
+| Status | Before | Now | Rows that moved |
+|---|---:|---:|---|
+| Complete | 11 | **17** | A3 OBJ/FBX, B3 GCP/LOO, B4 RTK/PPK, C4 preview tier, D1 analytics, D4 video sync |
+| Partial | 11 | **7** | A1 textured mesh (missing → partial: tool, no hero run) |
+| Missing | 7 | **5** | C2 NVDEC, C3 GLOMAP, C5 RTSP/resume, D3 trained 3DGS, D5 globe/3D Tiles |
+
+Still partial: A1 textured mesh, A5 orthomosaic (still a dense-cloud
+orthophoto), A6 classes (no road class), A7 EGM2008 (grid not yet on the demo
+machine), B2 IMU attitude prior, D6 labelled completion, E2 dated evidence
+index. "Complete" for B3 means implemented, exposed and tested on synthetic
+truth: no field checkpoints have been scored, so section 7's limits on
+accuracy claims still apply in full.

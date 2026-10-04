@@ -1999,3 +1999,53 @@ two HK buildings).
 Visual check that reversed the cloth default: on HKisland03 the cloth DTM kept
 only the shoreline, ground fell from 83% to 34% of cells and the grass slopes
 became high vegetation; AGZ's ground fell to 0.2%.
+
+## 2026-10-04 — Audit P0/P1: accuracy, RTK, analytics, OBJ/FBX, replay, preview (DEC-048)
+
+Environment: build sandbox, 4-core Xeon, no GPU, Python 3.11, `open3d` 0.20,
+`assimp` CLI installed, `torch` not installed, EGM2008 grid not installed (its
+download is blocked by the sandbox network policy).
+
+### Suites
+- Focused command from the action plan's section 6: **97 passed, 3 skipped**
+  (was 83 passed, 2 failed). The two vertical-reference failures are fixed by
+  declaring the datum in the fixtures; two new tests pin the unknown state.
+- Full suite: **645 passed, 5 skipped, 1 failed.** The failure,
+  `test_masking_backends.py::TestUntrainedSemanticRefused`, needs `torch` to
+  reach the "no weights" refusal; without it the import fails first. Not
+  related to this work.
+- Frontend: `tsc` clean; `npm test` (replay interpolation) 4/4.
+- New tests: `test_accuracy.py` (10), `test_rtk_pos.py` (11), `test_terrain.py`
+  (10), `test_analysis_api.py` (7), `test_mesh_formats.py` (5),
+  `test_replay.py` (11), `test_evidence_package.py` (3),
+  `test_texture_hero.py` (4), `test_preview_tier.py` (4).
+
+### End to end (synthetic flight, 150 frames, 5 s, through the web API)
+- Balanced run with `altitude_reference=ELLIPSOIDAL` telemetry: cloud, DSM,
+  DTM, ortho, sigma, land cover, `mesh.obj` (22,065 vertices) and `mesh.fbx`
+  via assimp; rasters at 1.5 m, datum ellipsoidal.
+- Terrain endpoints on that run: volume ok (95% observed), slope ok, profile
+  ok, line of sight blocked. A picked point gave MGRS `43RGM1598767202`,
+  ellipsoidal height, and no sea-level height with "geoid grid not installed".
+- Accuracy from 12 synthetic points (4 GCP, 8 check, 0.4/0.25/0.3 m offset +
+  5 cm noise): raw RMSE_H 0.495 m; checkpoints after similarity 0.089 m H,
+  0.058 m V. Synthetic truth: this checks the code, not field accuracy.
+- Browser (Playwright, Chromium): volume, profile (with breaks) and line of
+  sight from picks; accuracy panel with independent / NOT independent badges;
+  video seek to 1.00 s → "Synced", play, pause (pose stable while paused), end
+  of video → "No solved camera here". No console errors. Open-source Chromium
+  has no H.264, so the clip was re-uploaded as VP9 for this check.
+- Preview → full: preview 159 s (36 keyframes, 7,610 points), then the queued
+  balanced run 283 s (47 keyframes, 8,023 points) replaced it; project ended
+  `done`. CPU only, 5-second clip: not a timing claim for real flights.
+
+### Measured while writing
+- Volume bias of the DSM against mean height: flat 256 m², 0.1 m noise,
+  ~25 points per 0.5 m cell: DSM 50.2 m³, mean 0.06 m³.
+
+### NOT TESTED
+- Any of this on a real flight or on the demo laptop; the evidence package on
+  the hero mission.
+- Checkpoint accuracy against real surveyed points.
+- OpenMVS texturing (OpenMVS unavailable); EGM2008 conversion (grid
+  unavailable).

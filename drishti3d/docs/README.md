@@ -21,6 +21,10 @@ holds everything else.
 - [RASTERS.md](RASTERS.md): DSM, DTM, orthophoto and land-cover layers. The DSM
   is checked against LiDAR; the land cover is scored against OpenStreetMap and
   is experimental.
+- [ANALYTICS_AND_ACCURACY.md](ANALYTICS_AND_ACCURACY.md): checkpoint/GCP
+  accuracy, RTKLIB import, volume/profile/slope/line of sight, OBJ/FBX and the
+  textured hero mesh, the geoid, the evidence package, video replay and the
+  preview tier.
 - [EVALUATION.md](EVALUATION.md): how ground-truth evaluation is run.
 - [performance_2026_09_23/](performance_2026_09_23/): the optimisation plan
   and baselines behind the 12.2-minute DJI run (DEC-041).

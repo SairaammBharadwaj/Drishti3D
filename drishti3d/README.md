@@ -104,8 +104,16 @@ optional mesh → quality/uncertainty report → exports.
 | Confidence / provenance classification | ✅ | — | implemented |
 | Dynamic masking (optical-flow residual) | ✅ | — | implemented (opt-in) |
 | Dynamic masking (semantic) | ✅/slow | recommended | optional (local weights) |
-| Mesh (Open3D Poisson) | ✅ | — | optional |
-| Exports PLY / LAS / GLB / GeoJSON / CSV / JSON / HTML | ✅ | — | implemented |
+| Mesh (Open3D Poisson), display only | ✅ | — | optional |
+| Exports PLY / LAS / GLB / OBJ / GeoJSON / CSV / JSON / HTML | ✅ | — | implemented |
+| FBX mesh export | ✅ | — | optional (`assimp` CLI); explicit unavailable state |
+| DSM / DTM / orthophoto / sigma / land-cover GeoTIFFs | ✅ | — | implemented (DTM, land cover experimental) |
+| Volume / profile / slope / line of sight on observed rasters | ✅ | — | implemented; refuse below 80% coverage |
+| GCP / checkpoint accuracy, leave-one-out, CE90/LE90 | ✅ | — | implemented; independence labelled |
+| RTKLIB `.pos` RTK/PPK import | ✅ | — | implemented |
+| Video ↔ 3-D replay with sync state | ✅ | — | implemented |
+| Preview tier chained to the full run | ✅ | — | implemented |
+| Photo-textured hero mesh (OpenMVS), display only | — | ✅ | script; not yet run on a hero mission |
 | COLMAP verified engine | ✅ | optional | optional adapter |
 | MASt3R-SLAM / VGGT learned reconstruction | — | ✅ | optional adapter (stub) |
 
@@ -189,11 +197,15 @@ research lab made from it are left out until they can be credited.
 
 ## Telemetry schema
 
-CSV / JSON / SRT accepted. **Required:** `timestamp, latitude, longitude,
+CSV / JSON / SRT and RTKLIB `.pos` (RTK/PPK) accepted. **Required:** `timestamp, latitude, longitude,
 altitude`. **Optional:** `roll, pitch, yaw, velocity, gps_accuracy, rtk_status,
 fx, fy, cx, cy, focal_length`. Column aliases are recognised (`lat`, `lon`,
 `heading`, `hdop`, …). Invalid rows are reported, never silently dropped. See
 `docs/TELEMETRY.md`.
+
+Accuracy against surveyed points, terrain analytics, the mesh formats, the
+geoid, the evidence package, replay and the preview tier are described in
+[`docs/ANALYTICS_AND_ACCURACY.md`](docs/ANALYTICS_AND_ACCURACY.md).
 
 ## Camera calibration
 
@@ -204,6 +216,8 @@ assumption as a warning**.
 ## Accuracy & honesty rules
 
 - Alignment residual ≠ independent accuracy (reported separately).
+- GCP fit residuals and leave-one-out scores are labelled NOT independent;
+  only held-back checkpoints give an independent corrected figure.
 - With ordinary GPS, absolute accuracy is **GPS-limited (often metre-level)**;
   with RTK/PPK the report labels scale as RTK-derived.
 - Centimetre accuracy is never claimed without measured ground-truth evidence.

@@ -3607,3 +3607,56 @@ AGZ 0.46 (held out), HKisland02 0.41, HKisland03 0.25, Austin 0.17–0.19.
   be reported as a robust parameter.
 - Ground and vegetation are unscored: no reference exists for them.
 - Austin's wide roofs remain the main failure of the default.
+
+## DEC-048 — Close the audit's P0/P1 gaps without weakening measurement honesty
+
+**Date:** 2026-10-04
+
+**Status:** Accepted
+
+### Context
+
+The verified competitor audit
+(`drishti3d/docs/sih_submission_2026/COMPETITOR_AUDIT_VERIFIED_ACTION_PLAN.md`)
+counted 11 complete, 11 partial and 7 missing of 29 rows, and set P0/P1 work:
+checkpoint accuracy, RTKLIB import, raster analytics, OBJ/FBX, the geoid, an
+evidence package, a textured hero mesh, video replay, a road class and a
+preview tier. It also found two tests asserting "ellipsoidal" on fixtures that
+never stated a datum.
+
+### Decision
+
+1. **Accuracy blocks carry their independence.** Raw and held-back checkpoints
+   are independent; GCP fit residuals and leave-one-out are labelled NOT
+   independent. With no checkpoints the headline is the raw figure, with a
+   warning. A translation for 1–2 GCPs, a similarity for 3+ non-collinear.
+2. **RTKLIB Q codes keep their own meaning.** Q=4 is DGPS, not fixed; the
+   original Q and statistics are kept. GPS time is converted with the
+   leap-second table; the header's height type sets the datum.
+3. **Analytics refuse rather than interpolate.** Below 80% observed coverage
+   the answer is a refusal. Volume and profile use mean height per cell (the
+   DSM adds 50 m³ of phantom volume on a 256 m² flat test with 0.1 m noise);
+   line of sight uses the DSM and is `unknown` over unobserved or marginal
+   cells.
+4. **Meshes are display geometry.** OBJ always, FBX only through `assimp`
+   with an explicit unavailable state; the OpenMVS textured mesh is placed only
+   if the recorded transform reproduces the solved camera centres within 5 cm.
+5. **No road class** until labelled roads exist to score it.
+6. **The preview is a real reconstruction, labelled.** At most 40 keyframes,
+   no dense/mesh/fill; it can queue the balanced run that replaces it.
+7. **The datum tests were fixed, not the behaviour.** Fixtures that assert
+   ellipsoidal now declare it; new tests pin the unknown state.
+
+### Evidence
+
+TESTS_AND_RESULTS 2026-10-04. End-to-end on the synthetic flight through the
+web API and a real browser: rasters, OBJ, FBX, analytics, accuracy panel,
+replay states, and preview → full chaining.
+
+### Consequences / limits
+
+- Nothing here measures field accuracy: the checkpoint code is exercised on
+  synthetic truth only.
+- The textured mesh, preview timing on a 10-minute flight, and FBX on the demo
+  laptop are unverified there.
+- IMU attitude priors (audit B2) and all P2 research items are not started.

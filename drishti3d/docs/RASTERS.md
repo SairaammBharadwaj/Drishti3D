@@ -121,3 +121,17 @@ downtown, larger in the south-east). That is not a clean shift, and the
 indicator mixes trees with buildings. Austin's absolute placement should be
 treated as unverified until a dedicated check. The planned one uses StratMap
 2021 LiDAR for horizontal placement on unchanged buildings only.
+
+## Roads
+
+There is no road class. Roads and other paved surfaces are part of *ground*.
+A road class needs labelled road data to be validated against, and the
+project has none; a split by colour alone would be a guess with a name.
+`rasters.json` (`roads`) and the land-cover caption say so.
+
+## Analytics on these grids
+
+Volume, profile, slope and line of sight read `rasters.npz` and keep the same
+rules: empty cells are unknown, never interpolated, and an answer below 80%
+observed coverage is refused. Volume and profile use the mean height per cell,
+line of sight the DSM. See [ANALYTICS_AND_ACCURACY.md](ANALYTICS_AND_ACCURACY.md).
