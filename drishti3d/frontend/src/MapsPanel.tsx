@@ -48,7 +48,7 @@ export default function MapsPanel({ id, maps }: { id: string; maps: RasterInfo }
       <p className="muted maps-meta">
         {s.cell_size_m} m cells
         {s.footprint_coverage != null && ` · ${Math.round(s.footprint_coverage * 100)}% of the footprint measured`}
-        {` · ${s.crs} · heights WGS84 ellipsoidal · empty cells are left empty`}
+        {` · ${s.crs} · heights: ${s.vertical_reference} · empty cells are left empty`}
       </p>
     </div>
   )

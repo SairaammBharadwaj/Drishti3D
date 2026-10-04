@@ -4,9 +4,13 @@ import {
   api, PROVENANCE, enuToLatLon, processingTime,
   type ModelPayload, type QualityReport, type Trajectory,
   type Measurement, type MeasurementKind, type FrameMetric, type Keyframe, type Vec3,
-  type RasterInfo, type PointInfo,
+  type RasterInfo, type PointInfo, type TerrainTool,
 } from '../api'
+import AccuracyPanel from '../AccuracyPanel'
 import MapsPanel from '../MapsPanel'
+import TerrainTools from '../TerrainTools'
+import VideoSync from '../VideoSync'
+import type { Pose } from '../replayMath'
 import PositionCard from '../PositionCard'
 import ReconstructionNotice from '../ReconstructionNotice'
 import ToleranceLens from '../ToleranceLens'
@@ -49,6 +53,10 @@ export default function Workspace() {
   const [allowInferred, setAllowInferred] = useState(false)
   const [lastResult, setLastResult] = useState<Measurement | null>(null)
   const [position, setPosition] = useState<PointInfo | null>(null)
+  const [terrainTool, setTerrainTool] = useState<TerrainTool | null>(null)
+  const [replayPose, setReplayPose] = useState<Pose | null>(null)
+  const [followReplay, setFollowReplay] = useState(false)
+  const [showVideo, setShowVideo] = useState(false)
 
   // A measured point gets every coordinate form; other results do not.
   useEffect(() => {
@@ -118,9 +126,10 @@ export default function Workspace() {
     setVisible(s)
   }
 
-  const startKind = (k: MeasurementKind) => { setKind(k); setPts([]); setLastResult(null) }
+  const startKind = (k: MeasurementKind) => { setTerrainTool(null); setKind(k); setPts([]); setLastResult(null) }
+  const startTerrain = (t: TerrainTool) => { setKind(null); setTerrainTool(t); setPts([]) }
   const onPick = useCallback((p: Vec3) => setPts((prev) => [...prev, p]), [])
-  const cancel = () => { setKind(null); setPts([]) }
+  const cancel = () => { setKind(null); setTerrainTool(null); setPts([]) }
 
   const finish = async () => {
     if (!kind) return
@@ -187,6 +196,10 @@ export default function Workspace() {
         )}
         {position && <PositionCard info={position} />}
 
+        <h3 style={{ marginTop: 18 }}>Terrain analysis</h3>
+        <TerrainTools projectId={id} tool={terrainTool} points={pts} available={!!maps}
+          onStart={startTerrain} onClear={() => setPts([])} onCancel={() => { setTerrainTool(null); setPts([]) }} />
+
         <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
           <ToleranceLens
             projectId={id} kind={kind} points={pts}
@@ -231,12 +244,15 @@ export default function Workspace() {
       <div className="viewer-wrap">
         <PointCloudViewer
           model={model} full={full} colorMode={colorMode} splat={splat} pointSize={pointSize}
-          visibleProvenance={visible} picking={kind != null}
+          visibleProvenance={visible} picking={kind != null || terrainTool != null}
           onPick={onPick} onHover={setHover}
           activePoints={pts} savedLines={savedLines}
+          replayPose={showVideo ? replayPose : null} followReplay={showVideo && followReplay}
         />
         <div className="viewer-hint">
-          {kind ? `Picking for ${kind} — click points, then Finish` : 'Drag to orbit · scroll to zoom · pick a tool to measure'}
+          {kind ? `Picking for ${kind} — click points, then Finish`
+            : terrainTool ? `Picking for ${terrainTool} — click points, then Compute`
+            : 'Drag to orbit · scroll to zoom · pick a tool to measure'}
         </div>
         <section className="viewer-detail" aria-label="Point cloud visibility">
           {full ? (
@@ -302,6 +318,15 @@ export default function Workspace() {
             {quality.alignment && <div className="notebox warn" style={{ marginTop: 8, fontSize: 12 }}>{quality.alignment.note}</div>}
           </>
         )}
+
+        <h3 style={{ marginTop: 18 }}>Absolute accuracy</h3>
+        <AccuracyPanel projectId={id} />
+
+        <div className="spread" style={{ marginTop: 18 }}>
+          <h3>Video ↔ 3-D</h3>
+          <button onClick={() => setShowVideo((v) => !v)}>{showVideo ? 'Hide' : 'Play video'}</button>
+        </div>
+        {showVideo && <VideoSync projectId={id} onPose={setReplayPose} follow={followReplay} onFollow={setFollowReplay} />}
 
         <h3 style={{ marginTop: 18 }}>Trajectory</h3>
         {traj ? <TrajectoryMap traj={traj} /> : <div className="muted">not available</div>}

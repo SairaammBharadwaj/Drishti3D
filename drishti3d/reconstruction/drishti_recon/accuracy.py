@@ -321,7 +321,8 @@ def points_from_rows(rows, frame: ENUFrame | None, *, truth_datum: str = "ellips
     Each row needs ``id``, ``role`` (gcp/check) and the model position
     ``model_e, model_n, model_u`` (local ENU, as picked in the viewer), plus
     the truth as one of ``lat, lon, h``; ``easting, northing, h, epsg``; or
-    ``e, n, u`` (already in the mission frame). Optional ``truth_sigma_m``.
+    ``e, n, u`` (already in the mission frame, so on its datum whatever
+    ``truth_datum`` says). Optional ``truth_sigma_m``.
     """
     pts = []
     for i, raw in enumerate(rows):
@@ -329,10 +330,8 @@ def points_from_rows(rows, frame: ENUFrame | None, *, truth_datum: str = "ellips
         pid = str(row.get("id") or f"P{i + 1}").strip()
         measured = [_f(row, k, i) for k in _MEASURED]
         if all(row.get(k) not in (None, "") for k in _TRUTH_ENU):
+            # Already in the mission's own frame (and so on its datum).
             truth = [_f(row, k, i) for k in _TRUTH_ENU]
-            if truth_datum != mission_datum:
-                raise ValueError(f"row {i}: ENU truth must already be on the mission's "
-                                 "vertical datum")
         else:
             if frame is None:
                 raise ValueError("the mission is not georeferenced: truth must be given "

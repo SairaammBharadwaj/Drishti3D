@@ -296,9 +296,10 @@ def export_mesh_formats(out_dir, verts, faces, colors=None, *, frame=None,
               "frame": "local ENU metres", "caveat": MESH_CAVEAT}
     if fbx:
         fb = convert_with_assimp(arts["mesh_obj"], out_dir / "mesh.fbx")
-        status["fbx"] = fb
         if fb["ok"]:
-            arts["mesh_fbx"] = fb["path"]
+            arts["mesh_fbx"] = fb.pop("path")
+            fb["file"] = "mesh.fbx"          # no machine-specific path in the record
+        status["fbx"] = fb
     (out_dir / "mesh_formats.json").write_text(json.dumps(status, indent=2))
     arts["mesh_formats_json"] = str(out_dir / "mesh_formats.json")
     return {"artifacts": arts, "status": status}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js'
 import { PROVENANCE, type ModelPayload, type Vec3 } from './api'
+import type { Pose } from './replayMath'
 
 interface Props {
   model: ModelPayload
@@ -16,6 +17,10 @@ interface Props {
   onHover: (enu: Vec3 | null) => void
   activePoints: Vec3[]      // current in-progress measurement points
   savedLines: Vec3[][]      // completed measurement polylines
+  /** The video camera at the current playback time (VideoSync), Three.js convention. */
+  replayPose?: Pose | null
+  /** Put the 3-D view where the video camera is. */
+  followReplay?: boolean
 }
 
 export default function PointCloudViewer(props: Props) {
@@ -34,6 +39,7 @@ export default function PointCloudViewer(props: Props) {
     raycaster: THREE.Raycaster
     radius: number
     markerGroup: THREE.Group
+    replayMarker: THREE.Group
     /** Draw on the next frame. The loop draws only after a change. */
     invalidate: () => void
     dispose: () => void
@@ -168,6 +174,22 @@ export default function PointCloudViewer(props: Props) {
     const markerGroup = new THREE.Group()
     scene.add(markerGroup)
 
+    // The video camera during replay: a small frustum, apex at the camera,
+    // opening down its local -Z (Three.js convention, as /replay sends it).
+    const replayMarker = new THREE.Group()
+    {
+      const s = radius * 0.04, a = s * 0.8, b = s * 0.45
+      const v = [[0, 0, 0], [-a, -b, -s], [a, -b, -s], [a, b, -s], [-a, b, -s]]
+      const e = [0, 1, 0, 2, 0, 3, 0, 4, 1, 2, 2, 3, 3, 4, 4, 1]
+      const fg = new THREE.BufferGeometry()
+      fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(e.flatMap((i) => v[i])), 3))
+      replayMarker.add(new THREE.LineSegments(fg, new THREE.LineBasicMaterial({ color: 0xffd23c })))
+      const up = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, b, -s), new THREE.Vector3(0, b * 1.8, -s)])
+      replayMarker.add(new THREE.Line(up, new THREE.LineBasicMaterial({ color: 0xffd23c })))
+    }
+    replayMarker.visible = false
+    scene.add(replayMarker)
+
     camera.position.set(center.x + radius * 1.6, center.y - radius * 1.8, center.z + radius * 1.4)
     controls.target.copy(center)
     controls.update()
@@ -210,7 +232,7 @@ export default function PointCloudViewer(props: Props) {
 
     ctx.current = {
       renderer, scene, camera, controls, points, basePositions,
-      trueColors, provColors, provCodes, raycaster, radius, markerGroup, invalidate, dispose,
+      trueColors, provColors, provCodes, raycaster, radius, markerGroup, replayMarker, invalidate, dispose,
     }
     return dispose
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -287,6 +309,27 @@ export default function PointCloudViewer(props: Props) {
     addLine(props.activePoints, 0xff9a3c)
     c.invalidate()
   }, [props.activePoints, props.savedLines])
+
+  // ---- video replay camera ------------------------------------------------
+  useEffect(() => {
+    const c = ctx.current; if (!c) return
+    const p = props.replayPose
+    if (!p?.position || !p.quaternion) { c.replayMarker.visible = false; c.invalidate(); return }
+    const q = new THREE.Quaternion(...p.quaternion)
+    c.replayMarker.position.set(...p.position)
+    c.replayMarker.quaternion.copy(q)
+    c.replayMarker.visible = !props.followReplay
+    if (props.followReplay) {
+      // Trackball re-aims the camera at its target every frame, so steer it
+      // through position, up and target rather than setting the rotation.
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q)
+      c.camera.position.set(...p.position)
+      c.camera.up.copy(new THREE.Vector3(0, 1, 0).applyQuaternion(q))
+      c.controls.target.copy(c.camera.position).addScaledVector(fwd, c.radius * 0.5)
+      c.controls.update()
+    }
+    c.invalidate()
+  }, [props.replayPose, props.followReplay])
 
   // Any other prop change redraws too, so a scene update cannot be missed.
   useEffect(() => { ctx.current?.invalidate() })

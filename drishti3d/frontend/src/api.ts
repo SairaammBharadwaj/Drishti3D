@@ -219,6 +219,69 @@ export interface PointInfo {
   placement_note?: string
 }
 
+/** Terrain analytics (drishti_recon.terrain) on the observed rasters. */
+export type TerrainTool = 'volume' | 'profile' | 'slope' | 'los'
+export interface TerrainCommon {
+  status: 'ok' | 'refused'
+  reason?: string
+  coverage?: number
+  crs?: string
+  vertical_datum?: string
+  cell_size_m?: number
+  evidence?: string
+  surface?: string
+}
+export interface VolumeResult extends TerrainCommon {
+  net_m3?: number; cut_m3?: number; fill_m3?: number; area_m2?: number
+  base?: { kind: string; z?: number; edge_rms_m?: number }
+  sigma_m3?: { independent_cells: number | null; fully_correlated_bound: number | null; note: string }
+  unobserved_note?: string | null
+}
+export interface ProfileSample { d_m: number; z: number | null; sigma_m: number | null }
+export interface ProfileResult extends TerrainCommon {
+  length_m?: number; samples?: ProfileSample[]; min_z?: number; max_z?: number
+  net_rise_m?: number; mean_grade_pct?: number; gaps?: number
+}
+export interface SlopeResult extends TerrainCommon {
+  mean_deg?: number; median_deg?: number; p90_deg?: number; max_deg?: number
+}
+export interface LosResult extends TerrainCommon {
+  result?: 'visible' | 'blocked' | 'unknown'
+  length_m?: number
+  obstruction?: { x: number; y: number; z: number; clearance_m: number; distance_m: number }
+  min_clearance_m?: number | null
+  unobserved_samples?: number; marginal_samples?: number
+}
+
+/** accuracy.json (drishti_recon.accuracy). */
+export interface ErrorStats {
+  n: number
+  mean_m?: { e: number; n: number; u: number }
+  rmse_m?: { e: number; n: number; u: number; horizontal: number; '3d': number }
+  ce90_m?: number; le90_m?: number
+  ce90_empirical_m?: number; le90_empirical_m?: number
+}
+export interface AccuracyBlock { label: string; independent: boolean; stats: ErrorStats }
+export interface AccuracyReport {
+  truth_source: string | null
+  vertical_datum: string | null
+  n_gcp: number; n_check: number
+  raw: AccuracyBlock
+  correction: { kind: string; n_points: number; scale_ppm: number; rotation_deg: number; translation_m: number[]; note: string | null }
+  fit_residuals?: AccuracyBlock
+  leave_one_out?: AccuracyBlock
+  checkpoints?: AccuracyBlock
+  asprs: { sample_sufficient: boolean; independent_checkpoints: number; note: string | null }
+  headline: { block: string; text: string; warning?: string }
+  stale?: boolean
+}
+
+/** Solved cameras on the video clock, Three.js convention (drishti_recon.replay). */
+export interface ReplayKey { t: number; frame_index: number; position: Vec3; quaternion: [number, number, number, number] }
+export interface ReplayTrack { track: ReplayKey[]; max_gap_s: number; convention: string }
+
+export interface GeoidStatus { available: boolean; model: string; detail?: string }
+
 /** The id this browser's measurements and questions are kept under on a
  *  read-only showcase, where each visitor writes to a private copy of the
  *  database (backend/app/sandbox.py). Other servers ignore it. */
@@ -370,6 +433,20 @@ export const api = {
   exportUrl: (id: string, key: string) => `${BASE}/api/projects/${id}/exports/${key}`,
   rasters: (id: string) => send(`${BASE}/api/projects/${id}/rasters`).then(j<RasterInfo>),
   rasterPreviewUrl: (id: string, name: string) => `${BASE}/api/projects/${id}/rasters/${name}.png`,
+  terrain: <T extends TerrainCommon>(id: string, tool: TerrainTool, body: object) =>
+    send(`${BASE}/api/projects/${id}/terrain/${tool}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(j<T>),
+  accuracy: (id: string) => send(`${BASE}/api/projects/${id}/accuracy`).then(j<AccuracyReport>),
+  uploadCheckpoints: (id: string, file: File, truthSource: string, datum: 'ellipsoidal' | 'msl') => {
+    const fd = new FormData()
+    fd.append('file', file); fd.append('truth_source', truthSource)
+    fd.append('truth_vertical_datum', datum)
+    return send(`${BASE}/api/projects/${id}/accuracy/csv`, { method: 'POST', body: fd }).then(j<AccuracyReport>)
+  },
+  replay: (id: string) => send(`${BASE}/api/projects/${id}/replay`).then(j<ReplayTrack>),
+  geoid: () => send(`${BASE}/api/system/geoid`).then(j<GeoidStatus>),
   pointInfo: (id: string, p: Vec3) => send(
     `${BASE}/api/projects/${id}/point_info?e=${p[0]}&n=${p[1]}&u=${p[2]}`).then(j<PointInfo>),
 

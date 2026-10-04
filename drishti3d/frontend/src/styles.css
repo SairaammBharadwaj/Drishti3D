@@ -319,3 +319,21 @@ th { color: var(--muted); font-weight: 600; }
   .viewer-detail { align-items: stretch; flex-direction: column; gap: 8px; }
   .viewer-detail .viewer-detail-button { width: 100%; }
 }
+
+/* Terrain analytics, accuracy, video replay ------------------------------ */
+.badge.ok { color: var(--green); border-color: #1f5a37; }
+.badge.warn { color: var(--amber); border-color: #5a4a1a; }
+.terrain-result { margin-top: 8px; }
+.terrain-result p { margin: 4px 0; }
+.terrain-meta { font-size: 11px; }
+.profile-chart { width: 100%; height: 90px; color: var(--accent); margin: 6px 0; }
+.los-visible { color: var(--green); font-weight: 600; }
+.los-blocked { color: var(--red); font-weight: 600; }
+.los-unknown { color: var(--amber); font-weight: 600; }
+.accuracy-block { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 6px; }
+.video-sync video { border-radius: 6px; background: #000; max-height: 220px; }
+.sync-indicator { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; margin: 6px 0; }
+.sync-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.sync-synced .sync-dot { background: var(--green); }
+.sync-gap .sync-dot { background: var(--amber); }
+.sync-out_of_range .sync-dot { background: var(--red); }
