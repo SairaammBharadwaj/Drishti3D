@@ -1,6 +1,7 @@
 """Telemetry ingestion and validation.
 
-Accepts CSV, JSON, or SRT (DJI-style) telemetry.  Required fields:
+Accepts CSV, JSON, SRT (DJI-style) telemetry, or an RTKLIB ``.pos`` RTK/PPK
+solution (:mod:`rtk`).  Required fields:
 ``timestamp, latitude, longitude, altitude``.  Optional: roll, pitch, yaw,
 velocity, barometric_altitude, focal_length, fx, fy, cx, cy, distortion,
 rtk_status, gps_accuracy.  Returns a normalised list of samples plus a
@@ -492,6 +493,9 @@ def load(path: str | Path) -> TelemetryReport:
         samples, intr = parse_json(path, warnings)
     elif ext == ".srt":
         samples, intr = parse_srt(path, warnings)
+    elif ext == ".pos":
+        from .rtk import parse_pos
+        samples, intr = parse_pos(path, warnings)
     else:
         raise ValueError(f"unsupported telemetry format: {ext}")
 

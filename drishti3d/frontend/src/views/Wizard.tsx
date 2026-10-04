@@ -152,12 +152,12 @@ export default function Wizard() {
 
       {step === 2 && project && (
         <div className="card stack">
-          <h3>Telemetry (optional · CSV / JSON / SRT)</h3>
+          <h3>Telemetry (optional · CSV / JSON / SRT / RTKLIB .pos)</h3>
           <div className="muted" style={{ fontSize: 13 }}>
             If supplied, required fields are timestamp, latitude, longitude, altitude. Optional: yaw, gps_accuracy, rtk_status, fx/fy/cx/cy.
           </div>
           <div className="notebox">No telemetry? Continue with video only. The reconstruction will have relative scale, without established distances in metres or a geographic position.</div>
-          <input type="file" aria-label="Upload telemetry" accept=".csv,.json,.srt" onChange={(e) => onTelemetry(e.target.files?.[0])} />
+          <input type="file" aria-label="Upload telemetry" accept=".csv,.json,.srt,.pos" onChange={(e) => onTelemetry(e.target.files?.[0])} />
           {project.telemetry_filename && <div className="notebox">Uploaded: <span className="mono">{project.telemetry_filename}</span></div>}
           <div className="row">
             <button onClick={() => setStep(1)}>← Back</button>

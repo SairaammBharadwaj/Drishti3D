@@ -15,7 +15,7 @@ DB_PATH = DATA_DIR / "drishti3d.db"
 
 MAX_UPLOAD_BYTES = int(os.environ.get("DRISHTI_MAX_UPLOAD_MB", "2048")) * 1024 * 1024
 ALLOWED_VIDEO_EXT = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"}
-ALLOWED_TELEMETRY_EXT = {".csv", ".json", ".srt"}
+ALLOWED_TELEMETRY_EXT = {".csv", ".json", ".srt", ".pos"}
 
 # Bind locally by default (offline / air-gapped friendly).
 HOST = os.environ.get("DRISHTI_HOST", "127.0.0.1")
