@@ -45,6 +45,9 @@ _EXPORT_FILES = {
     # Mesh in OBJ, and FBX when assimp converted it (exports.export_mesh_formats).
     "mesh_obj": "mesh.obj",
     "mesh_fbx": "mesh.fbx",
+    # Photo-textured OpenMVS mesh, display only (scripts/texture_hero.py).
+    "textured_zip": "textured_mesh.zip",
+    "textured_json": "textured_mesh.json",
 }
 
 #: Preview images rasters.py writes, by the name the API serves them under.
