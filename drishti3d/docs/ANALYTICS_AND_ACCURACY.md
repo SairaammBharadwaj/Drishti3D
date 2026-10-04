@@ -146,7 +146,26 @@ synthetic clip on a 4-core CPU machine: preview 159 s (36 keyframes), full
 - **Road / paved class.** Not added: there is no labelled road data to
   validate one. Roads stay in *ground*, and the land-cover caption and
   `rasters.json` say so.
-- **IMU attitude prior for straight-line flights (audit B2).** Not started.
+- **IMU attitude prior for straight-line flights (audit B2).** Not started. The
+  current system detects the straight-line degeneracy and refuses to hide it;
+  adding a prior requires a real flight with trustworthy body attitude and an
+  independent score, so it must not be marked complete from a synthetic run.
 - **P2 research** — GLOMAP/global SfM, NVDEC decode, stage resume, trained
-  3D Gaussian splats, Cesium/3D Tiles, live RTSP, semantic models — each needs
-  an A/B on real flights and a GPU, and none was attempted.
+  3D Gaussian splats, Cesium/3D Tiles, live RTSP and learned semantic models
+  remain unattempted. This machine has no `glomap`, `torch`, `gsplat`, Cesium
+  runtime or OpenMVS installation; each item remains gated on the required
+  tooling and a real-flight A/B result.
+
+## Local completion record — 4 October 2026
+
+The EGM2008 grid was installed with `scripts/install_geoid.py` and passed the
+known-point checks: Zurich `N=+47.715 m`, Austin `N=-26.900 m`, and Hong Kong
+`N=-2.199 m`. The grid is now usable on this machine; the offline demo laptop
+still needs the same installer/check.
+
+An evidence package was generated for the recorded DJI_1003 performance run:
+`data/runs/dji_1003__perf_final/artifacts/evidence_package.json` and `.md`.
+It records hashes, machine/software details, timing, georeference, output
+hashes and the accuracy policy. It has no input-video match because the source
+video is not present beside that historical run, so it must not be presented as
+a freshly re-run hero-mission package.

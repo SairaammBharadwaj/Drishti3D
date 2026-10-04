@@ -195,6 +195,21 @@ Work on branch `repo-cleanup-and-showcase`; decision DEC-048; user guide
 Not attempted: GLOMAP, NVDEC, stage resume, trained 3DGS, Cesium/3D Tiles,
 live RTSP, semantic models. Each needs a GPU and real flights for its A/B.
 
+### Local completion update — 4 October 2026
+
+The EGM2008 grid has now been installed and verified on the development
+machine using `scripts/install_geoid.py` (Zurich, Austin and Hong Kong known
+points all passed). An evidence package was also generated for the recorded
+`dji_1003__perf_final` artefacts. It records the historical run faithfully but
+has no matching source video beside the run, so it is not a replacement for a
+fresh hero-laptop capture.
+
+The remaining items are not safely finishable in this environment: OpenMVS,
+GLOMAP, NVDEC, trained 3DGS/Cesium stacks and a GPU are absent. The IMU prior
+and road class also require an independent real-flight/labelled validation set;
+the current fail-closed degeneracy detection and ground classification remain
+the honest defaults.
+
 ### Section 6 test failures
 
 The two vertical-reference failures are resolved without weakening the
